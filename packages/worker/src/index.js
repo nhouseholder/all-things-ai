@@ -16,6 +16,8 @@ import { scoreUnscored } from './services/relevance-scorer.js';
 import { generateRecommendations } from './services/recommendation-engine.js';
 import { computeCompositeScores } from './services/composite-score-engine.js';
 import { computeTaskCosts } from './services/task-cost-calculator.js';
+import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
+import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
 
 const app = new Hono();
 
@@ -24,7 +26,7 @@ app.use('/api/*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 
-app.get('/', (c) => c.json({ name: 'All Things AI API', version: '0.1.0', status: 'ok' }));
+app.get('/', (c) => c.json({ name: 'All Things AI API', version: '0.2.0', status: 'ok' }));
 
 app.route('/api/feed', feedRoutes);
 app.route('/api/tools', toolsRoutes);
@@ -44,8 +46,65 @@ app.post('/api/ingest', async (c) => {
   try { await scoreUnscored(c.env); results.scoring = 'ok'; } catch (e) { results.scoring = e.message; }
   try { await generateRecommendations(c.env); results.recommendations = 'ok'; } catch (e) { results.recommendations = e.message; }
   try { await computeTaskCosts(c.env); results.taskCosts = 'ok'; } catch (e) { results.taskCosts = e.message; }
+  try { await scrapeRedditReviews(c.env); results.redditReviews = 'ok'; } catch (e) { results.redditReviews = e.message; }
+  try { await scrapeHNReviews(c.env); results.hnReviews = 'ok'; } catch (e) { results.hnReviews = e.message; }
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
   return c.json(results);
+});
+
+// Manual trigger for community review scraping only
+app.post('/api/ingest/reviews', async (c) => {
+  const results = {};
+  try {
+    const reddit = await scrapeRedditReviews(c.env);
+    results.reddit = { status: 'ok', ...reddit };
+  } catch (e) { results.reddit = { status: 'error', message: e.message }; }
+  try {
+    const hn = await scrapeHNReviews(c.env);
+    results.hn = { status: 'ok', ...hn };
+  } catch (e) { results.hn = { status: 'error', message: e.message }; }
+  // Recompute composite scores after review update
+  try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
+  return c.json(results);
+});
+
+// Community review data API
+app.get('/api/reviews', async (c) => {
+  const modelSlug = c.req.query('model');
+  let query = `
+    SELECT cr.*, m.slug as model_slug, m.name as model_name
+    FROM community_reviews cr
+    JOIN models m ON cr.model_id = m.id
+  `;
+  const params = [];
+  if (modelSlug) {
+    query += ' WHERE m.slug = ?';
+    params.push(modelSlug);
+  }
+  query += ' ORDER BY cr.review_count DESC';
+
+  const { results } = await c.env.DB.prepare(query).bind(...params).all();
+  return c.json({ reviews: results });
+});
+
+// Community review breakdown by user type
+app.get('/api/reviews/breakdown', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT m.slug, m.name,
+           SUM(cr.casual_count) as total_casual,
+           SUM(cr.vibe_coder_count) as total_vibe,
+           SUM(cr.heavy_coder_count) as total_heavy,
+           SUM(cr.review_count) as total_reviews,
+           ROUND(AVG(cr.casual_satisfaction), 1) as avg_casual_satisfaction,
+           ROUND(AVG(cr.vibe_coder_satisfaction), 1) as avg_vibe_satisfaction,
+           ROUND(AVG(cr.heavy_coder_satisfaction), 1) as avg_heavy_satisfaction,
+           ROUND(AVG(cr.coding_satisfaction), 1) as avg_overall_satisfaction
+    FROM community_reviews cr
+    JOIN models m ON cr.model_id = m.id
+    GROUP BY m.id
+    ORDER BY total_reviews DESC
+  `).all();
+  return c.json({ breakdown: results });
 });
 
 export default {

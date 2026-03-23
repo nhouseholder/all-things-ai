@@ -1,7 +1,16 @@
 /**
- * Composite Score Engine
- * Computes the AllThingsAI composite score for all active models
- * and stores results in model_composite_scores table.
+ * Composite Score Engine v2
+ *
+ * Computes the AllThingsAI proprietary composite score for all active models.
+ * Combines benchmark performance (90% base) with community signal (up to ±5 points).
+ *
+ * Community scoring is weighted by user type:
+ *   - Heavy coders (50% weight): senior devs, infra engineers, ML practitioners
+ *   - Vibe coders  (30% weight): indie hackers, vibe coders, fullstack builders
+ *   - Casual users (20% weight): general AI users, students, non-coders
+ *
+ * This weighting reflects our target audience (AI coders) while still
+ * incorporating broad community sentiment for a complete picture.
  */
 
 const BENCHMARK_MAP = {
@@ -15,11 +24,74 @@ const BENCHMARK_MAP = {
 
 const SUCCESS_WEIGHT = 0.10;
 
+// Community score weighting by user type
+const COMMUNITY_WEIGHTS = {
+  heavy_coder: 0.50,
+  vibe_coder:  0.30,
+  casual:      0.20,
+};
+
+// Max community adjustment range (±5 points on 0-100 scale)
+const MAX_COMMUNITY_ADJ = 5.0;
+
 function normalizeBenchmark(key, score) {
   if (key === 'arena') {
     return Math.max(0, Math.min(100, (score - 1200) / 400 * 100)) / 100;
   }
   return score / 100;
+}
+
+/**
+ * Compute a weighted community adjustment from per-source, per-user-type reviews.
+ *
+ * For each model, we pull all community_reviews rows and compute:
+ *   weighted_satisfaction = Σ (type_satisfaction × type_weight × type_count) / Σ (type_count × type_weight)
+ *
+ * Then map to adjustment range: (satisfaction/100 × MAX_ADJ*2) - MAX_ADJ
+ * So 100 satisfaction → +5.0, 50 → 0.0, 0 → -5.0
+ */
+function computeCommunityAdjustment(reviewRows) {
+  if (!reviewRows || reviewRows.length === 0) return 0;
+
+  let weightedSum = 0;
+  let weightedCount = 0;
+
+  for (const row of reviewRows) {
+    // Heavy coder signal
+    if (row.heavy_coder_count > 0) {
+      const w = COMMUNITY_WEIGHTS.heavy_coder * row.heavy_coder_count;
+      weightedSum += row.heavy_coder_satisfaction * w;
+      weightedCount += w;
+    }
+
+    // Vibe coder signal
+    if (row.vibe_coder_count > 0) {
+      const w = COMMUNITY_WEIGHTS.vibe_coder * row.vibe_coder_count;
+      weightedSum += row.vibe_coder_satisfaction * w;
+      weightedCount += w;
+    }
+
+    // Casual signal
+    if (row.casual_count > 0) {
+      const w = COMMUNITY_WEIGHTS.casual * row.casual_count;
+      weightedSum += row.casual_satisfaction * w;
+      weightedCount += w;
+    }
+
+    // Fallback: if no per-type breakdown, use aggregate
+    if (row.heavy_coder_count === 0 && row.vibe_coder_count === 0 && row.casual_count === 0) {
+      if (row.review_count > 0 && row.coding_satisfaction != null) {
+        const w = COMMUNITY_WEIGHTS.casual * row.review_count;
+        weightedSum += row.coding_satisfaction * w;
+        weightedCount += w;
+      }
+    }
+  }
+
+  if (weightedCount === 0) return 0;
+
+  const avgSatisfaction = weightedSum / weightedCount;
+  return (avgSatisfaction / 100 * MAX_COMMUNITY_ADJ * 2) - MAX_COMMUNITY_ADJ;
 }
 
 export async function computeCompositeScores(env) {
@@ -40,18 +112,28 @@ export async function computeCompositeScores(env) {
 
   const benchmarkIndex = {};
   for (const b of allBenchmarks) {
-    const key = `${b.model_id}:${b.benchmark_name}`;
-    benchmarkIndex[key] = b.score;
+    benchmarkIndex[`${b.model_id}:${b.benchmark_name}`] = b.score;
   }
 
-  // 3. Avg coding_satisfaction per model from community_reviews
-  const { results: reviewRows } = await env.DB.prepare(
-    'SELECT model_id, AVG(coding_satisfaction) as avg_satisfaction FROM community_reviews GROUP BY model_id'
-  ).all();
+  // 3. Community reviews with per-type breakdown, grouped by model
+  const { results: reviewRows } = await env.DB.prepare(`
+    SELECT model_id, source, sentiment_score, coding_satisfaction, review_count,
+           COALESCE(casual_sentiment, 0) as casual_sentiment,
+           COALESCE(casual_satisfaction, 50) as casual_satisfaction,
+           COALESCE(casual_count, 0) as casual_count,
+           COALESCE(vibe_coder_sentiment, 0) as vibe_coder_sentiment,
+           COALESCE(vibe_coder_satisfaction, 50) as vibe_coder_satisfaction,
+           COALESCE(vibe_coder_count, 0) as vibe_coder_count,
+           COALESCE(heavy_coder_sentiment, 0) as heavy_coder_sentiment,
+           COALESCE(heavy_coder_satisfaction, 50) as heavy_coder_satisfaction,
+           COALESCE(heavy_coder_count, 0) as heavy_coder_count
+    FROM community_reviews
+  `).all();
 
-  const satisfactionByModel = {};
+  const reviewsByModel = {};
   for (const r of reviewRows) {
-    satisfactionByModel[r.model_id] = r.avg_satisfaction;
+    if (!reviewsByModel[r.model_id]) reviewsByModel[r.model_id] = [];
+    reviewsByModel[r.model_id].push(r);
   }
 
   // 4. Avg first_attempt_success_rate per model from model_task_estimates
@@ -64,7 +146,7 @@ export async function computeCompositeScores(env) {
     successByModel[r.model_id] = r.avg_success;
   }
 
-  // 5-9. Compute composite score for each model
+  // 5. Compute composite score for each model
   let topModel = null;
   let topScore = -1;
   let computed = 0;
@@ -103,10 +185,7 @@ export async function computeCompositeScores(env) {
     };
 
     const available = Object.entries(baseWeights).filter(([k]) => components[k] != null);
-    if (!available.length) {
-      // No data at all for this model, skip
-      continue;
-    }
+    if (!available.length) continue;
 
     const totalWeight = available.reduce((s, [, w]) => s + w, 0);
     const normalized = available.map(([k, w]) => [k, w / totalWeight]);
@@ -117,12 +196,9 @@ export async function computeCompositeScores(env) {
       weightedSum += components[k] * nw * 100;
     }
 
-    // Community adjustment: range -2.5 to +2.5
-    const avgSatisfaction = satisfactionByModel[model.id];
-    let communityAdj = 0;
-    if (avgSatisfaction != null) {
-      communityAdj = (avgSatisfaction / 100 * 5) - 2.5;
-    }
+    // Community adjustment: weighted by user type
+    const modelReviews = reviewsByModel[model.id] || [];
+    const communityAdj = computeCommunityAdjustment(modelReviews);
 
     const compositeScore = Math.max(0, Math.min(100, weightedSum + communityAdj));
 

@@ -5,6 +5,9 @@ import { scrapePricing } from './pipelines/pricing-scraper.js';
 import { scoreUnscored } from './services/relevance-scorer.js';
 import { generateRecommendations } from './services/recommendation-engine.js';
 import { buildAndSendDigest } from './pipelines/digest-builder.js';
+import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
+import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
+import { computeCompositeScores } from './services/composite-score-engine.js';
 
 export async function handleScheduled(event, env) {
   const cron = event.cron;
@@ -30,6 +33,12 @@ export async function handleScheduled(event, env) {
         break;
       case '0 8 * * 1':
         await buildAndSendDigest(env);
+        break;
+      // Community review scrape: every 6 hours
+      case '0 */6 * * *':
+        await scrapeRedditReviews(env);
+        await scrapeHNReviews(env);
+        await computeCompositeScores(env);
         break;
       default:
         console.log(`[CRON] Unknown schedule: ${cron}`);
