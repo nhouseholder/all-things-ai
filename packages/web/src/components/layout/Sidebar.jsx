@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain, Scale } from 'lucide-react';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/advisor', icon: Brain, label: 'Advisor' },
+  { to: '/compare', icon: Scale, label: 'Compare' },
+  { to: '/benchmarks', icon: BarChart3, label: 'Benchmarks' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/cost', icon: DollarSign, label: 'Cost' },
-  { to: '/advisor', icon: Brain, label: 'Advisor' },
-  { to: '/benchmarks', icon: BarChart3, label: 'Benchmarks' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -20,7 +21,7 @@ export default function Sidebar() {
           <h1 className="text-lg font-bold text-white">All Things AI</h1>
         </div>
         <p className="text-xs text-gray-500 mt-1">Your AI Intelligence Hub</p>
-        <p className="text-[10px] text-gray-600 mt-0.5">v0.2.0 &middot; Mar 23, 2026</p>
+        <p className="text-[10px] text-gray-600 mt-0.5">v0.3.0 &middot; Mar 23, 2026</p>
       </div>
       <nav className="flex-1 p-3 space-y-1">
         {links.map(({ to, icon: Icon, label }) => (
@@ -44,7 +45,7 @@ export default function Sidebar() {
       <div className="p-4 border-t border-gray-800">
         <div className="text-xs text-gray-500">
           <p>Monthly spend: <span className="text-green-400 font-medium">$125</span></p>
-          <p className="mt-1">Tracking 10 tools, 9 models</p>
+          <p className="mt-1">Tracking 10 tools, 38+ models</p>
         </div>
       </div>
     </aside>

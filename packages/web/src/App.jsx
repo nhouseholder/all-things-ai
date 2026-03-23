@@ -6,6 +6,7 @@ import ToolsPage from './pages/ToolsPage.jsx';
 import CostPage from './pages/CostPage.jsx';
 import AdvisorPage from './pages/AdvisorPage.jsx';
 import BenchmarksPage from './pages/BenchmarksPage.jsx';
+import ComparePage from './pages/ComparePage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="tools" element={<ToolsPage />} />
         <Route path="cost" element={<CostPage />} />
         <Route path="advisor" element={<AdvisorPage />} />
+        <Route path="compare" element={<ComparePage />} />
         <Route path="benchmarks" element={<BenchmarksPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

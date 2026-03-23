@@ -13,8 +13,21 @@ import {
   Sparkles,
   Target,
   BarChart3,
+  Scale,
+  Globe,
+  Shield,
+  Code2,
+  Wrench,
+  Bug,
+  FileCode,
+  RefreshCcw,
+  Search,
+  BookOpen,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+
+const VERSION = 'v0.3.0';
+const BUILD_DATE = 'Mar 23, 2026';
 
 function compositeColor(score) {
   if (score >= 85) return 'text-green-400';
@@ -29,6 +42,16 @@ function compositeBarBg(score) {
   if (score >= 55) return 'bg-yellow-500';
   return 'bg-orange-500';
 }
+
+const TASK_ICONS = {
+  'complex-debugging': Bug,
+  'feature-implementation': FileCode,
+  'boilerplate-scaffolding': Code2,
+  'quick-fixes': Zap,
+  'multi-file-refactor': RefreshCcw,
+  'code-review': Search,
+  'learning-exploring': BookOpen,
+};
 
 export default function HomePage() {
   const [rankings, setRankings] = useState(null);
@@ -45,7 +68,7 @@ export default function HomePage() {
         setRankings(rankingsRes);
         setTasks(Array.isArray(tasksRes) ? tasksRes : tasksRes.tasks ?? []);
       } catch {
-        // Non-critical — page still renders without live data
+        // Non-critical
       } finally {
         setLoading(false);
       }
@@ -59,38 +82,54 @@ export default function HomePage() {
   const taskCount = tasks?.length || 0;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* ── Hero ─────────────────────────────────────────────────── */}
-      <section className="pt-8 pb-12">
-        <div className="flex items-center gap-2 mb-6">
+      <section className="pt-6 pb-10">
+        {/* Top bar with badges */}
+        <div className="flex items-center gap-2 mb-5">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] font-medium text-blue-400">
             <Sparkles className="w-3 h-3" />
             Free &middot; Open &middot; Updated Daily
           </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-[11px] font-medium text-green-400">
+            <Globe className="w-3 h-3" />
+            Includes Free &amp; Open-Source Models
+          </span>
         </div>
 
-        <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight mb-4">
-          <span className="text-white">What model should</span>
-          <br />
-          <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-            you actually use?
-          </span>
-        </h1>
+        {/* Title + version */}
+        <div className="mb-6">
+          <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight mb-1">
+            <span className="text-white">The AI model guide</span>
+            <br />
+            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              for vibe coders
+            </span>
+          </h1>
+          <p className="text-[10px] text-gray-600 font-mono">{VERSION} &middot; {BUILD_DATE}</p>
+        </div>
 
         <p className="text-lg text-gray-400 max-w-2xl mb-8 leading-relaxed">
-          Stop guessing. Pick your coding task, see which AI model wins on quality <em>and</em> cost,
-          and find the cheapest tool to run it on.
-          Backed by benchmarks, real pricing, and developer community signals.
+          Pick your coding task. See which AI model wins on quality <em>and</em> cost.
+          Find the cheapest tool to run it on &mdash; from free open-source models
+          to premium APIs. Backed by benchmarks, real pricing, and developer signals.
         </p>
 
         <div className="flex flex-wrap gap-3">
           <Link
             to="/advisor"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-colors shadow-lg shadow-blue-500/20"
+            className="group inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
           >
             <Target className="w-4 h-4" />
             Find My Model
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+          <Link
+            to="/compare"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 font-medium text-sm transition-colors"
+          >
+            <Scale className="w-4 h-4" />
+            Compare Models
           </Link>
           <Link
             to="/benchmarks"
@@ -105,38 +144,39 @@ export default function HomePage() {
       {/* ── Live Stats Bar ────────────────────────────────────────── */}
       {!loading && (
         <section className="mb-10">
-          <div className="flex flex-wrap gap-6 px-5 py-4 rounded-xl border border-gray-800 bg-gray-900/50">
-            <Stat value={modelCount} label="AI Models Ranked" icon={Brain} color="text-purple-400" />
-            <Stat value={10} label="Coding Tools Tracked" icon={Zap} color="text-blue-400" />
-            <Stat value={taskCount} label="Task Categories" icon={Target} color="text-cyan-400" />
-            <Stat value={22} label="Pricing Plans Compared" icon={DollarSign} color="text-green-400" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard value={modelCount} label="AI Models Ranked" sublabel="incl. free & open-source" icon={Brain} color="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/15" />
+            <StatCard value={10} label="Coding Tools" sublabel="Claude Code, Cursor, Copilot..." icon={Wrench} color="text-blue-400" bg="bg-blue-500/5" border="border-blue-500/15" />
+            <StatCard value={taskCount} label="Task Categories" sublabel="debugging to boilerplate" icon={Target} color="text-cyan-400" bg="bg-cyan-500/5" border="border-cyan-500/15" />
+            <StatCard value="$0" label="Free Models" sublabel="DeepSeek, Z AI, Llama, Gemma" icon={DollarSign} color="text-green-400" bg="bg-green-500/5" border="border-green-500/15" />
           </div>
         </section>
       )}
 
       {/* ── Value Pillars ─────────────────────────────────────────── */}
       <section className="mb-12">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Why vibe coders use this</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <ValueCard
             icon={Brain}
             iconColor="text-purple-400"
             iconBg="bg-purple-500/10"
             title="Task-Matched Rankings"
-            description="Select your coding task — complex debugging, feature implementation, refactoring — and see which model actually performs best."
+            description="Select your coding task — complex debugging, feature implementation, refactoring — and see which model actually performs best for that specific workflow."
           />
           <ValueCard
             icon={DollarSign}
             iconColor="text-green-400"
             iconBg="bg-green-500/10"
-            title="Real Pricing, Not Marketing"
-            description="Compare actual monthly costs across Claude Code, Cursor, Windsurf, Copilot, and more. Token prices included."
+            title="Real Pricing + Free Options"
+            description="Every model shows token costs, tool pricing, and free alternatives. From $0 open-source models to premium APIs — find what fits your budget."
           />
           <ValueCard
-            icon={TrendingUp}
+            icon={Scale}
             iconColor="text-cyan-400"
             iconBg="bg-cyan-500/10"
-            title="Bang for Buck Scores"
-            description="Our composite score per dollar metric. The one number that tells you which model gives you the most for your money."
+            title="Like Opus? Try This Instead"
+            description="Select any premium model and instantly see cheaper alternatives with similar capabilities. Save 50-95% without sacrificing much quality."
           />
         </div>
       </section>
@@ -145,13 +185,38 @@ export default function HomePage() {
       <section className="mb-12">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">How It Works</h2>
         <div className="flex flex-col sm:flex-row gap-4">
-          <StepCard number="1" title="Pick your task" description="Complex debugging? Boilerplate? Refactoring? Each task has different winners." />
+          <StepCard number="1" title="Pick your task" description="Debugging? Feature building? Boilerplate? Each task has different winners." />
           <ChevronRight className="w-5 h-5 text-gray-700 self-center hidden sm:block flex-shrink-0" />
-          <StepCard number="2" title="Compare models" description="See first-attempt success rates, cost per task, and time to complete side-by-side." />
+          <StepCard number="2" title="Compare models" description="See success rates, cost per task, and quality scores side-by-side. Filter by free or budget." />
           <ChevronRight className="w-5 h-5 text-gray-700 self-center hidden sm:block flex-shrink-0" />
           <StepCard number="3" title="Find where to use it" description="Every model shows which tools offer it and at what price. Pick the cheapest path." />
         </div>
       </section>
+
+      {/* ── Quick Task Picker ─────────────────────────────────────── */}
+      {tasks && tasks.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">What are you building?</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {tasks.map(task => {
+              const Icon = TASK_ICONS[task.slug] || Code2;
+              return (
+                <Link
+                  key={task.slug}
+                  to={`/advisor?task=${task.slug}`}
+                  className="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all"
+                >
+                  <Icon className="w-5 h-5 text-gray-500 group-hover:text-blue-400 mb-2 transition-colors" />
+                  <h3 className="text-xs font-semibold text-white mb-0.5">{task.name}</h3>
+                  <p className="text-[10px] text-gray-500 leading-relaxed">
+                    {task.complexity ? `${task.complexity} complexity` : 'See top models'}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── Live Rankings Preview ─────────────────────────────────── */}
       {loading ? (
@@ -161,7 +226,6 @@ export default function HomePage() {
       ) : (
         <section className="mb-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Best Overall */}
             <MiniLeaderboard
               title="Best Overall"
               subtitle="by AllThingsAI composite score"
@@ -175,7 +239,6 @@ export default function HomePage() {
               formatValue={(v) => Number(v).toFixed(1)}
             />
 
-            {/* Best Bang for Buck */}
             <MiniLeaderboard
               title="Best Bang for Buck"
               subtitle="quality per dollar spent"
@@ -202,22 +265,66 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* ── Free & Budget Highlight ──────────────────────────────── */}
+      <section className="mb-12">
+        <div className="rounded-2xl border border-green-500/20 bg-gradient-to-br from-green-950/20 via-gray-900 to-gray-900 p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="w-5 h-5 text-green-400" />
+            <h2 className="text-lg font-bold text-white">Free &amp; Open-Source Models</h2>
+          </div>
+          <p className="text-sm text-gray-400 mb-4 max-w-lg">
+            Not every project needs a $100/mo subscription. These models are free or nearly free
+            and competitive enough for many coding tasks.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            {[
+              { name: 'DeepSeek R1', note: 'Reasoning rival to o3', cost: '$0.55/MTok' },
+              { name: 'DeepSeek V3', note: 'Best free all-rounder', cost: '$0.27/MTok' },
+              { name: 'Llama 4 Maverick', note: 'Meta open-weight', cost: '$0.20/MTok' },
+              { name: 'Z AI GLM-5', note: 'Totally free API', cost: 'Free' },
+            ].map(m => (
+              <div key={m.name} className="rounded-lg bg-gray-800/50 border border-gray-700/50 p-3">
+                <p className="text-xs font-semibold text-white">{m.name}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{m.note}</p>
+                <p className="text-[10px] text-green-400 font-medium mt-1">{m.cost}</p>
+              </div>
+            ))}
+          </div>
+          <Link
+            to="/compare"
+            className="inline-flex items-center gap-2 text-xs text-green-400 hover:text-green-300 font-medium transition-colors"
+          >
+            See all pricing tiers
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </section>
+
       {/* ── Bottom CTA ────────────────────────────────────────────── */}
       <section className="mb-8">
         <div className="rounded-2xl border border-gray-800 bg-gradient-to-br from-gray-900 via-gray-900 to-blue-950/30 p-8 text-center">
           <h2 className="text-2xl font-bold text-white mb-2">Stop overpaying for AI</h2>
           <p className="text-gray-400 text-sm mb-6 max-w-lg mx-auto">
-            Most developers pick a model based on hype, not data. Use our task-specific rankings
-            to find the model that actually wins for your workflow — then find the cheapest place to use it.
+            Most vibe coders pick a model based on hype. Use our task-specific rankings
+            to find the model that wins for <em>your</em> workflow — then find the cheapest place to use it.
           </p>
-          <Link
-            to="/advisor"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-colors shadow-lg shadow-blue-500/20"
-          >
-            <Target className="w-4 h-4" />
-            Open Task Intelligence Advisor
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link
+              to="/advisor"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-colors shadow-lg shadow-blue-500/20"
+            >
+              <Target className="w-4 h-4" />
+              Open Task Advisor
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              to="/compare"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white font-medium text-sm transition-colors"
+            >
+              <Scale className="w-4 h-4" />
+              Find Alternatives
+            </Link>
+          </div>
         </div>
       </section>
     </div>
@@ -226,16 +333,15 @@ export default function HomePage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────
 
-function Stat({ value, label, icon: Icon, color }) {
+function StatCard({ value, label, sublabel, icon: Icon, color, bg, border }) {
   return (
-    <div className="flex items-center gap-3 flex-1 min-w-[140px]">
-      <div className="w-9 h-9 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+    <div className={`rounded-xl ${bg} border ${border} p-4`}>
+      <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${color}`} />
+        <span className={`text-xl font-bold text-white`}>{value}</span>
       </div>
-      <div>
-        <p className="text-xl font-bold text-white">{value}</p>
-        <p className="text-[11px] text-gray-500">{label}</p>
-      </div>
+      <p className="text-xs text-gray-300 font-medium">{label}</p>
+      {sublabel && <p className="text-[10px] text-gray-500 mt-0.5">{sublabel}</p>}
     </div>
   );
 }

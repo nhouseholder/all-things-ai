@@ -53,6 +53,10 @@ export const api = {
   getPreferences: () => request('/api/preferences'),
   updatePreferences: (data) => request('/api/preferences', { method: 'PUT', body: JSON.stringify(data) }),
 
+  // Compare
+  getModelAlternatives: (slug) => request(`/api/models/alternatives${slug ? '?model=' + slug : ''}`),
+  compareModels: (slugs) => request(`/api/models/compare?models=${slugs.join(',')}`),
+
   // Advisor
   getTaskProfiles: () => request('/api/advisor/tasks'),
   getTaskMatrix: (task) => request(`/api/advisor/matrix${task ? '?task=' + task : ''}`),
