@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap } from 'lucide-react';
+import { LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain } from 'lucide-react';
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/cost', icon: DollarSign, label: 'Cost' },
+  { to: '/advisor', icon: Brain, label: 'Advisor' },
   { to: '/benchmarks', icon: BarChart3, label: 'Benchmarks' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];

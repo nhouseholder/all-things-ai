@@ -52,4 +52,10 @@ export const api = {
   // Preferences
   getPreferences: () => request('/api/preferences'),
   updatePreferences: (data) => request('/api/preferences', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Advisor
+  getTaskProfiles: () => request('/api/advisor/tasks'),
+  getTaskMatrix: (task) => request(`/api/advisor/matrix${task ? '?task=' + task : ''}`),
+  getTaskRecommendation: (task) => request(`/api/advisor/recommend?task=${task}`),
+  getCompositeScores: () => request('/api/advisor/composite-scores'),
 };
