@@ -15,6 +15,96 @@ modelsRoutes.get('/', async (c) => {
   return c.json(results.map(m => ({ ...m, benchmark_scores: JSON.parse(m.benchmark_scores || '[]') })));
 });
 
+// GET /api/models/pricing — token pricing comparison with bang-for-buck scores
+// NOTE: Must be registered BEFORE /:slug to avoid matching "pricing" as a slug
+modelsRoutes.get('/pricing', async (c) => {
+  // Fetch all active models with pricing columns
+  const { results: models } = await c.env.DB.prepare(`
+    SELECT m.id, m.name, m.slug, m.vendor, m.family,
+      m.input_price_per_mtok, m.output_price_per_mtok,
+      m.cache_hit_price_per_mtok, m.context_window,
+      m.params_total, m.params_active, m.is_open_weight
+    FROM models m
+    WHERE m.is_active = 1
+      AND m.input_price_per_mtok IS NOT NULL
+      AND m.output_price_per_mtok IS NOT NULL
+    ORDER BY m.name
+  `).all();
+
+  // Fetch all benchmark scores in one query
+  const { results: allBenchmarks } = await c.env.DB.prepare(`
+    SELECT model_id, benchmark_name, category, score, max_score
+    FROM benchmarks
+    WHERE model_id IN (SELECT id FROM models WHERE is_active = 1)
+  `).all();
+
+  // Index benchmarks by model_id
+  const benchmarksByModel = {};
+  for (const b of allBenchmarks) {
+    if (!benchmarksByModel[b.model_id]) benchmarksByModel[b.model_id] = [];
+    benchmarksByModel[b.model_id].push(b);
+  }
+
+  // Fetch availability for all active models
+  const { results: allAvailability } = await c.env.DB.prepare(`
+    SELECT ma.model_id, t.name as tool_name, t.slug as tool_slug,
+      pp.plan_name, pp.price_monthly, ma.access_level
+    FROM model_availability ma
+    JOIN tools t ON t.id = ma.tool_id
+    LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
+    WHERE ma.model_id IN (SELECT id FROM models WHERE is_active = 1)
+  `).all();
+
+  // Index availability by model_id
+  const availabilityByModel = {};
+  for (const a of allAvailability) {
+    if (!availabilityByModel[a.model_id]) availabilityByModel[a.model_id] = [];
+    availabilityByModel[a.model_id].push(a);
+  }
+
+  // Build response with bang_for_buck
+  const pricingData = models.map((m) => {
+    const benchmarks = benchmarksByModel[m.id] || [];
+    const scores = benchmarks.map((b) => {
+      // Normalize to 0-100 scale if max_score is provided
+      if (b.max_score && b.max_score > 0) return (b.score / b.max_score) * 100;
+      return b.score;
+    });
+    const avgScore = scores.length > 0
+      ? scores.reduce((a, b) => a + b, 0) / scores.length
+      : 0;
+
+    // Blended cost: 30% input + 70% output per 1M tokens
+    const blendedCost = (m.input_price_per_mtok * 0.3) + (m.output_price_per_mtok * 0.7);
+    const bangForBuck = blendedCost > 0 ? avgScore / blendedCost : 0;
+
+    return {
+      id: m.id,
+      name: m.name,
+      slug: m.slug,
+      vendor: m.vendor,
+      family: m.family,
+      input_price_per_mtok: m.input_price_per_mtok,
+      output_price_per_mtok: m.output_price_per_mtok,
+      cache_hit_price_per_mtok: m.cache_hit_price_per_mtok,
+      context_window: m.context_window,
+      params_total: m.params_total,
+      params_active: m.params_active,
+      is_open_weight: m.is_open_weight,
+      avg_benchmark_score: Number(avgScore.toFixed(2)),
+      blended_cost_per_mtok: Number(blendedCost.toFixed(4)),
+      bang_for_buck: Number(bangForBuck.toFixed(2)),
+      benchmark_count: benchmarks.length,
+      availability: availabilityByModel[m.id] || [],
+    };
+  });
+
+  // Sort by bang_for_buck descending
+  pricingData.sort((a, b) => b.bang_for_buck - a.bang_for_buck);
+
+  return c.json({ models: pricingData });
+});
+
 // GET /api/models/:slug
 modelsRoutes.get('/:slug', async (c) => {
   const slug = c.req.param('slug');

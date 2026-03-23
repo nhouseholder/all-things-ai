@@ -25,6 +25,7 @@ export const api = {
   // Models
   getModels: () => request('/api/models'),
   getModel: (slug) => request(`/api/models/${slug}`),
+  getModelPricing: () => request('/api/models/pricing'),
 
   // Benchmarks
   getBenchmarks: (category) => request(`/api/benchmarks${category ? '?category=' + category : ''}`),
