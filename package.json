@@ -1,0 +1,17 @@
+{
+  "name": "all-things-ai",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/web",
+    "packages/worker"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w packages/web",
+    "dev:worker": "npm run dev -w packages/worker",
+    "build:web": "npm run build -w packages/web",
+    "deploy:web": "npm run deploy -w packages/web",
+    "deploy:worker": "npm run deploy -w packages/worker",
+    "deploy": "npm run deploy:worker && npm run deploy:web"
+  }
+}

@@ -1,0 +1,30 @@
+name = "all-things-ai-worker"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = [
+    "*/30 * * * *",
+    "0 */2 * * *",
+    "0 */3 * * *",
+    "0 6 * * *",
+    "0 7 * * *",
+    "0 8 * * 1"
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "all-things-ai-db"
+database_id = "placeholder"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "placeholder"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "placeholder"
+
+[vars]
+ENVIRONMENT = "development"

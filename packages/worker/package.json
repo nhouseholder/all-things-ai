@@ -1,0 +1,22 @@
+{
+  "name": "all-things-ai-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 execute all-things-ai-db --local --file=src/db/schema.sql",
+    "db:seed": "wrangler d1 execute all-things-ai-db --local --file=src/db/seed.sql",
+    "db:migrate:remote": "wrangler d1 execute all-things-ai-db --remote --file=src/db/schema.sql",
+    "db:seed:remote": "wrangler d1 execute all-things-ai-db --remote --file=src/db/seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "fast-xml-parser": "^5.0.0",
+    "resend": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
