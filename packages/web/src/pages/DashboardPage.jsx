@@ -249,10 +249,20 @@ export default function DashboardPage() {
     );
   }
 
-  if (error) {
+  if (error && feed.length === 0 && recommendations.length === 0) {
     return (
-      <div className="text-center py-16">
-        <p className="text-red-400 text-sm">Failed to load dashboard: {error}</p>
+      <div className="text-center py-16 max-w-md mx-auto">
+        <Sparkles className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+        <h2 className="text-xl font-semibold text-white mb-2">Welcome to All Things AI</h2>
+        <p className="text-gray-400 text-sm mb-4">
+          The Worker backend needs to be running to populate data. Start it with:
+        </p>
+        <code className="block bg-gray-800 rounded-lg p-3 text-sm text-green-400 mb-4">
+          cd packages/worker && npm run dev
+        </code>
+        <p className="text-gray-500 text-xs">
+          Then run <code className="text-blue-400">npm run db:migrate && npm run db:seed</code> to populate the database.
+        </p>
       </div>
     );
   }

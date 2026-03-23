@@ -136,16 +136,29 @@ export default function BenchmarksPage() {
     );
   }
 
-  const models = data?.models ?? data?.data ?? data ?? [];
-  const benchmarkNames = data?.benchmark_names ?? [];
+  // API returns { benchmarks: { coding: [...], debugging: [...] }, categories: [...] }
+  // Transform into models array with scores map
+  const rawBenchmarks = data?.benchmarks ?? {};
+  const allEntries = Object.values(rawBenchmarks).flat();
 
-  // If no benchmark_names provided, derive from model scores
-  const derivedBenchmarkNames =
-    benchmarkNames.length > 0
-      ? benchmarkNames
-      : models.length > 0
-        ? [...new Set(models.flatMap((m) => Object.keys(m.scores ?? {})))]
-        : [];
+  // Build models map: { slug: { name, vendor, slug, scores: { benchmarkName: score } } }
+  const modelsMap = {};
+  for (const entry of allEntries) {
+    const slug = entry.model_slug ?? entry.slug;
+    if (!modelsMap[slug]) {
+      modelsMap[slug] = {
+        name: entry.model_name ?? entry.name,
+        slug,
+        vendor: entry.vendor,
+        scores: {},
+      };
+    }
+    modelsMap[slug].scores[entry.benchmark_name] = entry.score;
+  }
+  const models = Object.values(modelsMap);
+
+  // Derive benchmark names from all entries
+  const derivedBenchmarkNames = [...new Set(allEntries.map((e) => e.benchmark_name))];
 
   // Compute average score per model for the bar chart
   const chartData = models

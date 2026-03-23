@@ -36,7 +36,7 @@ function ToolCard({ tool }) {
   const [expanded, setExpanded] = useState(false);
 
   const plans = tool.plans ?? [];
-  const prices = plans.map((p) => p.monthly_price ?? p.price ?? 0).filter((p) => p != null);
+  const prices = plans.map((p) => p.price_monthly ?? p.monthly_price ?? 0).filter((p) => p != null);
   const lowestPrice = prices.length > 0 ? Math.min(...prices) : null;
   const modelsCount = tool.models_count ?? tool.models?.length ?? 0;
   const categoryColor = CATEGORY_COLORS[tool.category] || 'bg-gray-500/10 text-gray-400';
@@ -59,7 +59,7 @@ function ToolCard({ tool }) {
             {plans.length > 0 && (
               <div className="text-xs text-gray-400">
                 {plans.map((p, i) => {
-                  const price = p.monthly_price ?? p.price ?? 0;
+                  const price = p.price_monthly ?? p.monthly_price ?? 0;
                   const isLowest = price === lowestPrice;
                   return (
                     <span key={p.name || i} className={`${i > 0 ? 'ml-2' : ''}`}>
@@ -107,15 +107,15 @@ function ToolCard({ tool }) {
             </thead>
             <tbody>
               {plans.map((plan, i) => (
-                <tr key={plan.name || i} className="border-b border-gray-800/50 last:border-0">
-                  <td className="py-2 text-white font-medium">{plan.name}</td>
+                <tr key={(plan.plan_name || plan.name || i)} className="border-b border-gray-800/50 last:border-0">
+                  <td className="py-2 text-white font-medium">{plan.plan_name || plan.name}</td>
                   <td className="py-2 text-right">
-                    <span className={(plan.monthly_price ?? plan.price ?? 0) === lowestPrice ? 'text-green-400' : 'text-gray-400'}>
-                      {formatPrice(plan.monthly_price ?? plan.price)}
+                    <span className={(plan.price_monthly || plan.monthly_price || 0) === lowestPrice ? 'text-green-400' : 'text-gray-400'}>
+                      {formatPrice(plan.price_monthly || plan.monthly_price)}
                     </span>
                   </td>
                   <td className="py-2 text-right text-gray-400">
-                    {plan.yearly_price != null ? `$${Number(plan.yearly_price).toFixed(0)}/yr` : '--'}
+                    {(plan.price_yearly || plan.yearly_price) != null ? `$${Number(plan.price_yearly || plan.yearly_price).toFixed(0)}/yr` : '--'}
                   </td>
                   <td className="py-2 pl-4">
                     {plan.features?.length > 0 ? (

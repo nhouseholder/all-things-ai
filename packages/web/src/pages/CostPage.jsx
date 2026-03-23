@@ -70,7 +70,7 @@ export default function CostPage() {
         if (!prev) return prev;
         const subs = (prev.subscriptions ?? []).filter((s) => s.id !== id);
         const total = subs.reduce((sum, s) => sum + (s.monthly_cost ?? 0), 0);
-        return { ...prev, subscriptions: subs, total_monthly_spend: total };
+        return { ...prev, subscriptions: subs, total_monthly: total };
       });
     } catch {}
   }
@@ -91,7 +91,7 @@ export default function CostPage() {
     );
   }
 
-  const totalSpend = summary?.total_monthly_spend ?? 0;
+  const totalSpend = summary?.total_monthly ?? 0;
   const subscriptions = summary?.subscriptions ?? [];
   const breakdown = summary?.breakdown ?? subscriptions.map((s) => ({
     name: s.tool_name ?? s.name,
