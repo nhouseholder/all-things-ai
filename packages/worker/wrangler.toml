@@ -16,15 +16,15 @@ crons = [
 [[d1_databases]]
 binding = "DB"
 database_name = "all-things-ai-db"
-database_id = "placeholder"
+database_id = "f3f12b72-ab5a-4808-a749-f683f19dd9ea"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "placeholder"
+id = "f7a280ca8f2347c8b5bcdb02b5ed6161"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "placeholder"
+id = "9a46e26a816f4fc09a7181ea4be8b387"
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
