@@ -4,9 +4,8 @@
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173,
-      "cwd": "packages/web"
+      "runtimeArgs": ["run", "dev:web"],
+      "port": 5173
     }
   ]
 }

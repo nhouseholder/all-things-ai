@@ -111,6 +111,134 @@ advisorRoutes.get('/matrix', async (c) => {
   });
 });
 
+// GET /api/advisor/rankings — dual leaderboard (best overall + best bang for buck)
+advisorRoutes.get('/rankings', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      mcs.*,
+      m.name as model_name, m.slug as model_slug,
+      m.vendor, m.family,
+      m.input_price_per_mtok, m.output_price_per_mtok
+    FROM model_composite_scores mcs
+    JOIN models m ON m.id = mcs.model_id
+    WHERE m.is_active = 1
+    ORDER BY mcs.composite_score DESC
+  `).all();
+
+  // Best Overall: sorted by composite_score (already sorted)
+  const bestOverall = results;
+
+  // Best Bang for Buck: score per dollar of average task cost
+  // Use avg cost_per_task across all tasks as denominator
+  const { results: avgCosts } = await c.env.DB.prepare(`
+    SELECT
+      mte.model_id,
+      AVG(mte.cost_per_task_estimate) as avg_cost,
+      AVG(mte.cost_per_task_estimate + mte.time_value_per_task) as avg_total_cost
+    FROM model_task_estimates mte
+    JOIN models m ON m.id = mte.model_id
+    WHERE m.is_active = 1
+    GROUP BY mte.model_id
+  `).all();
+
+  const costMap = new Map(avgCosts.map(c => [c.model_id, c]));
+
+  const bangForBuck = results
+    .map(m => {
+      const costs = costMap.get(m.model_id);
+      const avgTotalCost = costs?.avg_total_cost || null;
+      const valueScore = avgTotalCost && avgTotalCost > 0
+        ? (m.composite_score / avgTotalCost)
+        : null;
+      return { ...m, avg_cost_per_task: costs?.avg_cost || null, avg_total_cost: avgTotalCost, value_score: valueScore };
+    })
+    .filter(m => m.value_score != null)
+    .sort((a, b) => b.value_score - a.value_score);
+
+  return c.json({ best_overall: bestOverall, bang_for_buck: bangForBuck });
+});
+
+// GET /api/advisor/model-availability — where each model is available + pricing
+advisorRoutes.get('/model-availability', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      ma.model_id,
+      m.name as model_name, m.slug as model_slug,
+      t.name as tool_name, t.slug as tool_slug,
+      pp.plan_name, pp.price_monthly,
+      ma.access_level
+    FROM model_availability ma
+    JOIN models m ON m.id = ma.model_id
+    JOIN tools t ON t.id = ma.tool_id
+    LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
+    WHERE m.is_active = 1
+    ORDER BY m.name, pp.price_monthly ASC
+  `).all();
+
+  // Group by model
+  const grouped = {};
+  for (const row of results) {
+    if (!grouped[row.model_slug]) {
+      grouped[row.model_slug] = {
+        model_name: row.model_name,
+        model_slug: row.model_slug,
+        plans: [],
+      };
+    }
+    grouped[row.model_slug].plans.push({
+      tool_name: row.tool_name,
+      tool_slug: row.tool_slug,
+      plan_name: row.plan_name,
+      price_monthly: row.price_monthly,
+      access_level: row.access_level,
+    });
+  }
+
+  return c.json(Object.values(grouped));
+});
+
+// GET /api/advisor/task-rankings — model rankings for a specific task
+advisorRoutes.get('/task-rankings', async (c) => {
+  const taskSlug = c.req.query('task');
+  if (!taskSlug) return c.json({ error: 'Missing required query param: task' }, 400);
+
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      mte.*,
+      m.name as model_name, m.slug as model_slug,
+      m.vendor,
+      mcs.composite_score,
+      tp.name as task_name
+    FROM model_task_estimates mte
+    JOIN models m ON m.id = mte.model_id
+    JOIN task_profiles tp ON tp.id = mte.task_profile_id
+    LEFT JOIN model_composite_scores mcs ON mcs.model_id = mte.model_id
+    WHERE tp.slug = ? AND m.is_active = 1
+    ORDER BY mte.first_attempt_success_rate DESC, mcs.composite_score DESC
+  `).bind(taskSlug).all();
+
+  // Build task-specific rankings
+  const byQuality = [...results].sort((a, b) =>
+    (b.first_attempt_success_rate * (b.composite_score || 0)) -
+    (a.first_attempt_success_rate * (a.composite_score || 0))
+  );
+
+  const byValue = [...results].sort((a, b) => {
+    const totalA = (a.cost_per_task_estimate || 0) + (a.time_value_per_task || 0);
+    const totalB = (b.cost_per_task_estimate || 0) + (b.time_value_per_task || 0);
+    // Only compare models with decent quality (>50% success)
+    if (a.first_attempt_success_rate >= 0.5 && b.first_attempt_success_rate < 0.5) return -1;
+    if (b.first_attempt_success_rate >= 0.5 && a.first_attempt_success_rate < 0.5) return 1;
+    return totalA - totalB;
+  });
+
+  return c.json({
+    task_name: results[0]?.task_name || taskSlug,
+    by_quality: byQuality,
+    by_value: byValue,
+  });
+});
+
 // GET /api/advisor/recommend — top 3 recommendations for a task
 advisorRoutes.get('/recommend', async (c) => {
   const taskSlug = c.req.query('task');

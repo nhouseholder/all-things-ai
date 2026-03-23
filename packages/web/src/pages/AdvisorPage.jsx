@@ -174,62 +174,134 @@ function ComponentBreakdown({ model }) {
   );
 }
 
-// ── Section 1: Composite Score Leaderboard ──────────────────────────────
+// ── Pricing Dropdown (per-model) ─────────────────────────────────────────
 
-function ScoreLeaderboard({ scores }) {
+function ModelPricingDropdown({ modelSlug, availability }) {
+  const plans = availability?.[modelSlug]?.plans || [];
+  if (plans.length === 0) return <span className="text-gray-600 text-[10px]">No availability data</span>;
+
+  return (
+    <div className="px-4 py-3 bg-gray-900/80">
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Available On</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {plans.map((p, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 bg-gray-800/60 rounded-lg px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-xs text-white font-medium truncate">{p.tool_name}</p>
+              <p className="text-[10px] text-gray-400">{p.plan_name}</p>
+            </div>
+            <span className="text-xs text-green-400 font-bold whitespace-nowrap">
+              {p.price_monthly != null ? `$${p.price_monthly}/mo` : 'BYOK'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Section 1: Dual Ranking Leaderboard ─────────────────────────────────
+
+function DualLeaderboard({ rankings, availability }) {
+  const [activeTab, setActiveTab] = useState('overall');
   const [expandedModel, setExpandedModel] = useState(null);
 
-  const sorted = useMemo(
-    () => [...scores].sort((a, b) => b.composite_score - a.composite_score),
-    [scores]
-  );
+  const bestOverall = rankings?.best_overall || [];
+  const bangForBuck = rankings?.bang_for_buck || [];
 
-  const chartData = useMemo(() => sorted.slice(0, 20), [sorted]);
+  const data = activeTab === 'overall' ? bestOverall : bangForBuck;
+  const chartData = useMemo(() => data.slice(0, 15), [data]);
+  const chartKey = activeTab === 'overall' ? 'composite_score' : 'value_score';
+
+  // Build availability lookup by slug
+  const availMap = useMemo(() => {
+    if (!availability) return {};
+    const map = {};
+    for (const m of availability) map[m.model_slug] = m;
+    return map;
+  }, [availability]);
 
   return (
     <section className="mb-10">
       <div className="flex items-center gap-2 mb-1">
         <Brain className="w-5 h-5 text-blue-400" />
-        <h2 className="text-lg font-semibold text-white">AllThingsAI Score Leaderboard</h2>
+        <h2 className="text-lg font-semibold text-white">Model Rankings</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Composite score combining SWE-Bench, nuance understanding, coding benchmarks, arena ratings, and community signals.
+        Click any model row to see where it's available and at what price.
       </p>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-1 mb-4 bg-gray-900 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => { setActiveTab('overall'); setExpandedModel(null); }}
+          className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            activeTab === 'overall'
+              ? 'bg-blue-500/20 text-blue-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          <Trophy className="w-3 h-3 inline mr-1.5" />
+          Best Overall
+        </button>
+        <button
+          onClick={() => { setActiveTab('value'); setExpandedModel(null); }}
+          className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            activeTab === 'value'
+              ? 'bg-green-500/20 text-green-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          <Coins className="w-3 h-3 inline mr-1.5" />
+          Best Bang for Buck
+        </button>
+      </div>
 
       {/* Bar Chart */}
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 mb-4">
         <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 34)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
-            <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 11 }} />
+            <XAxis
+              type="number"
+              domain={activeTab === 'overall' ? [0, 100] : [0, 'auto']}
+              tick={{ fill: '#6b7280', fontSize: 11 }}
+            />
             <YAxis
               dataKey="model_name"
               type="category"
-              width={160}
+              width={180}
               tick={{ fill: '#d1d5db', fontSize: 11 }}
             />
             <Tooltip content={<CompositeTooltip />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
-            <Bar dataKey="composite_score" radius={[0, 4, 4, 0]} barSize={22}>
+            <Bar dataKey={chartKey} radius={[0, 4, 4, 0]} barSize={22}>
               {chartData.map((entry, i) => (
-                <Cell key={i} fill={compositeBarColor(entry.composite_score)} />
+                <Cell key={i} fill={activeTab === 'overall' ? compositeBarColor(entry.composite_score) : '#22c55e'} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Expandable Breakdown Table */}
+      {/* Expandable Table */}
       <div className="rounded-xl border border-gray-800 overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-gray-900 text-gray-500 uppercase tracking-wider">
+              <th className="text-left px-4 py-3 font-medium w-8">#</th>
               <th className="text-left px-4 py-3 font-medium">Model</th>
               <th className="text-left px-4 py-3 font-medium">Vendor</th>
-              <th className="text-right px-4 py-3 font-medium">Composite Score</th>
+              <th className="text-right px-4 py-3 font-medium">Score</th>
+              {activeTab === 'value' && (
+                <>
+                  <th className="text-right px-4 py-3 font-medium">Avg Cost/Task</th>
+                  <th className="text-right px-4 py-3 font-medium">Value Score</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
-            {sorted.map((m) => {
+            {data.map((m, idx) => {
               const isExpanded = expandedModel === m.model_slug;
               return (
                 <Fragment key={m.model_slug}>
@@ -237,6 +309,7 @@ function ScoreLeaderboard({ scores }) {
                     className="border-t border-gray-800 hover:bg-gray-900/50 transition-colors cursor-pointer"
                     onClick={() => setExpandedModel(isExpanded ? null : m.model_slug)}
                   >
+                    <td className="px-4 py-2.5 text-gray-500 font-mono">{idx + 1}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         {isExpanded ? (
@@ -249,16 +322,33 @@ function ScoreLeaderboard({ scores }) {
                     </td>
                     <td className="px-4 py-2.5 text-gray-400">{m.vendor}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${compositeBadgeBg(
-                          m.composite_score
-                        )}`}
-                      >
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${compositeBadgeBg(m.composite_score)}`}>
                         {Number(m.composite_score).toFixed(1)}
                       </span>
                     </td>
+                    {activeTab === 'value' && (
+                      <>
+                        <td className="px-4 py-2.5 text-right text-gray-300 font-mono">
+                          {m.avg_total_cost != null ? `$${Number(m.avg_total_cost).toFixed(2)}` : '--'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <span className="text-green-400 font-bold font-mono">
+                            {m.value_score != null ? Number(m.value_score).toFixed(1) : '--'}
+                          </span>
+                        </td>
+                      </>
+                    )}
                   </tr>
-                  {isExpanded && <ComponentBreakdown model={m} />}
+                  {isExpanded && (
+                    <>
+                      <ComponentBreakdown model={m} />
+                      <tr>
+                        <td colSpan={activeTab === 'value' ? 6 : 4}>
+                          <ModelPricingDropdown modelSlug={m.model_slug} availability={availMap} />
+                        </td>
+                      </tr>
+                    </>
+                  )}
                 </Fragment>
               );
             })}
@@ -771,14 +861,90 @@ function WhereToUsePanel({ recommendations, subscriptions }) {
 
 import { Fragment } from 'react';
 
+// ── Section: Task-Specific Sub-Rankings ──────────────────────────────────
+
+function TaskSubRankings({ taskRankings }) {
+  if (!taskRankings) return null;
+  const { by_quality = [], by_value = [] } = taskRankings;
+  if (by_quality.length === 0) return null;
+
+  return (
+    <div className="mb-8">
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        Task-Specific Model Rankings
+      </h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* By Quality */}
+        <div className="rounded-xl border border-gray-800 overflow-hidden">
+          <div className="bg-green-500/10 border-b border-gray-800 px-4 py-2">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-3.5 h-3.5 text-green-400" />
+              <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">Best for This Task</span>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-800">
+            {by_quality.slice(0, 8).map((m, i) => (
+              <div key={m.model_slug} className="flex items-center justify-between px-4 py-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-gray-500 font-mono w-4">{i + 1}</span>
+                  <div>
+                    <p className="text-xs text-white font-medium">{m.model_name}</p>
+                    <p className="text-[10px] text-gray-500">{m.vendor}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-green-400 font-bold">{Math.round((m.first_attempt_success_rate || 0) * 100)}%</p>
+                  <p className="text-[10px] text-gray-500">1st attempt</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* By Value */}
+        <div className="rounded-xl border border-gray-800 overflow-hidden">
+          <div className="bg-blue-500/10 border-b border-gray-800 px-4 py-2">
+            <div className="flex items-center gap-2">
+              <Coins className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Best Value for This Task</span>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-800">
+            {by_value.slice(0, 8).map((m, i) => {
+              const totalCost = (m.cost_per_task_estimate || 0) + (m.time_value_per_task || 0);
+              return (
+                <div key={m.model_slug} className="flex items-center justify-between px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-gray-500 font-mono w-4">{i + 1}</span>
+                    <div>
+                      <p className="text-xs text-white font-medium">{m.model_name}</p>
+                      <p className="text-[10px] text-gray-500">{m.vendor}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-blue-400 font-bold">${totalCost.toFixed(2)}</p>
+                    <p className="text-[10px] text-gray-500">total cost</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page Component ─────────────────────────────────────────────────
 
 export default function AdvisorPage() {
-  const [compositeScores, setCompositeScores] = useState(null);
+  const [rankings, setRankings] = useState(null);
+  const [modelAvailability, setModelAvailability] = useState(null);
   const [taskProfiles, setTaskProfiles] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [taskMatrix, setTaskMatrix] = useState(null);
   const [taskRecommendation, setTaskRecommendation] = useState(null);
+  const [taskRankings, setTaskRankings] = useState(null);
   const [subscriptions, setSubscriptions] = useState(null);
 
   const [loadingScores, setLoadingScores] = useState(true);
@@ -793,14 +959,23 @@ export default function AdvisorPage() {
 
   // Load initial data
   useEffect(() => {
-    async function loadScores() {
+    async function loadRankings() {
       try {
-        const res = await api.getCompositeScores();
-        setCompositeScores(Array.isArray(res) ? res : res.scores ?? res.data ?? []);
+        const res = await api.getRankings();
+        setRankings(res);
       } catch (err) {
         setErrorScores(err.message);
       } finally {
         setLoadingScores(false);
+      }
+    }
+
+    async function loadAvailability() {
+      try {
+        const res = await api.getModelAvailability();
+        setModelAvailability(Array.isArray(res) ? res : []);
+      } catch {
+        // Non-critical
       }
     }
 
@@ -824,7 +999,8 @@ export default function AdvisorPage() {
       }
     }
 
-    loadScores();
+    loadRankings();
+    loadAvailability();
     loadTasks();
     loadSubs();
   }, []);
@@ -834,6 +1010,7 @@ export default function AdvisorPage() {
     if (!selectedTask) {
       setTaskMatrix(null);
       setTaskRecommendation(null);
+      setTaskRankings(null);
       return;
     }
 
@@ -860,6 +1037,13 @@ export default function AdvisorPage() {
       } finally {
         setLoadingRec(false);
       }
+
+      try {
+        const res = await api.getTaskRankings(selectedTask);
+        setTaskRankings(res);
+      } catch {
+        // Non-critical
+      }
     }
 
     loadTaskData();
@@ -876,7 +1060,7 @@ export default function AdvisorPage() {
         <p className="text-sm text-gray-500">What model should you use — and where?</p>
       </div>
 
-      {/* Section 1: Composite Score Leaderboard */}
+      {/* Section 1: Dual Ranking Leaderboard */}
       {loadingScores ? (
         <div className="flex items-center justify-center h-48 mb-10">
           <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
@@ -885,12 +1069,12 @@ export default function AdvisorPage() {
         <div className="text-center py-12 mb-10 rounded-xl border border-gray-800 border-dashed">
           <p className="text-sm text-red-400">Failed to load scores: {errorScores}</p>
         </div>
-      ) : compositeScores && compositeScores.length > 0 ? (
-        <ScoreLeaderboard scores={compositeScores} />
+      ) : rankings ? (
+        <DualLeaderboard rankings={rankings} availability={modelAvailability} />
       ) : (
         <div className="text-center py-12 mb-10 rounded-xl border border-gray-800 border-dashed">
           <Brain className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-          <p className="text-sm text-gray-500">No composite score data available yet.</p>
+          <p className="text-sm text-gray-500">No ranking data available yet.</p>
         </div>
       )}
 
@@ -930,7 +1114,10 @@ export default function AdvisorPage() {
             </div>
           ) : (
             <>
-              {/* 3a: Recommendation Cards */}
+              {/* 3a: Task Sub-Rankings */}
+              <TaskSubRankings taskRankings={taskRankings} />
+
+              {/* 3b: Recommendation Cards */}
               {errorRec ? (
                 <div className="text-center py-8 mb-8 rounded-xl border border-gray-800 border-dashed">
                   <p className="text-sm text-red-400">Failed to load recommendations: {errorRec}</p>

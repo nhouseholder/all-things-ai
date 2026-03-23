@@ -58,4 +58,7 @@ export const api = {
   getTaskMatrix: (task) => request(`/api/advisor/matrix${task ? '?task=' + task : ''}`),
   getTaskRecommendation: (task) => request(`/api/advisor/recommend?task=${task}`),
   getCompositeScores: () => request('/api/advisor/composite-scores'),
+  getRankings: () => request('/api/advisor/rankings'),
+  getModelAvailability: () => request('/api/advisor/model-availability'),
+  getTaskRankings: (task) => request(`/api/advisor/task-rankings?task=${task}`),
 };
