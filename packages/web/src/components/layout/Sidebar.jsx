@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain } from 'lucide-react';
 
 const links = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: Home, label: 'Home' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/cost', icon: DollarSign, label: 'Cost' },
   { to: '/advisor', icon: Brain, label: 'Advisor' },
@@ -19,6 +20,7 @@ export default function Sidebar() {
           <h1 className="text-lg font-bold text-white">All Things AI</h1>
         </div>
         <p className="text-xs text-gray-500 mt-1">Your AI Intelligence Hub</p>
+        <p className="text-[10px] text-gray-600 mt-0.5">v0.2.0 &middot; Mar 23, 2026</p>
       </div>
       <nav className="flex-1 p-3 space-y-1">
         {links.map(({ to, icon: Icon, label }) => (

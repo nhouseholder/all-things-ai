@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/layout/Layout.jsx';
+import HomePage from './pages/HomePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ToolsPage from './pages/ToolsPage.jsx';
 import CostPage from './pages/CostPage.jsx';
@@ -11,7 +12,8 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<DashboardPage />} />
+        <Route index element={<HomePage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="tools" element={<ToolsPage />} />
         <Route path="cost" element={<CostPage />} />
         <Route path="advisor" element={<AdvisorPage />} />
