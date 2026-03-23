@@ -23,10 +23,12 @@ import {
   RefreshCcw,
   Search,
   BookOpen,
+  Users,
+  MessageCircle,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 
-const VERSION = 'v0.5.0';
+const VERSION = 'v0.5.1';
 const BUILD_DATE = 'Mar 23, 2026';
 
 function compositeColor(score) {
@@ -370,6 +372,22 @@ function StepCard({ number, title, description }) {
   );
 }
 
+function CommunityBadge({ reviews, sources }) {
+  if (!reviews || reviews < 10) return null;
+  const confidence = reviews >= 50 && sources >= 2 ? 'high' : reviews >= 25 ? 'medium' : 'low';
+  const colors = {
+    high: 'text-green-400 bg-green-500/10 border-green-500/20',
+    medium: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+    low: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
+  };
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border ${colors[confidence]}`} title={`${reviews} reviews from ${sources} sources`}>
+      <Users className="w-2.5 h-2.5" />
+      {reviews >= 1000 ? `${(reviews/1000).toFixed(1)}k` : reviews}
+    </span>
+  );
+}
+
 function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, headerBorder, models, valueKey, valueLabel, formatValue }) {
   return (
     <div className="rounded-xl border border-gray-800 overflow-hidden">
@@ -391,8 +409,11 @@ function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, hea
                 {i + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-white font-medium truncate">{m.model_name}</p>
-                <p className="text-[10px] text-gray-500">{m.vendor}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-white font-medium truncate">{m.model_name}</p>
+                  <CommunityBadge reviews={m.community_reviews} sources={m.community_sources} />
+                </div>
+                <p className="text-[10px] text-gray-500">{m.vendor}{m.community_adjustment ? ` · community ${m.community_adjustment > 0 ? '+' : ''}${m.community_adjustment.toFixed(1)}` : ''}</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">

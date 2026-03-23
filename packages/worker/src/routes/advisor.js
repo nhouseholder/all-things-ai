@@ -125,11 +125,36 @@ advisorRoutes.get('/rankings', async (c) => {
     ORDER BY mcs.composite_score DESC
   `).all();
 
-  // Best Overall: sorted by composite_score (already sorted)
-  const bestOverall = results;
+  // Attach community review summary per model
+  const { results: reviewSummary } = await c.env.DB.prepare(`
+    SELECT
+      model_id,
+      SUM(review_count) as total_reviews,
+      COUNT(DISTINCT source) as source_count,
+      ROUND(AVG(coding_satisfaction), 1) as avg_satisfaction,
+      SUM(COALESCE(heavy_coder_count, 0)) as heavy_count,
+      SUM(COALESCE(vibe_coder_count, 0)) as vibe_count,
+      SUM(COALESCE(casual_count, 0)) as casual_count
+    FROM community_reviews
+    GROUP BY model_id
+  `).all();
+
+  const reviewMap = new Map(reviewSummary.map(r => [r.model_id, r]));
+
+  const bestOverall = results.map(m => {
+    const rev = reviewMap.get(m.model_id);
+    return {
+      ...m,
+      community_reviews: rev?.total_reviews || 0,
+      community_sources: rev?.source_count || 0,
+      community_satisfaction: rev?.avg_satisfaction || null,
+      community_heavy: rev?.heavy_count || 0,
+      community_vibe: rev?.vibe_count || 0,
+      community_casual: rev?.casual_count || 0,
+    };
+  });
 
   // Best Bang for Buck: score per dollar of average task cost
-  // Use avg cost_per_task across all tasks as denominator
   const { results: avgCosts } = await c.env.DB.prepare(`
     SELECT
       mte.model_id,
@@ -143,7 +168,7 @@ advisorRoutes.get('/rankings', async (c) => {
 
   const costMap = new Map(avgCosts.map(c => [c.model_id, c]));
 
-  const bangForBuck = results
+  const bangForBuck = bestOverall
     .map(m => {
       const costs = costMap.get(m.model_id);
       const avgTotalCost = costs?.avg_total_cost || null;

@@ -1,16 +1,19 @@
 /**
- * Composite Score Engine v2
+ * Composite Score Engine v3
  *
  * Computes the AllThingsAI proprietary composite score for all active models.
- * Combines benchmark performance (90% base) with community signal (up to ±5 points).
+ * Combines benchmark performance with community signal, using statistical
+ * safeguards to prevent skew from low-N or outlier reviews.
  *
- * Community scoring is weighted by user type:
- *   - Heavy coders (50% weight): senior devs, infra engineers, ML practitioners
- *   - Vibe coders  (30% weight): indie hackers, vibe coders, fullstack builders
- *   - Casual users (20% weight): general AI users, students, non-coders
+ * Community scoring pipeline:
+ *   1. Weighted by user type (heavy 50%, vibe 30%, casual 20%)
+ *   2. Minimum-N threshold: no adjustment below 10 total reviews
+ *   3. Confidence scaling: full weight at 50+ reviews, linear ramp below
+ *   4. Outlier protection: individual source capped at ±1.5 std dev from mean
+ *   5. Multi-source requirement: at least 2 sources needed for full confidence
  *
- * This weighting reflects our target audience (AI coders) while still
- * incorporating broad community sentiment for a complete picture.
+ * Max community adjustment: ±7.5 points at full confidence (50+ reviews, 2+ sources)
+ * At low N (10-49 reviews): scaled proportionally down to ±0
  */
 
 const BENCHMARK_MAP = {
@@ -31,8 +34,12 @@ const COMMUNITY_WEIGHTS = {
   casual:      0.20,
 };
 
-// Max community adjustment range (±5 points on 0-100 scale)
-const MAX_COMMUNITY_ADJ = 5.0;
+// ── Statistical safeguards ──────────────────────────────────────────────
+const MIN_REVIEWS_THRESHOLD = 10;   // Below this: 0 community adjustment
+const FULL_CONFIDENCE_N = 50;       // At or above: full community weight
+const MIN_SOURCES_FULL = 2;         // Need 2+ sources for full confidence
+const MAX_COMMUNITY_ADJ = 7.5;     // ±7.5 points at full confidence
+const OUTLIER_CAP_SIGMA = 1.5;     // Cap per-source at ±1.5σ from cross-source mean
 
 function normalizeBenchmark(key, score) {
   if (key === 'arena') {
@@ -42,56 +49,117 @@ function normalizeBenchmark(key, score) {
 }
 
 /**
- * Compute a weighted community adjustment from per-source, per-user-type reviews.
- *
- * For each model, we pull all community_reviews rows and compute:
- *   weighted_satisfaction = Σ (type_satisfaction × type_weight × type_count) / Σ (type_count × type_weight)
- *
- * Then map to adjustment range: (satisfaction/100 × MAX_ADJ*2) - MAX_ADJ
- * So 100 satisfaction → +5.0, 50 → 0.0, 0 → -5.0
+ * Compute per-source weighted satisfaction (by user type)
  */
-function computeCommunityAdjustment(reviewRows) {
-  if (!reviewRows || reviewRows.length === 0) return 0;
-
+function sourceWeightedSatisfaction(row) {
   let weightedSum = 0;
   let weightedCount = 0;
 
+  if (row.heavy_coder_count > 0) {
+    const w = COMMUNITY_WEIGHTS.heavy_coder * row.heavy_coder_count;
+    weightedSum += row.heavy_coder_satisfaction * w;
+    weightedCount += w;
+  }
+  if (row.vibe_coder_count > 0) {
+    const w = COMMUNITY_WEIGHTS.vibe_coder * row.vibe_coder_count;
+    weightedSum += row.vibe_coder_satisfaction * w;
+    weightedCount += w;
+  }
+  if (row.casual_count > 0) {
+    const w = COMMUNITY_WEIGHTS.casual * row.casual_count;
+    weightedSum += row.casual_satisfaction * w;
+    weightedCount += w;
+  }
+
+  // Fallback: old-format rows without per-type breakdown
+  if (weightedCount === 0 && row.review_count > 0 && row.coding_satisfaction != null) {
+    return { satisfaction: row.coding_satisfaction, count: row.review_count };
+  }
+
+  if (weightedCount === 0) return { satisfaction: 50, count: 0 };
+  return {
+    satisfaction: weightedSum / weightedCount,
+    count: (row.heavy_coder_count || 0) + (row.vibe_coder_count || 0) + (row.casual_count || 0),
+  };
+}
+
+/**
+ * Compute community adjustment with full statistical safeguards.
+ * Returns { adjustment, confidence, totalReviews, sourceCount, details }
+ */
+function computeCommunityAdjustment(reviewRows) {
+  const noAdj = { adjustment: 0, confidence: 0, totalReviews: 0, sourceCount: 0, details: 'no reviews' };
+  if (!reviewRows || reviewRows.length === 0) return noAdj;
+
+  // Step 1: compute per-source satisfaction scores
+  const sourceSats = [];
+  let totalReviews = 0;
+
   for (const row of reviewRows) {
-    // Heavy coder signal
-    if (row.heavy_coder_count > 0) {
-      const w = COMMUNITY_WEIGHTS.heavy_coder * row.heavy_coder_count;
-      weightedSum += row.heavy_coder_satisfaction * w;
-      weightedCount += w;
+    const { satisfaction, count } = sourceWeightedSatisfaction(row);
+    totalReviews += count || row.review_count || 0;
+    if ((count || row.review_count || 0) > 0) {
+      sourceSats.push({ source: row.source, satisfaction, count: count || row.review_count });
     }
+  }
 
-    // Vibe coder signal
-    if (row.vibe_coder_count > 0) {
-      const w = COMMUNITY_WEIGHTS.vibe_coder * row.vibe_coder_count;
-      weightedSum += row.vibe_coder_satisfaction * w;
-      weightedCount += w;
-    }
+  const sourceCount = sourceSats.length;
 
-    // Casual signal
-    if (row.casual_count > 0) {
-      const w = COMMUNITY_WEIGHTS.casual * row.casual_count;
-      weightedSum += row.casual_satisfaction * w;
-      weightedCount += w;
-    }
+  // Step 2: minimum-N gate
+  if (totalReviews < MIN_REVIEWS_THRESHOLD) {
+    return { adjustment: 0, confidence: 0, totalReviews, sourceCount, details: `below min N (${totalReviews}/${MIN_REVIEWS_THRESHOLD})` };
+  }
 
-    // Fallback: if no per-type breakdown, use aggregate
-    if (row.heavy_coder_count === 0 && row.vibe_coder_count === 0 && row.casual_count === 0) {
-      if (row.review_count > 0 && row.coding_satisfaction != null) {
-        const w = COMMUNITY_WEIGHTS.casual * row.review_count;
-        weightedSum += row.coding_satisfaction * w;
-        weightedCount += w;
+  // Step 3: outlier protection — cap per-source satisfaction at ±1.5σ from mean
+  if (sourceSats.length >= 3) {
+    const mean = sourceSats.reduce((s, x) => s + x.satisfaction, 0) / sourceSats.length;
+    const variance = sourceSats.reduce((s, x) => s + (x.satisfaction - mean) ** 2, 0) / sourceSats.length;
+    const stddev = Math.sqrt(variance);
+
+    if (stddev > 0) {
+      const lowerBound = mean - OUTLIER_CAP_SIGMA * stddev;
+      const upperBound = mean + OUTLIER_CAP_SIGMA * stddev;
+      for (const s of sourceSats) {
+        s.satisfaction = Math.max(lowerBound, Math.min(upperBound, s.satisfaction));
       }
     }
   }
 
-  if (weightedCount === 0) return 0;
+  // Step 4: weighted average across sources (by review count)
+  let weightedSum = 0;
+  let weightedCount = 0;
+  for (const s of sourceSats) {
+    weightedSum += s.satisfaction * s.count;
+    weightedCount += s.count;
+  }
 
+  if (weightedCount === 0) return noAdj;
   const avgSatisfaction = weightedSum / weightedCount;
-  return (avgSatisfaction / 100 * MAX_COMMUNITY_ADJ * 2) - MAX_COMMUNITY_ADJ;
+
+  // Step 5: confidence scaling
+  // Factor 1: review count (linear ramp from MIN to FULL)
+  const nFactor = Math.min(1, (totalReviews - MIN_REVIEWS_THRESHOLD) / (FULL_CONFIDENCE_N - MIN_REVIEWS_THRESHOLD));
+
+  // Factor 2: source diversity (1 source = 0.6, 2+ sources = 1.0)
+  const sourceFactor = sourceCount >= MIN_SOURCES_FULL ? 1.0 : 0.6;
+
+  const confidence = Math.min(1, nFactor * sourceFactor);
+
+  // Step 6: compute raw adjustment then scale by confidence
+  // Map satisfaction 0-100 → raw adjustment -MAX to +MAX
+  const rawAdj = (avgSatisfaction / 100 * MAX_COMMUNITY_ADJ * 2) - MAX_COMMUNITY_ADJ;
+  const adjustment = rawAdj * confidence;
+
+  const details = `N=${totalReviews}, sources=${sourceCount}, conf=${(confidence * 100).toFixed(0)}%, sat=${avgSatisfaction.toFixed(1)}`;
+
+  return {
+    adjustment: Number(adjustment.toFixed(3)),
+    confidence: Number(confidence.toFixed(3)),
+    totalReviews,
+    sourceCount,
+    avgSatisfaction: Number(avgSatisfaction.toFixed(1)),
+    details,
+  };
 }
 
 export async function computeCompositeScores(env) {
@@ -190,17 +258,16 @@ export async function computeCompositeScores(env) {
     const totalWeight = available.reduce((s, [, w]) => s + w, 0);
     const normalized = available.map(([k, w]) => [k, w / totalWeight]);
 
-    // Weighted sum (each component is 0-1, multiply by 100 for final scale)
     let weightedSum = 0;
     for (const [k, nw] of normalized) {
       weightedSum += components[k] * nw * 100;
     }
 
-    // Community adjustment: weighted by user type
+    // Community adjustment with statistical safeguards
     const modelReviews = reviewsByModel[model.id] || [];
-    const communityAdj = computeCommunityAdjustment(modelReviews);
+    const community = computeCommunityAdjustment(modelReviews);
 
-    const compositeScore = Math.max(0, Math.min(100, weightedSum + communityAdj));
+    const compositeScore = Math.max(0, Math.min(100, weightedSum + community.adjustment));
 
     batch.push(insertStmt.bind(
       model.id,
@@ -212,7 +279,7 @@ export async function computeCompositeScores(env) {
       components.tau != null ? Number((components.tau * 100).toFixed(2)) : null,
       components.gpqa != null ? Number((components.gpqa * 100).toFixed(2)) : null,
       components.success != null ? Number((components.success * 100).toFixed(2)) : null,
-      Number(communityAdj.toFixed(2))
+      Number(community.adjustment.toFixed(2))
     ));
 
     computed++;
@@ -220,11 +287,15 @@ export async function computeCompositeScores(env) {
       topScore = compositeScore;
       topModel = model.name;
     }
+
+    if (community.totalReviews > 0) {
+      console.log(`[COMPOSITE] ${model.name}: adj=${community.adjustment.toFixed(2)}, ${community.details}`);
+    }
   }
 
   if (batch.length) {
     await env.DB.batch(batch);
   }
 
-  console.log(`[COMPOSITE] Computed scores for ${computed} models, top: ${topModel} (${topScore.toFixed(2)})`);
+  console.log(`[COMPOSITE] v3: Computed scores for ${computed} models, top: ${topModel} (${topScore.toFixed(2)})`);
 }
