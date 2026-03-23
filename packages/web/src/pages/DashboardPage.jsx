@@ -134,9 +134,9 @@ function NewsItem({ item, onBookmark, onMarkRead }) {
           )}
           <div className="flex items-center gap-3 mt-2">
             <RelevanceBar score={item.relevance_score ?? 0} />
-            {item.relevance_tags?.length > 0 && (
+            {item.relevance_tags && (
               <div className="flex flex-wrap gap-1">
-                {item.relevance_tags.map((tag) => (
+                {(typeof item.relevance_tags === 'string' ? JSON.parse(item.relevance_tags) : item.relevance_tags).map((tag) => (
                   <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
                     {tag}
                   </span>
