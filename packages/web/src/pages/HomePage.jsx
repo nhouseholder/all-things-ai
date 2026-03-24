@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 
-const VERSION = 'v0.5.7';
+const VERSION = 'v0.5.8';
 const BUILD_DATE = 'Mar 24, 2026';
 
 function compositeColor(score) {

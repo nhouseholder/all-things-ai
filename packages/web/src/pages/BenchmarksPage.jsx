@@ -112,26 +112,67 @@ function BangForBuckTooltip({ active, payload }) {
 }
 
 function ModelToolsModal({ model, onClose }) {
-  const tools = model.available_in ?? model.tools ?? [];
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.getModelAvailability();
+        const match = data?.find?.(
+          (m) => m.model_slug === model.slug || m.model_slug === model.model_slug
+        );
+        if (!cancelled) setPlans(match?.plans ?? []);
+      } catch {
+        if (!cancelled) setPlans([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [model.slug, model.model_slug]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
-        className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl"
+        className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-bold text-white mb-1">{model.name ?? model.model_name}</h3>
         <p className="text-xs text-gray-500 mb-4">Available in the following tools/plans:</p>
-        {tools.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
+          </div>
+        ) : plans.length === 0 ? (
           <p className="text-sm text-gray-500">No tool/plan information available.</p>
         ) : (
           <ul className="space-y-2">
-            {tools.map((t, i) => (
-              <li key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-800">
-                <span className="text-sm text-white">{typeof t === 'string' ? t : t.tool_name ?? t.name}</span>
-                {typeof t !== 'string' && t.plan_name && (
-                  <span className="text-xs text-gray-400 bg-gray-700 px-2 py-0.5 rounded-full">
-                    {t.plan_name}
-                  </span>
+            {plans.map((p, i) => (
+              <li key={i} className="p-3 rounded-lg bg-gray-800 border border-gray-700/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-white">{p.tool_name}</span>
+                  <div className="flex items-center gap-2">
+                    {p.credits_per_request && (
+                      <span className="text-[10px] text-cyan-400 font-medium">
+                        {p.credits_per_request} cr/req
+                      </span>
+                    )}
+                    {p.price_monthly != null && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        p.price_monthly === 0
+                          ? 'bg-green-500/10 text-green-400'
+                          : 'bg-orange-500/10 text-orange-400'
+                      }`}>
+                        {p.price_monthly === 0 ? 'Free' : `$${p.price_monthly}/mo`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">{p.plan_name}</p>
+                {p.model_cost_notes && (
+                  <p className="text-[10px] text-cyan-500/80 mt-1">{p.model_cost_notes}</p>
                 )}
               </li>
             ))}
