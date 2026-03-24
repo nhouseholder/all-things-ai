@@ -154,20 +154,36 @@ function ModelToolsModal({ model, onClose }) {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-white">{p.tool_name}</span>
                   <div className="flex items-center gap-2">
-                    {p.credits_per_request && (
-                      <span className="text-[10px] text-cyan-400 font-medium">
-                        {p.credits_per_request} cr/req
-                      </span>
-                    )}
-                    {p.price_monthly != null && (
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        p.price_monthly === 0
-                          ? 'bg-green-500/10 text-green-400'
-                          : 'bg-orange-500/10 text-orange-400'
-                      }`}>
-                        {p.price_monthly === 0 ? 'Free' : `$${p.price_monthly}/mo`}
-                      </span>
-                    )}
+                    {(() => {
+                      if (p.price_monthly == null) return null;
+                      const notes = p.model_cost_notes || '';
+                      const hasByok = notes.includes('BYOK') || notes.includes('$/M') || notes.includes('/M ');
+                      const hasApiCost = notes.includes('$');
+                      const hasCredits = p.credits_per_request && p.credits_per_request > 0;
+                      const hasModelCost = hasByok || hasApiCost || hasCredits;
+                      let label, style;
+                      if (p.price_monthly > 0) {
+                        label = `$${p.price_monthly}/mo`;
+                        style = 'bg-orange-500/10 text-orange-400';
+                      } else if (!hasModelCost) {
+                        label = 'Free';
+                        style = 'bg-green-500/10 text-green-400';
+                      } else if (hasByok) {
+                        label = 'BYOK';
+                        style = 'bg-yellow-500/10 text-yellow-400';
+                      } else if (hasCredits) {
+                        label = `${p.credits_per_request} cr/req`;
+                        style = 'bg-cyan-500/10 text-cyan-400';
+                      } else {
+                        label = 'API costs';
+                        style = 'bg-yellow-500/10 text-yellow-400';
+                      }
+                      return (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${style}`}>
+                          {label}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5">{p.plan_name}</p>
