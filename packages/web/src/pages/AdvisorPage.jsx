@@ -141,33 +141,120 @@ function TimeSavingsTooltip({ active, payload }) {
 
 // ── Component Breakdown Table ───────────────────────────────────────────
 
-const COMPONENT_KEYS = [
-  { key: 'swe_bench_component', label: 'SWE-Bench' },
-  { key: 'nuance_component', label: 'Nuance' },
-  { key: 'livecodebench_component', label: 'LiveCodeBench' },
-  { key: 'arena_component', label: 'Arena' },
-  { key: 'tau_component', label: 'TAU' },
-  { key: 'gpqa_component', label: 'GPQA' },
-  { key: 'success_rate_component', label: 'Success Rate' },
-  { key: 'community_adjustment', label: 'Community Adj.' },
+const COMPONENT_GROUPS = [
+  {
+    label: 'Coding',
+    color: 'blue',
+    items: [
+      { key: 'swe_bench_component', label: 'SWE-Bench', desc: 'Real-world bug fixes' },
+      { key: 'livecodebench_component', label: 'LiveCode', desc: 'Live coding challenges' },
+    ],
+  },
+  {
+    label: 'Reasoning',
+    color: 'purple',
+    items: [
+      { key: 'gpqa_component', label: 'GPQA', desc: 'Graduate-level Q&A' },
+      { key: 'tau_component', label: 'TAU', desc: 'Agentic task completion' },
+    ],
+  },
+  {
+    label: 'Quality',
+    color: 'cyan',
+    items: [
+      { key: 'nuance_component', label: 'Nuance', desc: 'Human-like understanding' },
+      { key: 'arena_component', label: 'Arena ELO', desc: 'Human preference votes' },
+    ],
+  },
+  {
+    label: 'Real-World',
+    color: 'emerald',
+    items: [
+      { key: 'success_rate_component', label: 'Success Rate', desc: 'First-attempt completions' },
+    ],
+  },
 ];
 
+const GROUP_COLORS = {
+  blue: { bar: 'bg-blue-500', text: 'text-blue-400', badge: 'bg-blue-500/10 border-blue-500/20 text-blue-400' },
+  purple: { bar: 'bg-purple-500', text: 'text-purple-400', badge: 'bg-purple-500/10 border-purple-500/20 text-purple-400' },
+  cyan: { bar: 'bg-cyan-500', text: 'text-cyan-400', badge: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' },
+  emerald: { bar: 'bg-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' },
+};
+
+function ScoreBar({ value, color }) {
+  const pct = value != null ? Math.min(100, Math.max(0, value)) : null;
+  const barColor = color || 'bg-blue-500';
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        {pct != null ? (
+          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+        ) : (
+          <div className="h-full w-full bg-gray-700/40 rounded-full" />
+        )}
+      </div>
+      <span className="text-[10px] font-mono text-gray-400 w-8 text-right tabular-nums">
+        {pct != null ? `${pct.toFixed(0)}` : '—'}
+      </span>
+    </div>
+  );
+}
+
 function ComponentBreakdown({ model }) {
+  const communityAdj = model.community_adjustment;
+  const hasCommunity = communityAdj != null && communityAdj !== 0;
+
   return (
     <tr>
-      <td colSpan={3} className="px-4 py-3 bg-gray-900/80">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {COMPONENT_KEYS.map(({ key, label }) => {
-            const val = model[key];
-            return (
-              <div key={key} className="flex flex-col">
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</span>
-                <span className="text-xs text-gray-300 font-medium">
-                  {val != null ? Number(val).toFixed(2) : '--'}
-                </span>
-              </div>
-            );
-          })}
+      <td colSpan={6} className="bg-gray-950/60 border-t border-gray-800/60">
+        <div className="px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Score Breakdown</span>
+            <div className="flex-1 h-px bg-gray-800" />
+            <span className="text-[10px] text-gray-600">out of 100</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {COMPONENT_GROUPS.map(({ label, color, items }) => {
+              const c = GROUP_COLORS[color];
+              return (
+                <div key={label} className={`rounded-lg border ${c.badge.split(' ').slice(0, 2).join(' ')} bg-gray-900/40 p-3`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2.5 ${c.text}`}>{label}</p>
+                  <div className="space-y-2.5">
+                    {items.map(({ key, label: itemLabel, desc }) => {
+                      const val = model[key];
+                      return (
+                        <div key={key}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-gray-300 font-medium">{itemLabel}</span>
+                          </div>
+                          <p className="text-[9px] text-gray-600 mb-0.5">{desc}</p>
+                          <ScoreBar value={val} color={c.bar} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Community adjustment pill */}
+          {hasCommunity && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-[10px] text-gray-600">Community signal:</span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                communityAdj > 0
+                  ? 'bg-green-500/10 border-green-500/25 text-green-400'
+                  : 'bg-red-500/10 border-red-500/25 text-red-400'
+              }`}>
+                {communityAdj > 0 ? '+' : ''}{Number(communityAdj).toFixed(2)} pts
+              </span>
+              <span className="text-[10px] text-gray-700">
+                {model.community_reviews ? `from ${model.community_reviews.toLocaleString()} reviews` : 'from community'}
+              </span>
+            </div>
+          )}
         </div>
       </td>
     </tr>
@@ -176,25 +263,58 @@ function ComponentBreakdown({ model }) {
 
 // ── Pricing Dropdown (per-model) ─────────────────────────────────────────
 
+const TOOL_TIER = (price) => {
+  if (price == null) return { label: 'BYOK', cls: 'bg-purple-500/10 border-purple-500/20 text-purple-400' };
+  if (price === 0) return { label: 'Free', cls: 'bg-green-500/10 border-green-500/20 text-green-400' };
+  if (price <= 10) return { label: `$${price}/mo`, cls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' };
+  if (price <= 30) return { label: `$${price}/mo`, cls: 'bg-blue-500/10 border-blue-500/20 text-blue-400' };
+  return { label: `$${price}/mo`, cls: 'bg-orange-500/10 border-orange-500/20 text-orange-400' };
+};
+
 function ModelPricingDropdown({ modelSlug, availability }) {
   const plans = availability?.[modelSlug]?.plans || [];
-  if (plans.length === 0) return <span className="text-gray-600 text-[10px]">No availability data</span>;
+  if (plans.length === 0) {
+    return (
+      <div className="px-5 py-3 bg-gray-950/40 border-t border-gray-800/40">
+        <p className="text-[11px] text-gray-600 italic">No availability data on record.</p>
+      </div>
+    );
+  }
+
+  // Deduplicate by tool+plan combo, sort free first
+  const seen = new Set();
+  const unique = plans.filter(p => {
+    const k = `${p.tool_slug}:${p.plan_name}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).sort((a, b) => (a.price_monthly ?? 9999) - (b.price_monthly ?? 9999));
 
   return (
-    <div className="px-4 py-3 bg-gray-900/80">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Available On</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {plans.map((p, i) => (
-          <div key={i} className="flex items-center justify-between gap-2 bg-gray-800/60 rounded-lg px-3 py-2">
-            <div className="min-w-0">
-              <p className="text-xs text-white font-medium truncate">{p.tool_name}</p>
-              <p className="text-[10px] text-gray-400">{p.plan_name}</p>
+    <div className="px-5 py-4 bg-gray-950/40 border-t border-gray-800/40">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Available On</span>
+        <div className="flex-1 h-px bg-gray-800" />
+        <span className="text-[10px] text-gray-700">{unique.length} option{unique.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+        {unique.map((p, i) => {
+          const tier = TOOL_TIER(p.price_monthly);
+          return (
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-gray-700/80 transition-colors px-3 py-2.5"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-white font-semibold truncate">{p.tool_name}</p>
+                <p className="text-[10px] text-gray-500 truncate">{p.plan_name}</p>
+              </div>
+              <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${tier.cls}`}>
+                {tier.label}
+              </span>
             </div>
-            <span className="text-xs text-green-400 font-bold whitespace-nowrap">
-              {p.price_monthly != null ? `$${p.price_monthly}/mo` : 'BYOK'}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
