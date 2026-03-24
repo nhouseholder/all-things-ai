@@ -271,7 +271,47 @@ const TOOL_TIER = (price) => {
   return { label: `$${price}/mo`, cls: 'bg-orange-500/10 border-orange-500/20 text-orange-400' };
 };
 
+const OVERAGE_BADGE = {
+  'none':        { label: 'BYOK / No overage', cls: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  'throttled':   { label: 'Throttled (no extra charge)', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  'stopped':     { label: 'Stops at limit', cls: 'bg-red-500/10 text-red-400 border-red-500/20' },
+  'pay-per-use': { label: 'Pay-as-you-go overage', cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
+  'auto-topup':  { label: 'Auto top-up', cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+};
+
+function OverageInfo({ plan }) {
+  const { overage_model, overage_rate_description, fallback_behavior, usage_notes, included_requests } = plan;
+  if (!overage_model) return null;
+  const badge = OVERAGE_BADGE[overage_model];
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-800/60 space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {included_requests && (
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">
+            {included_requests.toLocaleString()} req/mo included
+          </span>
+        )}
+        {badge && (
+          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${badge.cls}`}>
+            {badge.label}
+          </span>
+        )}
+      </div>
+      {overage_rate_description && (
+        <p className="text-[9px] text-gray-500 leading-relaxed">{overage_rate_description}</p>
+      )}
+      {fallback_behavior && overage_model === 'stopped' && (
+        <p className="text-[9px] text-gray-600 italic">{fallback_behavior}</p>
+      )}
+      {usage_notes && (
+        <p className="text-[9px] text-gray-600 leading-relaxed">{usage_notes}</p>
+      )}
+    </div>
+  );
+}
+
 function ModelPricingDropdown({ modelSlug, availability }) {
+  const [expandedPlan, setExpandedPlan] = useState(null);
   const plans = availability?.[modelSlug]?.plans || [];
   if (plans.length === 0) {
     return (
@@ -300,22 +340,37 @@ function ModelPricingDropdown({ modelSlug, availability }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
         {unique.map((p, i) => {
           const tier = TOOL_TIER(p.price_monthly);
+          const key = `${p.tool_slug}:${p.plan_name}`;
+          const isExpanded = expandedPlan === key;
+          const hasOverage = !!p.overage_model;
           return (
             <div
               key={i}
-              className="flex items-center gap-3 rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-gray-700/80 transition-colors px-3 py-2.5"
+              className={`rounded-lg bg-gray-900/60 border transition-colors px-3 py-2.5 ${
+                hasOverage ? 'cursor-pointer' : ''
+              } ${isExpanded ? 'border-gray-600/80' : 'border-gray-800/60 hover:border-gray-700/80'}`}
+              onClick={hasOverage ? () => setExpandedPlan(isExpanded ? null : key) : undefined}
             >
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-white font-semibold truncate">{p.tool_name}</p>
-                <p className="text-[10px] text-gray-500 truncate">{p.plan_name}</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white font-semibold truncate">{p.tool_name}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{p.plan_name}</p>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tier.cls}`}>
+                    {tier.label}
+                  </span>
+                  {hasOverage && (
+                    <span className="text-gray-600 text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                  )}
+                </div>
               </div>
-              <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${tier.cls}`}>
-                {tier.label}
-              </span>
+              {isExpanded && <OverageInfo plan={p} />}
             </div>
           );
         })}
       </div>
+      <p className="text-[9px] text-gray-700 mt-2">Click any plan card to see overage &amp; usage limit details.</p>
     </div>
   );
 }

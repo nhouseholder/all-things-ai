@@ -28,8 +28,8 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 
-const VERSION = 'v0.5.4';
-const BUILD_DATE = 'Mar 23, 2026';
+const VERSION = 'v0.5.5';
+const BUILD_DATE = 'Mar 24, 2026';
 
 function compositeColor(score) {
   if (score >= 85) return 'text-green-400';

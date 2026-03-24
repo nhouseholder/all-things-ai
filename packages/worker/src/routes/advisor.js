@@ -191,6 +191,9 @@ advisorRoutes.get('/model-availability', async (c) => {
       m.name as model_name, m.slug as model_slug,
       t.name as tool_name, t.slug as tool_slug,
       pp.plan_name, pp.price_monthly,
+      pp.included_requests, pp.overage_model,
+      pp.overage_rate_description, pp.overage_rate_value,
+      pp.fallback_behavior, pp.usage_notes,
       ma.access_level
     FROM model_availability ma
     JOIN models m ON m.id = ma.model_id
@@ -216,6 +219,12 @@ advisorRoutes.get('/model-availability', async (c) => {
       plan_name: row.plan_name,
       price_monthly: row.price_monthly,
       access_level: row.access_level,
+      included_requests: row.included_requests,
+      overage_model: row.overage_model,
+      overage_rate_description: row.overage_rate_description,
+      overage_rate_value: row.overage_rate_value,
+      fallback_behavior: row.fallback_behavior,
+      usage_notes: row.usage_notes,
     });
   }
 
