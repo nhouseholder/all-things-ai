@@ -280,31 +280,38 @@ const OVERAGE_BADGE = {
 };
 
 function OverageInfo({ plan }) {
-  const { overage_model, overage_rate_description, fallback_behavior, usage_notes, included_requests } = plan;
-  if (!overage_model) return null;
-  const badge = OVERAGE_BADGE[overage_model];
+  const { overage_model, overage_rate_description, fallback_behavior, usage_notes, included_requests, model_cost_notes } = plan;
+  if (!overage_model && !model_cost_notes) return null;
+  const badge = overage_model ? OVERAGE_BADGE[overage_model] : null;
   return (
     <div className="mt-2 pt-2 border-t border-gray-800/60 space-y-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {included_requests && (
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">
-            {included_requests.toLocaleString()} req/mo included
-          </span>
-        )}
-        {badge && (
-          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${badge.cls}`}>
-            {badge.label}
-          </span>
-        )}
-      </div>
-      {overage_rate_description && (
-        <p className="text-[9px] text-gray-500 leading-relaxed">{overage_rate_description}</p>
+      {model_cost_notes && (
+        <p className="text-[9px] text-cyan-400/80 leading-relaxed font-medium">{model_cost_notes}</p>
       )}
-      {fallback_behavior && overage_model === 'stopped' && (
-        <p className="text-[9px] text-gray-600 italic">{fallback_behavior}</p>
-      )}
-      {usage_notes && (
-        <p className="text-[9px] text-gray-600 leading-relaxed">{usage_notes}</p>
+      {overage_model && (
+        <>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {included_requests && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">
+                {included_requests.toLocaleString()} req/mo included
+              </span>
+            )}
+            {badge && (
+              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${badge.cls}`}>
+                {badge.label}
+              </span>
+            )}
+          </div>
+          {overage_rate_description && (
+            <p className="text-[9px] text-gray-500 leading-relaxed">{overage_rate_description}</p>
+          )}
+          {fallback_behavior && overage_model === 'stopped' && (
+            <p className="text-[9px] text-gray-600 italic">{fallback_behavior}</p>
+          )}
+          {usage_notes && (
+            <p className="text-[9px] text-gray-600 leading-relaxed">{usage_notes}</p>
+          )}
+        </>
       )}
     </div>
   );
@@ -342,25 +349,28 @@ function ModelPricingDropdown({ modelSlug, availability }) {
           const tier = TOOL_TIER(p.price_monthly);
           const key = `${p.tool_slug}:${p.plan_name}`;
           const isExpanded = expandedPlan === key;
-          const hasOverage = !!p.overage_model;
+          const hasDetails = !!(p.overage_model || p.model_cost_notes);
           return (
             <div
               key={i}
               className={`rounded-lg bg-gray-900/60 border transition-colors px-3 py-2.5 ${
-                hasOverage ? 'cursor-pointer' : ''
+                hasDetails ? 'cursor-pointer' : ''
               } ${isExpanded ? 'border-gray-600/80' : 'border-gray-800/60 hover:border-gray-700/80'}`}
-              onClick={hasOverage ? () => setExpandedPlan(isExpanded ? null : key) : undefined}
+              onClick={hasDetails ? () => setExpandedPlan(isExpanded ? null : key) : undefined}
             >
               <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-white font-semibold truncate">{p.tool_name}</p>
                   <p className="text-[10px] text-gray-500 truncate">{p.plan_name}</p>
+                  {p.credits_per_request != null && (
+                    <p className="text-[9px] text-cyan-500/70 mt-0.5">{p.credits_per_request} credits/req</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tier.cls}`}>
                     {tier.label}
                   </span>
-                  {hasOverage && (
+                  {hasDetails && (
                     <span className="text-gray-600 text-[9px]">{isExpanded ? '▲' : '▼'}</span>
                   )}
                 </div>

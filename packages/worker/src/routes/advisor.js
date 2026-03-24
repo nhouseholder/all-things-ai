@@ -194,7 +194,7 @@ advisorRoutes.get('/model-availability', async (c) => {
       pp.included_requests, pp.overage_model,
       pp.overage_rate_description, pp.overage_rate_value,
       pp.fallback_behavior, pp.usage_notes,
-      ma.access_level
+      ma.access_level, ma.credits_per_request, ma.cost_notes as model_cost_notes
     FROM model_availability ma
     JOIN models m ON m.id = ma.model_id
     JOIN tools t ON t.id = ma.tool_id
@@ -225,6 +225,8 @@ advisorRoutes.get('/model-availability', async (c) => {
       overage_rate_value: row.overage_rate_value,
       fallback_behavior: row.fallback_behavior,
       usage_notes: row.usage_notes,
+      credits_per_request: row.credits_per_request,
+      model_cost_notes: row.model_cost_notes,
     });
   }
 
