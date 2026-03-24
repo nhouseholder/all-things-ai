@@ -29,3 +29,4 @@ id = "9a46e26a816f4fc09a7181ea4be8b387"
 
 [vars]
 ENVIRONMENT = "production"
+# ADMIN_API_KEY is set via `wrangler secret put ADMIN_API_KEY` — not in this file

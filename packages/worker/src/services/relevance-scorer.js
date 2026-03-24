@@ -19,6 +19,12 @@ export async function scoreUnscored(env) {
 
   let totalScore = 0;
 
+  // W5: Batch updates instead of individual DB calls
+  const updateStmt = env.DB.prepare(
+    `UPDATE news_items SET relevance_score = ?, relevance_tags = ? WHERE id = ?`
+  );
+  const batch = [];
+
   for (const item of items) {
     const text = `${item.title} ${item.summary || ''}`.toLowerCase();
 
@@ -37,11 +43,13 @@ export async function scoreUnscored(env) {
     const clampedScore = Math.max(0, Math.min(100, finalScore));
     const tagsJson = JSON.stringify(tags);
 
-    await env.DB.prepare(
-      `UPDATE news_items SET relevance_score = ?, relevance_tags = ? WHERE id = ?`
-    ).bind(clampedScore, tagsJson, item.id).run();
-
+    batch.push(updateStmt.bind(clampedScore, tagsJson, item.id));
     totalScore += clampedScore;
+  }
+
+  // Execute in chunks of 50 (D1 batch limit)
+  for (let i = 0; i < batch.length; i += 50) {
+    await env.DB.batch(batch.slice(i, i + 50));
   }
 
   const avgScore = Math.round(totalScore / items.length);

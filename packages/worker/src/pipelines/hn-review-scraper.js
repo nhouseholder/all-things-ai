@@ -169,6 +169,15 @@ export async function scrapeHNReviews(env) {
     return { totalReviews: 0, modelsUpdated: 0 };
   }
 
+  // W10: Deduplicate by post_id before processing
+  const seen = new Set();
+  const dedupedReviews = allRawReviews.filter(r => {
+    if (seen.has(r.post_id)) return false;
+    seen.add(r.post_id);
+    return true;
+  });
+  console.log(`[HNReview] Deduped: ${allRawReviews.length} → ${dedupedReviews.length} unique`);
+
   // Store raw reviews
   const rawInsert = env.DB.prepare(`
     INSERT OR IGNORE INTO community_review_raw
@@ -177,7 +186,7 @@ export async function scrapeHNReviews(env) {
   `);
 
   const rawBatch = [];
-  for (const r of allRawReviews) {
+  for (const r of dedupedReviews) {
     for (const modelSlug of r.models) {
       rawBatch.push(rawInsert.bind(
         modelSlug, r.source, r.post_id, r.author,
@@ -194,8 +203,22 @@ export async function scrapeHNReviews(env) {
     }
   }
 
-  // Aggregate into community_reviews
-  const aggregated = aggregateReviews(allRawReviews);
+  // C5: Recompute aggregation from ALL raw data to prevent sentiment drift
+  const { results: allStoredRaw } = await env.DB.prepare(`
+    SELECT model_slug, source, sentiment, coding_satisfaction, user_type, score
+    FROM community_review_raw WHERE source = 'hackernews'
+  `).all();
+
+  const fullRawForAgg = allStoredRaw.map(r => ({
+    models: [r.model_slug],
+    source: r.source,
+    sentiment: r.sentiment,
+    codingSatisfaction: r.coding_satisfaction,
+    userType: r.user_type,
+    postScore: r.score,
+  }));
+
+  const aggregated = aggregateReviews(fullRawForAgg);
   let modelsUpdated = 0;
 
   const upsertStmt = env.DB.prepare(`
@@ -213,16 +236,16 @@ export async function scrapeHNReviews(env) {
       coding_satisfaction = excluded.coding_satisfaction,
       common_complaints = excluded.common_complaints,
       common_praises = excluded.common_praises,
-      review_count = community_reviews.review_count + excluded.review_count,
+      review_count = excluded.review_count,
       casual_sentiment = excluded.casual_sentiment,
       casual_satisfaction = excluded.casual_satisfaction,
-      casual_count = community_reviews.casual_count + excluded.casual_count,
+      casual_count = excluded.casual_count,
       vibe_coder_sentiment = excluded.vibe_coder_sentiment,
       vibe_coder_satisfaction = excluded.vibe_coder_satisfaction,
-      vibe_coder_count = community_reviews.vibe_coder_count + excluded.vibe_coder_count,
+      vibe_coder_count = excluded.vibe_coder_count,
       heavy_coder_sentiment = excluded.heavy_coder_sentiment,
       heavy_coder_satisfaction = excluded.heavy_coder_satisfaction,
-      heavy_coder_count = community_reviews.heavy_coder_count + excluded.heavy_coder_count,
+      heavy_coder_count = excluded.heavy_coder_count,
       last_scraped = datetime('now')
   `);
 

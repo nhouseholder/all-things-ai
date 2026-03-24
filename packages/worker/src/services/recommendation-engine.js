@@ -22,11 +22,13 @@ export async function generateRecommendations(env) {
   recommendations.sort((a, b) => b.priority - a.priority);
   const top = recommendations.slice(0, 10);
 
-  for (const rec of top) {
-    await env.DB.prepare(
+  // W4: Batch insert instead of individual statements
+  if (top.length) {
+    const insertStmt = env.DB.prepare(
       `INSERT INTO recommendations (type, title, body, priority, related_tool_id, related_model_id, related_news_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
+    );
+    const batch = top.map(rec => insertStmt.bind(
       rec.type,
       rec.title,
       rec.body,
@@ -34,7 +36,8 @@ export async function generateRecommendations(env) {
       rec.related_tool_id ?? null,
       rec.related_model_id ?? null,
       rec.related_news_id ?? null
-    ).run();
+    ));
+    await env.DB.batch(batch);
   }
 
   console.log(`[RECOMMENDATIONS] Generated ${top.length} recommendations`);
@@ -75,33 +78,46 @@ async function addPriceDropRecommendations(env, recommendations) {
  * Type 2: Cheaper alternatives for each subscribed tool.
  */
 async function addCheaperAlternatives(env, recommendations) {
+  // W3: Single-query approach instead of N+1
   const subscriptions = await getActiveSubscriptions(env);
+  if (!subscriptions.length) return;
 
+  // Get tool categories for all subscribed tools in one query
+  const toolIds = subscriptions.map(s => s.tool_id);
+  const toolPlaceholders = toolIds.map(() => '?').join(',');
+  const { results: tools } = await env.DB.prepare(
+    `SELECT id, name, category FROM tools WHERE id IN (${toolPlaceholders})`
+  ).bind(...toolIds).all();
+
+  const toolMap = Object.fromEntries(tools.map(t => [t.id, t]));
+  const categories = [...new Set(tools.map(t => t.category))];
+  if (!categories.length) return;
+
+  // Get all cheaper plans in relevant categories in one query
+  const catPlaceholders = categories.map(() => '?').join(',');
+  const { results: allAlts } = await env.DB.prepare(`
+    SELECT t.id AS tool_id, t.name AS tool_name, t.category, pp.plan_name,
+           pp.price_monthly, pp.models_included
+    FROM tools t
+    JOIN pricing_plans pp ON pp.tool_id = t.id AND pp.is_current = 1
+    WHERE t.category IN (${catPlaceholders})
+      AND t.id NOT IN (${toolPlaceholders})
+      AND pp.price_monthly IS NOT NULL
+      AND pp.price_monthly > 0
+    ORDER BY pp.price_monthly ASC
+  `).bind(...categories, ...toolIds).all();
+
+  // Match alternatives to subscriptions in-memory
   for (const sub of subscriptions) {
-    // Get the tool's category
-    const tool = await env.DB.prepare(
-      `SELECT id, name, category FROM tools WHERE id = ?`
-    ).bind(sub.tool_id).first();
+    const tool = toolMap[sub.tool_id];
     if (!tool) continue;
 
-    // Find cheaper tools in the same category
-    const alternatives = await env.DB.prepare(`
-      SELECT t.id AS tool_id, t.name AS tool_name, pp.plan_name,
-             pp.price_monthly, pp.models_included
-      FROM tools t
-      JOIN pricing_plans pp ON pp.tool_id = t.id AND pp.is_current = 1
-      WHERE t.category = ? AND t.id != ?
-        AND pp.price_monthly IS NOT NULL
-        AND pp.price_monthly < ?
-        AND pp.price_monthly > 0
-      ORDER BY pp.price_monthly ASC
-      LIMIT 3
-    `).bind(tool.category, tool.id, sub.monthly_cost).all();
+    const cheaper = allAlts
+      .filter(a => a.category === tool.category && a.price_monthly < sub.monthly_cost)
+      .slice(0, 3);
 
-    for (const alt of alternatives.results) {
+    for (const alt of cheaper) {
       const savings = (sub.monthly_cost - alt.price_monthly).toFixed(2);
-
-      // Check if alternative has similar model access
       const modelInfo = alt.models_included ? ` with access to ${alt.models_included}` : '';
 
       recommendations.push({

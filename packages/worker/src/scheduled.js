@@ -13,37 +13,53 @@ export async function handleScheduled(event, env) {
   const cron = event.cron;
   console.log(`[CRON] Triggered: ${cron} at ${new Date().toISOString()}`);
 
-  try {
-    switch (cron) {
-      case '*/30 * * * *':
-        await fetchAllRSS(env);
-        break;
-      case '0 */2 * * *':
-        await scrapeReddit(env);
-        break;
-      case '0 */3 * * *':
-        await scrapeHackerNews(env);
-        break;
-      case '0 6 * * *':
-        await scrapePricing(env);
-        break;
-      case '0 7 * * *':
-        await scoreUnscored(env);
-        await generateRecommendations(env);
-        break;
-      case '0 8 * * 1':
-        await buildAndSendDigest(env);
-        break;
-      // Community review scrape: every 6 hours
-      case '0 */6 * * *':
-        await scrapeRedditReviews(env);
-        await scrapeHNReviews(env);
-        await computeCompositeScores(env);
-        break;
-      default:
-        console.log(`[CRON] Unknown schedule: ${cron}`);
+  // S9: Wrap each task individually so one failure doesn't skip the rest
+  async function runSafe(label, fn) {
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`[CRON] ${label} failed:`, err.message);
     }
-  } catch (err) {
-    console.error(`[CRON] Error in ${cron}:`, err.message);
+  }
+
+  switch (cron) {
+    case '*/30 * * * *':
+      await runSafe('fetchAllRSS', () => fetchAllRSS(env));
+      break;
+    case '0 */2 * * *':
+      await runSafe('scrapeReddit', () => scrapeReddit(env));
+      break;
+    case '0 */3 * * *':
+      await runSafe('scrapeHackerNews', () => scrapeHackerNews(env));
+      break;
+    case '0 6 * * *':
+      await runSafe('scrapePricing', () => scrapePricing(env));
+      break;
+    case '0 7 * * *':
+      await runSafe('scoreUnscored', () => scoreUnscored(env));
+      await runSafe('generateRecommendations', () => generateRecommendations(env));
+      // C3 + S7: Daily cleanup of old data
+      await runSafe('cleanupOldData', async () => {
+        const newsResult = await env.DB.prepare(
+          `DELETE FROM news_items WHERE published_at < datetime('now', '-90 days') AND is_bookmarked = 0`
+        ).run();
+        if (newsResult.changes > 0) console.log(`[CLEANUP] Deleted ${newsResult.changes} old news items`);
+        const rawResult = await env.DB.prepare(
+          `DELETE FROM community_review_raw WHERE scraped_at < datetime('now', '-180 days')`
+        ).run();
+        if (rawResult.changes > 0) console.log(`[CLEANUP] Deleted ${rawResult.changes} old raw reviews`);
+      });
+      break;
+    case '0 8 * * 1':
+      await runSafe('buildAndSendDigest', () => buildAndSendDigest(env));
+      break;
+    // Community review scrape: every 6 hours
+    case '0 */6 * * *':
+      await runSafe('scrapeRedditReviews', () => scrapeRedditReviews(env));
+      await runSafe('scrapeHNReviews', () => scrapeHNReviews(env));
+      await runSafe('computeCompositeScores', () => computeCompositeScores(env));
+      break;
+    default:
+      console.log(`[CRON] Unknown schedule: ${cron}`);
   }
 }

@@ -33,9 +33,19 @@ benchmarksRoutes.get('/', async (c) => {
   return c.json({ benchmarks: grouped, categories: Object.keys(grouped) });
 });
 
-// POST /api/benchmarks/compare — compare specific models
+// POST /api/benchmarks/compare — compare specific models (W1: validated)
 benchmarksRoutes.post('/compare', async (c) => {
-  const { model_slugs, categories } = await c.req.json();
+  const body = await c.req.json();
+  const { model_slugs, categories } = body;
+  if (!Array.isArray(model_slugs) || model_slugs.length === 0) {
+    return c.json({ error: 'model_slugs must be a non-empty array' }, 400);
+  }
+  if (model_slugs.length > 20) {
+    return c.json({ error: 'Maximum 20 models per comparison' }, 400);
+  }
+  if (categories && !Array.isArray(categories)) {
+    return c.json({ error: 'categories must be an array' }, 400);
+  }
 
   const placeholders = model_slugs.map(() => '?').join(',');
   let query = `

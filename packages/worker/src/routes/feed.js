@@ -19,13 +19,17 @@ feedRoutes.get('/', async (c) => {
     params.push(`%${tag}%`);
   }
 
+  // C4: Build count query with same filters before adding LIMIT/OFFSET
+  let countQuery = 'SELECT COUNT(*) as total FROM news_items WHERE 1=1';
+  const countParams = [...params];
+  if (source) countQuery += ' AND source = ?';
+  if (tag) countQuery += ' AND relevance_tags LIKE ?';
+
   query += ' ORDER BY relevance_score DESC, published_at DESC LIMIT ? OFFSET ?';
   params.push(parseInt(limit), offset);
 
   const { results } = await c.env.DB.prepare(query).bind(...params).all();
-
-  const countQuery = 'SELECT COUNT(*) as total FROM news_items';
-  const { results: countResults } = await c.env.DB.prepare(countQuery).all();
+  const { results: countResults } = await c.env.DB.prepare(countQuery).bind(...countParams).all();
 
   return c.json({
     items: results,

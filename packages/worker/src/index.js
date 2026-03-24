@@ -21,12 +21,40 @@ import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
 
 const app = new Hono();
 
+// C2: Restrict CORS to actual frontend origins
+const ALLOWED_ORIGINS = [
+  'https://all-things-ai.pages.dev',
+  'https://allthingsai.dev',
+  'http://localhost:5173',
+  'http://localhost:4173',
+];
+
 app.use('/api/*', cors({
-  origin: '*',
+  origin: (origin) => ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 
-app.get('/', (c) => c.json({ name: 'All Things AI API', version: '0.2.0', status: 'ok' }));
+// C1: Admin auth middleware for mutation endpoints
+function requireAdmin() {
+  return async (c, next) => {
+    const auth = c.req.header('Authorization');
+    const adminKey = c.env.ADMIN_API_KEY;
+    if (!adminKey || !auth || auth !== `Bearer ${adminKey}`) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    await next();
+  };
+}
+
+// Health check with DB verification (S4)
+app.get('/', async (c) => {
+  try {
+    await c.env.DB.prepare('SELECT 1').first();
+    return c.json({ name: 'All Things AI API', version: '0.2.0', status: 'ok', db: 'connected' });
+  } catch {
+    return c.json({ name: 'All Things AI API', version: '0.2.0', status: 'degraded', db: 'error' }, 503);
+  }
+});
 
 app.route('/api/feed', feedRoutes);
 app.route('/api/tools', toolsRoutes);
@@ -37,8 +65,8 @@ app.route('/api/recommendations', recommendationsRoutes);
 app.route('/api/preferences', preferencesRoutes);
 app.route('/api/advisor', advisorRoutes);
 
-// Manual trigger for data ingestion (dev/admin use)
-app.post('/api/ingest', async (c) => {
+// Manual trigger for data ingestion (dev/admin use) — C1: require auth
+app.post('/api/ingest', requireAdmin(), async (c) => {
   const results = {};
   try { await fetchAllRSS(c.env); results.rss = 'ok'; } catch (e) { results.rss = e.message; }
   try { await scrapeReddit(c.env); results.reddit = 'ok'; } catch (e) { results.reddit = e.message; }
@@ -52,8 +80,8 @@ app.post('/api/ingest', async (c) => {
   return c.json(results);
 });
 
-// Manual trigger for community review scraping only
-app.post('/api/ingest/reviews', async (c) => {
+// Manual trigger for community review scraping only — C1: require auth
+app.post('/api/ingest/reviews', requireAdmin(), async (c) => {
   const results = {};
   try {
     const reddit = await scrapeRedditReviews(c.env);
