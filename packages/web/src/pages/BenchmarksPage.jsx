@@ -155,11 +155,19 @@ function NuanceHighlight({ models, benchmarkNames }) {
   );
   if (nuanceBenchmarks.length === 0) return null;
 
-  // Rank models by average nuance score
+  // Normalize ELO to 0-100 scale for fair averaging
+  const normalizeNuance = (bn, score) => {
+    if (bn.toLowerCase().includes('arena elo')) {
+      return Math.max(0, Math.min(100, ((score - 1100) / (1520 - 1100)) * 100));
+    }
+    return score;
+  };
+
+  // Rank models by average nuance score (normalized)
   const ranked = models
     .map((m) => {
       const scores = nuanceBenchmarks
-        .map((bn) => m.scores?.[bn])
+        .map((bn) => (m.scores?.[bn] != null ? normalizeNuance(bn, m.scores[bn]) : null))
         .filter((v) => v != null);
       const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
       return { ...m, nuanceAvg: avg };
@@ -505,11 +513,22 @@ export default function BenchmarksPage() {
   // Derive benchmark names from all entries
   const derivedBenchmarkNames = [...new Set(allEntries.map((e) => e.benchmark_name))];
 
-  // Compute average score per model for the bar chart
+  // Normalize a benchmark score to 0-100 scale
+  // Arena ELO (1000-2000 range) needs special handling
+  const normalizeScore = (benchmarkName, score) => {
+    if (benchmarkName.toLowerCase().includes('arena elo')) {
+      // ELO typically ranges ~1100-1520 for current models. Map 1100-1520 to 0-100.
+      return Math.max(0, Math.min(100, ((score - 1100) / (1520 - 1100)) * 100));
+    }
+    return score; // Already 0-100 scale
+  };
+
+  // Compute average NORMALIZED score per model for the bar chart
   const chartData = models
     .map((m) => {
-      const scores = Object.values(m.scores ?? {}).filter((v) => v != null);
-      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+      const entries = Object.entries(m.scores ?? {}).filter(([, v]) => v != null);
+      const normalized = entries.map(([bn, v]) => normalizeScore(bn, v));
+      const avg = normalized.length > 0 ? normalized.reduce((a, b) => a + b, 0) / normalized.length : 0;
       return { name: m.name ?? m.model_name, avg: Number(avg.toFixed(1)) };
     })
     .sort((a, b) => b.avg - a.avg)
