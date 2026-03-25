@@ -235,14 +235,14 @@ export default function CostPage() {
                         <p className="text-sm text-gray-400">
                           <span className="text-white font-medium">{alt.current_tool ?? alt.tool_name}</span>
                           {alt.current_plan && (
-                            <span className="text-gray-600 ml-1">({alt.current_plan})</span>
+                            <span className="text-gray-500 ml-1">({alt.current_plan})</span>
                           )}
                         </p>
-                        <p className="text-xs text-gray-600">
+                        <p className="text-xs text-gray-500">
                           ${Number(alt.current_cost ?? 0).toFixed(2)}/mo
                         </p>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-gray-600" />
+                      <ArrowRight className="w-4 h-4 text-gray-500" />
                       <div>
                         <p className="text-sm text-white font-medium">
                           {alt.alternative_tool ?? alt.alternative_name}
@@ -250,7 +250,7 @@ export default function CostPage() {
                             <span className="text-gray-500 font-normal ml-1">({alt.alternative_plan})</span>
                           )}
                         </p>
-                        <p className="text-xs text-gray-600">
+                        <p className="text-xs text-gray-500">
                           ${Number(alt.alternative_cost ?? 0).toFixed(2)}/mo
                         </p>
                       </div>

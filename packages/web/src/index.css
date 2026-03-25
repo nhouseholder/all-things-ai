@@ -1,1 +1,94 @@
 @import "tailwindcss";
+
+/* ── Custom font ──────────────────────────────────────────── */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Focus visible — keyboard-only focus ring ─────────────── */
+*:focus-visible {
+  outline: 2px solid theme(--color-blue-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove default focus outline (focus-visible handles keyboard) */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Reduced motion — respect user preference ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Smooth scroll ────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ── Touch targets — ensure minimum 44px for mobile ───────── */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"],
+  [role="switch"],
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ── Selection color ──────────────────────────────────────── */
+::selection {
+  background-color: theme(--color-blue-500/30);
+  color: white;
+}
+
+/* ── Scrollbar styling (Webkit) ───────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: theme(--color-gray-700);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: theme(--color-gray-600);
+}
+
+/* ── Skip to content — for screen readers ─────────────────── */
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 100;
+  padding: 8px 16px;
+  background: theme(--color-blue-500);
+  color: white;
+  border-radius: 0 0 8px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+
+.skip-to-content:focus {
+  top: 0;
+}

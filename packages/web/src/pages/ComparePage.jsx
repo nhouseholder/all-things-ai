@@ -11,9 +11,7 @@ import {
   Sparkles,
   X,
   Zap,
-  Shield,
   Globe,
-  ExternalLink,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 
@@ -236,7 +234,7 @@ export default function ComparePage() {
               )}
             </div>
             {selected.length < 2 && (
-              <p className="text-[10px] text-gray-600 mt-2">Select 2-4 models to compare side by side</p>
+              <p className="text-[10px] text-gray-500 mt-2">Select 2-4 models to compare side by side</p>
             )}
           </div>
 
@@ -342,10 +340,10 @@ export default function ComparePage() {
               <div key={tier.label}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className={`text-sm font-bold ${tier.color}`}>{tier.label}</span>
-                  <span className="text-[10px] text-gray-600">
+                  <span className="text-[10px] text-gray-500">
                     {tier.max === 0 ? '$0/MTok' : tier.max === Infinity ? `>$10/MTok` : `<$${tier.max}/MTok blended`}
                   </span>
-                  <span className="text-[10px] text-gray-600 px-2 py-0.5 rounded-full bg-gray-800">{models.length} models</span>
+                  <span className="text-[10px] text-gray-500 px-2 py-0.5 rounded-full bg-gray-800">{models.length} models</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {models.map(m => (
@@ -493,7 +491,7 @@ function ComparisonTable({ models }) {
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[10px] text-gray-600">API only</span>
+                  <span className="text-[10px] text-gray-500">API only</span>
                 )}
               </td>
             ))}

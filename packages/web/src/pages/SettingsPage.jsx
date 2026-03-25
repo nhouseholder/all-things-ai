@@ -190,7 +190,7 @@ export default function SettingsPage() {
                 value={projectTypes}
                 onChange={(e) => updateField('project_types', e.target.value)}
                 placeholder="e.g. web apps, data science, mobile"
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
@@ -215,7 +215,7 @@ export default function SettingsPage() {
                 onChange={(e) => updateField('monthly_budget', Number(e.target.value))}
                 className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-500"
               />
-              <div className="flex justify-between text-[10px] text-gray-600 mt-1">
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                 <span>$0</span>
                 <span>$250</span>
                 <span>$500</span>
@@ -286,7 +286,7 @@ export default function SettingsPage() {
                 value={digestEmail}
                 onChange={(e) => updateField('digest_email', e.target.value)}
                 placeholder="you@example.com"
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>

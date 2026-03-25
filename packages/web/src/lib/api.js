@@ -1,9 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 async function request(path, options = {}) {
+  const headers = { ...options.headers };
+  if (options.body) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
+    headers,
   });
   if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
   return res.json();

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   Brain,
   DollarSign,
-  TrendingUp,
   ArrowRight,
   Zap,
   Trophy,
@@ -15,7 +14,6 @@ import {
   BarChart3,
   Scale,
   Globe,
-  Shield,
   Code2,
   Wrench,
   Bug,
@@ -24,11 +22,10 @@ import {
   Search,
   BookOpen,
   Users,
-  MessageCircle,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 
-const VERSION = 'v0.5.8';
+const VERSION = 'v0.6.0';
 const BUILD_DATE = 'Mar 24, 2026';
 
 function compositeColor(score) {
@@ -108,7 +105,7 @@ export default function HomePage() {
               for vibe coders
             </span>
           </h1>
-          <p className="text-[10px] text-gray-600 font-mono">{VERSION} &middot; {BUILD_DATE}</p>
+          <p className="text-[10px] text-gray-500 font-mono">{VERSION} &middot; {BUILD_DATE}</p>
         </div>
 
         <p className="text-lg text-gray-400 max-w-2xl mb-8 leading-relaxed">

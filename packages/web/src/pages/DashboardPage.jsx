@@ -118,7 +118,7 @@ function NewsItem({ item, onBookmark, onMarkRead }) {
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 uppercase tracking-wider">
               {item.source}
             </span>
-            <span className="text-xs text-gray-600">{relativeTime(item.published_at)}</span>
+            <span className="text-xs text-gray-500">{relativeTime(item.published_at)}</span>
           </div>
           <a
             href={item.content_url}
@@ -127,7 +127,7 @@ function NewsItem({ item, onBookmark, onMarkRead }) {
             className="text-sm font-medium text-white hover:text-blue-400 transition-colors flex items-center gap-1.5 group"
           >
             {item.title}
-            <ExternalLink className="w-3 h-3 text-gray-600 group-hover:text-blue-400 transition-colors" />
+            <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-blue-400 transition-colors" />
           </a>
           {item.summary && (
             <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{item.summary}</p>

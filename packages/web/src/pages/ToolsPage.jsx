@@ -67,7 +67,7 @@ function ToolCard({ tool }) {
                         {formatPrice(price)}
                       </span>
                       {plans.length > 1 && (
-                        <span className="text-gray-600 ml-1 text-[10px]">{p.name}</span>
+                        <span className="text-gray-500 ml-1 text-[10px]">{p.name}</span>
                       )}
                     </span>
                   );
@@ -128,7 +128,7 @@ function ToolCard({ tool }) {
                         ))}
                       </ul>
                     ) : (
-                      <span className="text-gray-600">--</span>
+                      <span className="text-gray-500">--</span>
                     )}
                     {plan.models?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
@@ -212,7 +212,7 @@ export default function ToolsPage() {
 
       {filtered.length === 0 ? (
         <div className="text-center py-12 rounded-xl border border-gray-800 border-dashed">
-          <Package className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+          <Package className="w-8 h-8 text-gray-500 mx-auto mb-2" />
           <p className="text-sm text-gray-500">
             {tools.length === 0
               ? 'No tools tracked yet.'

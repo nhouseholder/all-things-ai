@@ -212,7 +212,7 @@ function ComponentBreakdown({ model }) {
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Score Breakdown</span>
             <div className="flex-1 h-px bg-gray-800" />
-            <span className="text-[10px] text-gray-600">out of 100</span>
+            <span className="text-[10px] text-gray-500">out of 100</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {COMPONENT_GROUPS.map(({ label, color, items }) => {
@@ -228,7 +228,7 @@ function ComponentBreakdown({ model }) {
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] text-gray-300 font-medium">{itemLabel}</span>
                           </div>
-                          <p className="text-[9px] text-gray-600 mb-0.5">{desc}</p>
+                          <p className="text-[9px] text-gray-500 mb-0.5">{desc}</p>
                           <ScoreBar value={val} color={c.bar} />
                         </div>
                       );
@@ -242,7 +242,7 @@ function ComponentBreakdown({ model }) {
           {/* Community adjustment pill */}
           {hasCommunity && (
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-[10px] text-gray-600">Community signal:</span>
+              <span className="text-[10px] text-gray-500">Community signal:</span>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                 communityAdj > 0
                   ? 'bg-green-500/10 border-green-500/25 text-green-400'
@@ -306,10 +306,10 @@ function OverageInfo({ plan }) {
             <p className="text-[9px] text-gray-500 leading-relaxed">{overage_rate_description}</p>
           )}
           {fallback_behavior && overage_model === 'stopped' && (
-            <p className="text-[9px] text-gray-600 italic">{fallback_behavior}</p>
+            <p className="text-[9px] text-gray-500 italic">{fallback_behavior}</p>
           )}
           {usage_notes && (
-            <p className="text-[9px] text-gray-600 leading-relaxed">{usage_notes}</p>
+            <p className="text-[9px] text-gray-500 leading-relaxed">{usage_notes}</p>
           )}
         </>
       )}
@@ -323,7 +323,7 @@ function ModelPricingDropdown({ modelSlug, availability }) {
   if (plans.length === 0) {
     return (
       <div className="px-5 py-3 bg-gray-950/40 border-t border-gray-800/40">
-        <p className="text-[11px] text-gray-600 italic">No availability data on record.</p>
+        <p className="text-[11px] text-gray-500 italic">No availability data on record.</p>
       </div>
     );
   }
@@ -371,7 +371,7 @@ function ModelPricingDropdown({ modelSlug, availability }) {
                     {tier.label}
                   </span>
                   {hasDetails && (
-                    <span className="text-gray-600 text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                    <span className="text-gray-500 text-[9px]">{isExpanded ? '▲' : '▼'}</span>
                   )}
                 </div>
               </div>
@@ -1003,7 +1003,7 @@ function WhereToUsePanel({ recommendations, subscriptions }) {
                 )}
               </div>
 
-              <ArrowRight className="w-4 h-4 text-gray-600 flex-shrink-0" />
+              <ArrowRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
 
               {/* Tool Card */}
               <div className="flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-center min-w-[160px]">
@@ -1258,7 +1258,7 @@ export default function AdvisorPage() {
         <DualLeaderboard rankings={rankings} availability={modelAvailability} />
       ) : (
         <div className="text-center py-12 mb-10 rounded-xl border border-gray-800 border-dashed">
-          <Brain className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+          <Brain className="w-8 h-8 text-gray-500 mx-auto mb-2" />
           <p className="text-sm text-gray-500">No ranking data available yet.</p>
         </div>
       )}
@@ -1276,7 +1276,7 @@ export default function AdvisorPage() {
         <TaskSelector tasks={taskProfiles} selectedTask={selectedTask} onSelect={setSelectedTask} />
       ) : (
         <div className="text-center py-12 mb-10 rounded-xl border border-gray-800 border-dashed">
-          <Code className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+          <Code className="w-8 h-8 text-gray-500 mx-auto mb-2" />
           <p className="text-sm text-gray-500">No task profiles available yet.</p>
         </div>
       )}

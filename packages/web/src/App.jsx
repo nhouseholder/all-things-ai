@@ -8,6 +8,7 @@ import AdvisorPage from './pages/AdvisorPage.jsx';
 import BenchmarksPage from './pages/BenchmarksPage.jsx';
 import ComparePage from './pages/ComparePage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import NotFoundPage from './pages/NotFoundPage.jsx';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="compare" element={<ComparePage />} />
         <Route path="benchmarks" element={<BenchmarksPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

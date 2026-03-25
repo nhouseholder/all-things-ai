@@ -133,8 +133,29 @@ function ModelToolsModal({ model, onClose }) {
     return () => { cancelled = true; };
   }, [model.slug, model.model_slug]);
 
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Trap focus inside modal
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    return () => { previouslyFocused?.focus?.(); };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${model.name ?? model.model_name} availability`}
+    >
       <div
         className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -196,7 +217,8 @@ function ModelToolsModal({ model, onClose }) {
         )}
         <button
           onClick={onClose}
-          className="mt-4 w-full text-sm font-medium py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+          className="mt-4 w-full text-sm font-medium py-2.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          autoFocus
         >
           Close
         </button>
@@ -267,7 +289,7 @@ function NuanceHighlight({ models, benchmarkNames }) {
               <span className="text-2xl font-bold text-purple-400">
                 {m.nuanceAvg.toFixed(1)}
               </span>
-              <span className="text-xs text-gray-600">avg</span>
+              <span className="text-xs text-gray-500">avg</span>
             </div>
             <div className="mt-2 space-y-1">
               {nuanceBenchmarks.map((bn) => (
@@ -325,7 +347,7 @@ function TokenPricingTab() {
   if (!pricingData || pricingData.length === 0) {
     return (
       <div className="text-center py-12 rounded-xl border border-gray-800 border-dashed">
-        <DollarSign className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+        <DollarSign className="w-8 h-8 text-gray-500 mx-auto mb-2" />
         <p className="text-sm text-gray-500">No token pricing data available yet.</p>
       </div>
     );
@@ -353,7 +375,7 @@ function TokenPricingTab() {
               Bang for Buck — Top 10
             </h2>
           </div>
-          <p className="text-xs text-gray-600 mb-3">
+          <p className="text-xs text-gray-500 mb-3">
             Score = average benchmark performance / blended token cost (30% input + 70% output). Higher = better value.
           </p>
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
@@ -624,7 +646,7 @@ export default function BenchmarksPage() {
 
       {models.length === 0 ? (
         <div className="text-center py-12 rounded-xl border border-gray-800 border-dashed">
-          <BarChart3 className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+          <BarChart3 className="w-8 h-8 text-gray-500 mx-auto mb-2" />
           <p className="text-sm text-gray-500">No benchmark data available.</p>
         </div>
       ) : (
