@@ -9,6 +9,7 @@ import { recommendationsRoutes } from './routes/recommendations.js';
 import { preferencesRoutes } from './routes/preferences.js';
 import { advisorRoutes } from './routes/advisor.js';
 import { handleScheduled } from './scheduled.js';
+import { requireAdmin } from './middleware/auth.js';
 import { fetchAllRSS } from './pipelines/rss-fetcher.js';
 import { scrapeReddit } from './pipelines/reddit-scraper.js';
 import { scrapeHackerNews } from './pipelines/hn-scraper.js';
@@ -30,21 +31,9 @@ const ALLOWED_ORIGINS = [
 ];
 
 app.use('/api/*', cors({
-  origin: (origin) => ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+  origin: (origin) => ALLOWED_ORIGINS.includes(origin) ? origin : null,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
-
-// C1: Admin auth middleware for mutation endpoints
-function requireAdmin() {
-  return async (c, next) => {
-    const auth = c.req.header('Authorization');
-    const adminKey = c.env.ADMIN_API_KEY;
-    if (!adminKey || !auth || auth !== `Bearer ${adminKey}`) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    await next();
-  };
-}
 
 // Health check with DB verification (S4)
 app.get('/', async (c) => {

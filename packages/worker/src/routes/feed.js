@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const feedRoutes = new Hono();
 
@@ -47,15 +48,15 @@ feedRoutes.get('/:id', async (c) => {
   return c.json(item);
 });
 
-// POST /api/feed/:id/read
-feedRoutes.post('/:id/read', async (c) => {
+// POST /api/feed/:id/read — requires auth
+feedRoutes.post('/:id/read', requireAdmin(), async (c) => {
   const id = c.req.param('id');
   await c.env.DB.prepare('UPDATE news_items SET is_read = 1 WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
 
-// POST /api/feed/:id/bookmark
-feedRoutes.post('/:id/bookmark', async (c) => {
+// POST /api/feed/:id/bookmark — requires auth
+feedRoutes.post('/:id/bookmark', requireAdmin(), async (c) => {
   const id = c.req.param('id');
   await c.env.DB.prepare('UPDATE news_items SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?').bind(id).run();
   return c.json({ ok: true });

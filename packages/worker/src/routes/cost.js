@@ -1,18 +1,7 @@
 import { Hono } from 'hono';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const costRoutes = new Hono();
-
-// C1: Admin auth for mutation endpoints
-function requireAdmin() {
-  return async (c, next) => {
-    const auth = c.req.header('Authorization');
-    const adminKey = c.env.ADMIN_API_KEY;
-    if (!adminKey || !auth || auth !== `Bearer ${adminKey}`) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    await next();
-  };
-}
 
 // GET /api/cost/summary — current monthly spend
 costRoutes.get('/summary', async (c) => {

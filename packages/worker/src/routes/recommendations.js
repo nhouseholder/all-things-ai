@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const recommendationsRoutes = new Hono();
 
@@ -29,8 +30,8 @@ recommendationsRoutes.get('/', async (c) => {
   return c.json(results);
 });
 
-// POST /api/recommendations/:id/dismiss
-recommendationsRoutes.post('/:id/dismiss', async (c) => {
+// POST /api/recommendations/:id/dismiss — requires auth
+recommendationsRoutes.post('/:id/dismiss', requireAdmin(), async (c) => {
   const id = c.req.param('id');
   await c.env.DB.prepare('UPDATE recommendations SET is_dismissed = 1 WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
