@@ -23,9 +23,10 @@ import {
   BookOpen,
   Users,
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { api } from '../lib/api.js';
 
-const VERSION = 'v0.6.0';
+const VERSION = 'v0.7.0';
 const BUILD_DATE = 'Mar 24, 2026';
 
 function compositeColor(score) {
@@ -75,7 +76,7 @@ export default function HomePage() {
     load();
   }, []);
 
-  const topOverall = rankings?.best_overall?.slice(0, 5) || [];
+  const topOverall = rankings?.best_overall?.slice(0, 10) || [];
   const topValue = rankings?.bang_for_buck?.slice(0, 5) || [];
   const modelCount = rankings?.best_overall?.length || 0;
   const taskCount = tasks?.length || 0;
@@ -98,7 +99,7 @@ export default function HomePage() {
 
         {/* Title + version */}
         <div className="mb-6">
-          <h1 className="text-4xl sm:text-5xl font-mono font-bold leading-tight mb-1">
+          <h1 className="text-4xl sm:text-5xl font-display font-bold leading-tight mb-1">
             <span className="text-silver">The AI model guide</span>
             <br />
             <span className="text-neon glow-neon">
@@ -248,49 +249,56 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ── Live Rankings Preview ─────────────────────────────────── */}
+      {/* ── Best Overall Model Rankings (Bar Chart) ───────────────── */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-6 h-6 text-neon animate-spin" />
         </div>
-      ) : (
+      ) : topOverall.length > 0 && (
         <section className="mb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <MiniLeaderboard
-              title="Best Overall"
-              subtitle="by AllThingsAI composite score"
-              icon={Trophy}
-              iconColor="text-gold"
-              headerBg="bg-gold/5"
-              headerBorder="border-gold/20"
-              models={topOverall}
-              valueKey="composite_score"
-              valueLabel="score"
-              formatValue={(v) => Number(v).toFixed(1)}
-            />
-
-            <MiniLeaderboard
-              title="Best Bang for Buck"
-              subtitle="quality per dollar spent"
-              icon={Coins}
-              iconColor="text-neon"
-              headerBg="bg-neon/5"
-              headerBorder="border-neon/20"
-              models={topValue}
-              valueKey="value_score"
-              valueLabel="value"
-              formatValue={(v) => Number(v).toFixed(1)}
-            />
-          </div>
-
-          <div className="mt-4 text-center">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="section-label mb-1">Best Overall Models</p>
+              <p className="text-sm text-muted">AllThingsAI composite score — benchmarks + community + pricing</p>
+            </div>
             <Link
               to="/advisor"
-              className="inline-flex items-center gap-2 text-sm text-neon hover:text-cyan font-medium transition-colors"
+              className="btn-outline text-xs"
             >
-              See full rankings for all {modelCount} models
-              <ArrowRight className="w-4 h-4" />
+              See all {modelCount}
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
+          </div>
+
+          <div className="card p-4">
+            <ResponsiveContainer width="100%" height={topOverall.length * 38 + 20}>
+              <BarChart
+                data={topOverall.map(m => ({
+                  name: m.model_name,
+                  score: Number(m.composite_score).toFixed(1),
+                  rawScore: m.composite_score,
+                }))}
+                layout="vertical"
+                margin={{ top: 5, right: 40, left: 0, bottom: 5 }}
+              >
+                <XAxis type="number" domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 11, fontFamily: 'JetBrains Mono' }} axisLine={{ stroke: '#1e293b' }} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={160} tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: 'DM Sans' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: '#1e2330', border: '1px solid #334155', borderRadius: '6px', fontFamily: 'JetBrains Mono', fontSize: '12px' }}
+                  labelStyle={{ color: '#e2e8f0', fontFamily: 'DM Sans' }}
+                  itemStyle={{ color: '#00ff88' }}
+                  cursor={{ fill: 'rgba(0,255,136,0.03)' }}
+                />
+                <Bar dataKey="rawScore" radius={[0, 4, 4, 0]} barSize={20}>
+                  {topOverall.map((m, i) => (
+                    <Cell
+                      key={m.model_slug}
+                      fill={m.composite_score >= 80 ? '#00ff88' : m.composite_score >= 70 ? '#66ffb3' : '#00d4ff'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
@@ -300,7 +308,7 @@ export default function HomePage() {
         <div className="card-glow p-6 border-neon/20">
           <div className="flex items-center gap-2 mb-3">
             <Globe className="w-5 h-5 text-neon" />
-            <h2 className="text-lg font-mono font-bold text-silver">Free &amp; Open-Source Models</h2>
+            <h2 className="text-lg font-display font-bold text-silver">Free &amp; Open-Source Models</h2>
           </div>
           <p className="text-sm text-muted mb-4 max-w-lg font-sans">
             Not every project needs a $100/mo subscription. These models are free or nearly free
@@ -333,7 +341,7 @@ export default function HomePage() {
       {/* ── Bottom CTA ────────────────────────────────────────────── */}
       <section className="mb-8">
         <div className="rounded-2xl border border-edge bg-gradient-to-br from-surface via-surface to-neon/5 p-8 text-center">
-          <h2 className="text-2xl font-mono font-bold text-silver mb-2">Stop overpaying for AI</h2>
+          <h2 className="text-2xl font-display font-bold text-silver mb-2">Stop overpaying for AI</h2>
           <p className="text-muted text-sm mb-6 max-w-lg mx-auto font-sans">
             Most vibe coders pick a model based on hype. Use our task-specific rankings
             to find the model that wins for <em>your</em> workflow — then find the cheapest place to use it.
@@ -369,7 +377,7 @@ function ValueCard({ icon: Icon, iconColor, iconBg, title, description }) {
       <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center mb-3`}>
         <Icon className={`w-5 h-5 ${iconColor}`} />
       </div>
-      <h3 className="text-sm font-mono font-semibold text-silver mb-1.5">{title}</h3>
+      <h3 className="text-sm font-display font-semibold text-silver mb-1.5">{title}</h3>
       <p className="text-xs text-muted leading-relaxed font-sans">{description}</p>
     </div>
   );
@@ -381,7 +389,7 @@ function StepCard({ number, title, description }) {
       <div className="w-7 h-7 rounded-full bg-neon/10 border border-neon/30 flex items-center justify-center mb-3">
         <span className="text-xs font-mono font-bold text-neon">{number}</span>
       </div>
-      <h3 className="text-sm font-mono font-semibold text-silver mb-1">{title}</h3>
+      <h3 className="text-sm font-display font-semibold text-silver mb-1">{title}</h3>
       <p className="text-xs text-muted leading-relaxed font-sans">{description}</p>
     </div>
   );
@@ -410,7 +418,7 @@ function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, hea
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${iconColor}`} />
           <div>
-            <h3 className="text-sm font-mono font-semibold text-silver">{title}</h3>
+            <h3 className="text-sm font-display font-semibold text-silver">{title}</h3>
             <p className="text-[10px] text-dim">{subtitle}</p>
           </div>
         </div>

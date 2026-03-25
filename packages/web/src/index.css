@@ -8,13 +8,14 @@
 @theme {
   /* ── Fonts ─────────────────────────────────────────────────── */
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'DM Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* ── Core palette ──────────────────────────────────────────── */
-  --color-void: #0a0a0f;
-  --color-surface: #0d1117;
-  --color-elevated: #161b22;
-  --color-raised: #1c2333;
+  /* ── Core palette (warmer dark, not pure black) ────────────── */
+  --color-void: #111318;
+  --color-surface: #181c24;
+  --color-elevated: #1e2330;
+  --color-raised: #252b3a;
 
   /* ── Borders ───────────────────────────────────────────────── */
   --color-edge: #1e293b;

@@ -46,7 +46,7 @@ function ToolCard({ tool }) {
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h3 className="text-sm font-mono font-semibold text-silver">{tool.name}</h3>
+            <h3 className="text-sm font-display font-semibold text-silver">{tool.name}</h3>
             {tool.vendor && <p className="text-xs text-dim mt-0.5">{tool.vendor}</p>}
           </div>
           <span className={`terminal-badge ${categoryColor}`}>
@@ -190,7 +190,7 @@ export default function ToolsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-mono font-bold text-silver mb-1">Tools</h1>
+      <h1 className="text-2xl font-display font-bold text-silver mb-1">Tools</h1>
       <p className="text-sm text-muted mb-6">AI coding tools and where to find them</p>
 
       {/* Category Filter */}

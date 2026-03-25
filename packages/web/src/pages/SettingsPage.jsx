@@ -148,7 +148,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-mono font-bold text-silver mb-6">Settings</h1>
+      <h1 className="text-2xl font-display font-bold text-silver mb-6">Settings</h1>
 
       <div className="max-w-2xl space-y-8">
         {/* Profile */}

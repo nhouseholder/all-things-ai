@@ -252,7 +252,7 @@ export default function DashboardPage() {
     return (
       <div className="text-center py-16 max-w-md mx-auto">
         <Sparkles className="w-12 h-12 text-cyan mx-auto mb-4" />
-        <h2 className="text-xl font-mono font-semibold text-silver mb-2">Welcome to All Things AI</h2>
+        <h2 className="text-xl font-display font-semibold text-silver mb-2">Welcome to All Things AI</h2>
         <p className="text-muted text-sm mb-4">
           The Worker backend needs to be running to populate data. Start it with:
         </p>
@@ -268,7 +268,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-mono font-bold text-silver mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-display font-bold text-silver mb-6">Dashboard</h1>
 
       {/* Recommendations - full width */}
       <section className="mb-8">

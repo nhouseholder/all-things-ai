@@ -139,7 +139,7 @@ export default function ComparePage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-mono font-bold text-silver mb-1">Model Compare</h1>
+        <h1 className="text-2xl font-display font-bold text-silver mb-1">Model Compare</h1>
         <p className="text-sm text-muted">Side-by-side comparison, pricing tiers, and affordable alternatives.</p>
       </div>
 
@@ -255,7 +255,7 @@ export default function ComparePage() {
           {alternatives && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-lg font-mono font-bold text-silver">Alternatives to {alternatives.model}</h2>
+                <h2 className="text-lg font-display font-bold text-silver">Alternatives to {alternatives.model}</h2>
                 <span className="terminal-badge bg-elevated text-dim border-edge">{alternatives.alternatives?.length || 0} found</span>
               </div>
 
@@ -271,7 +271,7 @@ export default function ComparePage() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-sm font-mono font-semibold text-silver">{alt.name}</h3>
+                              <h3 className="text-sm font-display font-semibold text-silver">{alt.name}</h3>
                               <span className={`terminal-badge ${tier.bg} ${tier.color} ${tier.border}`}>
                                 {tier.label}
                               </span>
@@ -341,7 +341,7 @@ export default function ComparePage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-xs font-mono font-semibold text-silver">{m.name}</h3>
+                            <h3 className="text-xs font-display font-semibold text-silver">{m.name}</h3>
                             {m.is_open_weight ? (
                               <Globe className="w-3 h-3 text-neon" />
                             ) : null}

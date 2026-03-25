@@ -102,7 +102,7 @@ export default function CostPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-mono font-bold text-silver mb-6">Cost Management</h1>
+      <h1 className="text-2xl font-display font-bold text-silver mb-6">Cost Management</h1>
 
       {/* Spend Summary */}
       <section className="mb-8">
