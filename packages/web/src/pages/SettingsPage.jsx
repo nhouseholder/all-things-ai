@@ -21,7 +21,7 @@ const FREQUENCY_OPTIONS = [
 
 function SectionHeader({ icon: Icon, title }) {
   return (
-    <h2 className="section-label flex items-center gap-2">
+    <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
       <Icon className="w-4 h-4" />
       {title}
     </h2>
@@ -31,14 +31,14 @@ function SectionHeader({ icon: Icon, title }) {
 function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center justify-between cursor-pointer group">
-      <span className="text-sm text-muted group-hover:text-silver transition-colors">{label}</span>
+      <span className="text-sm text-gray-300 group-hover:text-white transition-colors">{label}</span>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-          checked ? 'bg-neon/80' : 'bg-raised'
+          checked ? 'bg-blue-500' : 'bg-gray-700'
         }`}
       >
         <span
@@ -111,7 +111,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 text-neon animate-spin" />
+        <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
       </div>
     );
   }
@@ -119,7 +119,7 @@ export default function SettingsPage() {
   if (error) {
     return (
       <div className="text-center py-16">
-        <p className="text-hot text-sm">Failed to load preferences: {error}</p>
+        <p className="text-red-400 text-sm">Failed to load preferences: {error}</p>
       </div>
     );
   }
@@ -148,16 +148,16 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-display font-bold text-silver mb-6">Settings</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
 
       <div className="max-w-2xl space-y-8">
         {/* Profile */}
-        <section className="card">
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
           <SectionHeader icon={User} title="Profile" />
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-dim mb-2">Primary Languages</label>
+              <label className="block text-xs text-gray-500 mb-2">Primary Languages</label>
               <div className="flex flex-wrap gap-2">
                 {LANGUAGES.map((lang) => {
                   const selected = languages.includes(lang);
@@ -166,7 +166,11 @@ export default function SettingsPage() {
                       key={lang}
                       type="button"
                       onClick={() => toggleLanguage(lang)}
-                      className={selected ? 'pill pill-active' : 'pill'}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                        selected
+                          ? 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
+                      }`}
                     >
                       {selected && <span className="mr-1">&#10003;</span>}
                       {lang}
@@ -177,7 +181,7 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-dim mb-2" htmlFor="project-types">
+              <label className="block text-xs text-gray-500 mb-2" htmlFor="project-types">
                 Project Types
               </label>
               <input
@@ -186,21 +190,21 @@ export default function SettingsPage() {
                 value={projectTypes}
                 onChange={(e) => updateField('project_types', e.target.value)}
                 placeholder="e.g. web apps, data science, mobile"
-                className="w-full bg-elevated border border-edge rounded-lg px-3 py-2 text-sm text-silver placeholder-dim focus:outline-none focus:ring-1 focus:ring-neon focus:border-neon transition-colors"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
         </section>
 
         {/* Budget */}
-        <section className="card">
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
           <SectionHeader icon={DollarSign} title="Budget" />
 
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-dim">Monthly Budget</label>
-                <span className="text-sm font-mono font-bold text-silver">${budget}</span>
+                <label className="text-xs text-gray-500">Monthly Budget</label>
+                <span className="text-sm font-bold text-white">${budget}</span>
               </div>
               <input
                 type="range"
@@ -209,24 +213,23 @@ export default function SettingsPage() {
                 step={5}
                 value={budget}
                 onChange={(e) => updateField('monthly_budget', Number(e.target.value))}
-                className="w-full h-1.5 bg-raised rounded-full appearance-none cursor-pointer accent-neon"
-                style={{ accentColor: '#00ff88' }}
+                className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-500"
               />
-              <div className="flex justify-between text-[10px] text-dim mt-1">
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                 <span>$0</span>
                 <span>$250</span>
                 <span>$500</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-elevated">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50">
               <div className="flex-1">
-                <p className="text-xs text-dim">Current Spend</p>
-                <p className="text-lg font-mono font-bold text-silver">${Number(currentSpend).toFixed(2)}</p>
+                <p className="text-xs text-gray-500">Current Spend</p>
+                <p className="text-lg font-bold text-white">${Number(currentSpend).toFixed(2)}</p>
               </div>
               <div className="flex-1">
-                <p className="text-xs text-dim">Remaining</p>
-                <p className={`text-lg font-mono font-bold ${budget - currentSpend >= 0 ? 'text-neon' : 'text-hot'}`}>
+                <p className="text-xs text-gray-500">Remaining</p>
+                <p className={`text-lg font-bold ${budget - currentSpend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   ${(budget - currentSpend).toFixed(2)}
                 </p>
               </div>
@@ -235,7 +238,7 @@ export default function SettingsPage() {
         </section>
 
         {/* Sources */}
-        <section className="card">
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
           <SectionHeader icon={Rss} title="News Sources" />
 
           <div className="space-y-3">
@@ -251,19 +254,19 @@ export default function SettingsPage() {
         </section>
 
         {/* Email Digest */}
-        <section className="card">
+        <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
           <SectionHeader icon={Mail} title="Email Digest" />
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-dim mb-2" htmlFor="digest-frequency">
+              <label className="block text-xs text-gray-500 mb-2" htmlFor="digest-frequency">
                 Frequency
               </label>
               <select
                 id="digest-frequency"
                 value={digestFrequency}
                 onChange={(e) => updateField('digest_frequency', e.target.value)}
-                className="w-full bg-elevated border border-edge rounded-lg px-3 py-2 text-sm text-silver focus:outline-none focus:ring-1 focus:ring-neon focus:border-neon transition-colors appearance-none cursor-pointer"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
               >
                 {FREQUENCY_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -274,7 +277,7 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-dim mb-2" htmlFor="digest-email">
+              <label className="block text-xs text-gray-500 mb-2" htmlFor="digest-email">
                 Email Address
               </label>
               <input
@@ -283,7 +286,7 @@ export default function SettingsPage() {
                 value={digestEmail}
                 onChange={(e) => updateField('digest_email', e.target.value)}
                 placeholder="you@example.com"
-                className="w-full bg-elevated border border-edge rounded-lg px-3 py-2 text-sm text-silver placeholder-dim focus:outline-none focus:ring-1 focus:ring-neon focus:border-neon transition-colors"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
@@ -294,7 +297,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="btn-neon flex items-center gap-2"
+            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -305,13 +308,13 @@ export default function SettingsPage() {
           </button>
 
           {saveStatus === 'success' && (
-            <span className="flex items-center gap-1.5 text-sm text-neon">
+            <span className="flex items-center gap-1.5 text-sm text-green-400">
               <CheckCircle2 className="w-4 h-4" />
               Saved successfully
             </span>
           )}
           {saveStatus === 'error' && (
-            <span className="flex items-center gap-1.5 text-sm text-hot">
+            <span className="flex items-center gap-1.5 text-sm text-red-400">
               <AlertCircle className="w-4 h-4" />
               Failed to save. Try again.
             </span>

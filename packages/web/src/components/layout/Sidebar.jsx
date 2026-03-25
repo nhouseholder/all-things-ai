@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Brain, Scale, Menu, X, Terminal } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain, Scale, Menu, X } from 'lucide-react';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
@@ -17,10 +17,12 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
+  // Close mobile menu on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = 'hidden';
@@ -32,37 +34,34 @@ export default function Sidebar() {
 
   const sidebarContent = (
     <>
-      <div className="p-5 border-b border-edge">
+      <div className="p-5 border-b border-gray-800">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-md bg-neon/10 border border-neon/30 flex items-center justify-center">
-              <Terminal className="w-4 h-4 text-neon" />
-            </div>
-            <div>
-              <h1 className="text-sm font-mono font-bold text-silver tracking-tight">All Things AI</h1>
-              <p className="text-[11px] font-mono text-neon/60">v0.7.0</p>
-            </div>
+          <div className="flex items-center gap-2">
+            <Zap className="w-6 h-6 text-blue-400" />
+            <h1 className="text-lg font-bold text-white">All Things AI</h1>
           </div>
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden p-1.5 rounded-md text-muted hover:text-silver hover:bg-elevated transition-colors focus:outline-none focus:ring-2 focus:ring-neon"
+            className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+        <p className="text-xs text-gray-400 mt-1">Your AI Intelligence Hub</p>
+        <p className="text-[10px] text-gray-500 mt-0.5">v0.6.0 &middot; Mar 24, 2026</p>
       </div>
-      <nav className="flex-1 p-3 space-y-0.5" aria-label="Main navigation">
+      <nav className="flex-1 p-3 space-y-1" aria-label="Main navigation">
         {links.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-neon focus:ring-inset ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset ${
                 isActive
-                  ? 'bg-neon/10 text-neon border-l-2 border-neon'
-                  : 'text-muted hover:text-silver hover:bg-elevated'
+                  ? 'bg-blue-500/10 text-blue-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
               }`
             }
           >
@@ -71,12 +70,10 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-      <div className="p-4 border-t border-edge">
-        <div className="font-mono text-[11px]">
-          <div className="flex items-center gap-1.5 text-dim">
-            <span className="w-1.5 h-1.5 rounded-full bg-neon animate-pulse" />
-            <span>System online</span>
-          </div>
+      <div className="p-4 border-t border-gray-800">
+        <div className="text-xs text-gray-400">
+          <p>Monthly spend: <span className="text-green-400 font-medium">$125</span></p>
+          <p className="mt-1">Tracking 10 tools, 38+ models</p>
         </div>
       </div>
     </>
@@ -84,10 +81,10 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger */}
+      {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-md bg-surface border border-edge text-muted hover:text-neon hover:border-neon/30 transition-all focus:outline-none focus:ring-2 focus:ring-neon shadow-lg shadow-black/50"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-gray-900 border border-gray-800 text-gray-300 hover:text-white hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg"
         aria-label="Open menu"
         aria-expanded={mobileOpen}
       >
@@ -95,22 +92,22 @@ export default function Sidebar() {
       </button>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 bg-surface border-r border-edge flex-col flex-shrink-0">
+      <aside className="hidden lg:flex w-64 bg-gray-900 border-r border-gray-800 flex-col flex-shrink-0">
         {sidebarContent}
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-void/80 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile sidebar drawer */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-surface border-r border-edge flex flex-col transform transition-transform duration-200 ease-out ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-gray-900 border-r border-gray-800 flex flex-col transform transition-transform duration-200 ease-out ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={mobileOpen ? {} : { visibility: 'hidden' }}

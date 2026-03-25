@@ -16,10 +16,10 @@ import {
 import { api } from '../lib/api.js';
 
 const PRICE_TIERS = [
-  { label: 'Free', max: 0, color: 'text-neon', bg: 'bg-neon/10', border: 'border-neon/20' },
-  { label: 'Budget', max: 2, color: 'text-cyan', bg: 'bg-cyan/10', border: 'border-cyan/20' },
-  { label: 'Mid-range', max: 10, color: 'text-gold', bg: 'bg-gold/10', border: 'border-gold/20' },
-  { label: 'Premium', max: Infinity, color: 'text-hot', bg: 'bg-hot/10', border: 'border-hot/20' },
+  { label: 'Free', max: 0, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
+  { label: 'Budget', max: 2, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
+  { label: 'Mid-range', max: 10, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+  { label: 'Premium', max: Infinity, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
 ];
 
 function getPriceTier(blendedCost) {
@@ -33,17 +33,17 @@ function formatPrice(val) {
 }
 
 function scoreColor(score) {
-  if (score >= 85) return 'text-neon';
-  if (score >= 70) return 'text-cyan';
-  if (score >= 55) return 'text-gold';
-  return 'text-warn';
+  if (score >= 85) return 'text-green-400';
+  if (score >= 70) return 'text-blue-400';
+  if (score >= 55) return 'text-yellow-400';
+  return 'text-orange-400';
 }
 
 function scoreBarBg(score) {
-  if (score >= 85) return 'bg-neon';
-  if (score >= 70) return 'bg-cyan';
-  if (score >= 55) return 'bg-gold';
-  return 'bg-warn';
+  if (score >= 85) return 'bg-green-500';
+  if (score >= 70) return 'bg-blue-500';
+  if (score >= 55) return 'bg-yellow-500';
+  return 'bg-orange-500';
 }
 
 export default function ComparePage() {
@@ -57,7 +57,7 @@ export default function ComparePage() {
   const [comparing, setComparing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showPicker, setShowPicker] = useState(false);
-  const [activeTab, setActiveTab] = useState('compare');
+  const [activeTab, setActiveTab] = useState('compare'); // compare | alternatives | pricing
 
   useEffect(() => {
     async function load() {
@@ -74,6 +74,7 @@ export default function ComparePage() {
     load();
   }, []);
 
+  // Compare selected models
   async function runComparison() {
     if (selected.length < 2) return;
     setComparing(true);
@@ -84,6 +85,7 @@ export default function ComparePage() {
     finally { setComparing(false); }
   }
 
+  // Load alternatives for a model
   async function loadAlternatives(slug) {
     setAltModel(slug);
     try {
@@ -115,6 +117,7 @@ export default function ComparePage() {
     );
   }, [allModels, searchTerm]);
 
+  // Group pricing models by tier
   const pricingByTier = useMemo(() => {
     const groups = { Free: [], Budget: [], 'Mid-range': [], Premium: [] };
     for (const m of pricing) {
@@ -122,6 +125,7 @@ export default function ComparePage() {
       const tier = getPriceTier(blended);
       groups[tier.label]?.push({ ...m, blended_cost: blended, tier });
     }
+    // Sort each group by bang_for_buck descending
     for (const key of Object.keys(groups)) {
       groups[key].sort((a, b) => (b.bang_for_buck || 0) - (a.bang_for_buck || 0));
     }
@@ -131,20 +135,20 @@ export default function ComparePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 text-neon animate-spin" />
+        <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-silver mb-1">Model Compare</h1>
-        <p className="text-sm text-muted">Side-by-side comparison, pricing tiers, and affordable alternatives.</p>
+        <h1 className="text-3xl font-extrabold text-white mb-1">Model Compare</h1>
+        <p className="text-sm text-gray-400">Side-by-side comparison, pricing tiers, and affordable alternatives.</p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 flex-wrap">
+      <div className="flex gap-1 mb-6 p-1 bg-gray-900 rounded-xl border border-gray-800 w-fit">
         {[
           { id: 'compare', label: 'Compare Models', icon: Scale },
           { id: 'alternatives', label: 'Find Alternatives', icon: Sparkles },
@@ -153,7 +157,11 @@ export default function ComparePage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`pill flex items-center gap-2 ${activeTab === tab.id ? 'pill-active' : ''}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+              activeTab === tab.id
+                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
           >
             <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
@@ -164,14 +172,15 @@ export default function ComparePage() {
       {/* ── Compare Tab ──────────────────────────────────── */}
       {activeTab === 'compare' && (
         <div>
+          {/* Model picker */}
           <div className="mb-6">
             <div className="flex flex-wrap gap-2 items-center">
               {selected.map(slug => {
                 const m = allModels.find(m => m.slug === slug);
                 return (
-                  <div key={slug} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-elevated border border-edge font-mono text-xs">
-                    <span className="text-silver font-medium">{m?.name || slug}</span>
-                    <button onClick={() => removeModel(slug)} className="text-dim hover:text-hot transition-colors">
+                  <div key={slug} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
+                    <span className="text-xs text-white font-medium">{m?.name || slug}</span>
+                    <button onClick={() => removeModel(slug)} className="text-gray-500 hover:text-red-400">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -181,21 +190,21 @@ export default function ComparePage() {
                 <div className="relative">
                   <button
                     onClick={() => setShowPicker(!showPicker)}
-                    className="btn-ghost text-xs border-dashed"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-gray-600 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
                   >
                     + Add Model
                   </button>
                   {showPicker && (
-                    <div className="absolute top-full left-0 mt-2 w-72 max-h-64 overflow-y-auto bg-surface border border-edge rounded-md shadow-2xl shadow-black/50 z-50">
-                      <div className="sticky top-0 bg-surface p-2 border-b border-edge">
+                    <div className="absolute top-full left-0 mt-2 w-72 max-h-64 overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
+                      <div className="sticky top-0 bg-gray-900 p-2 border-b border-gray-800">
                         <div className="relative">
-                          <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-dim" />
+                          <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-500" />
                           <input
                             autoFocus
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Search models..."
-                            className="w-full pl-8 pr-3 py-1.5 bg-elevated border border-edge rounded-md text-xs text-silver font-mono placeholder:text-dim outline-none focus:border-neon/50"
+                            className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder:text-gray-500 outline-none focus:border-blue-500"
                           />
                         </div>
                       </div>
@@ -203,10 +212,10 @@ export default function ComparePage() {
                         <button
                           key={m.slug}
                           onClick={() => addModel(m.slug)}
-                          className="w-full text-left px-3 py-2 hover:bg-elevated transition-colors border-b border-edge/50 last:border-0"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0"
                         >
-                          <p className="text-xs text-silver font-mono font-medium">{m.name}</p>
-                          <p className="text-[11px] text-dim">{m.vendor} · {m.input_price_per_mtok != null ? `$${m.input_price_per_mtok}/$${m.output_price_per_mtok} per MTok` : 'Free'}</p>
+                          <p className="text-xs text-white font-medium">{m.name}</p>
+                          <p className="text-[10px] text-gray-500">{m.vendor} · {m.input_price_per_mtok != null ? `$${m.input_price_per_mtok}/$${m.output_price_per_mtok} per MTok` : 'Free'}</p>
                         </button>
                       ))}
                     </div>
@@ -217,7 +226,7 @@ export default function ComparePage() {
                 <button
                   onClick={runComparison}
                   disabled={comparing}
-                  className="btn-neon text-xs disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
                 >
                   {comparing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5" />}
                   Compare
@@ -225,10 +234,11 @@ export default function ComparePage() {
               )}
             </div>
             {selected.length < 2 && (
-              <p className="text-xs text-dim font-mono mt-2">Select 2-4 models to compare side by side</p>
+              <p className="text-[10px] text-gray-500 mt-2">Select 2-4 models to compare side by side</p>
             )}
           </div>
 
+          {/* Comparison results */}
           {comparison && comparison.length > 0 && (
             <ComparisonTable models={comparison} />
           )}
@@ -239,14 +249,14 @@ export default function ComparePage() {
       {activeTab === 'alternatives' && (
         <div>
           <div className="mb-6">
-            <label className="text-xs text-muted mb-2 block font-mono">Select a model to find cheaper alternatives:</label>
+            <label className="text-xs text-gray-400 mb-2 block">Select a model to find cheaper alternatives:</label>
             <select
               value={altModel}
               onChange={e => loadAlternatives(e.target.value)}
-              className="w-full max-w-sm px-3 py-2 bg-surface border border-edge rounded-md text-sm text-silver font-mono outline-none focus:border-neon/50"
+              className="w-full max-w-sm px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white outline-none focus:border-blue-500"
             >
               <option value="">Choose a model...</option>
-              {[...allModels].sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+              {allModels.sort((a, b) => a.name.localeCompare(b.name)).map(m => (
                 <option key={m.slug} value={m.slug}>{m.name} ({m.vendor})</option>
               ))}
             </select>
@@ -255,49 +265,49 @@ export default function ComparePage() {
           {alternatives && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-lg font-display font-bold text-silver">Alternatives to {alternatives.model}</h2>
-                <span className="terminal-badge bg-elevated text-dim border-edge">{alternatives.alternatives?.length || 0} found</span>
+                <h2 className="text-lg font-bold text-white">Alternatives to {alternatives.model}</h2>
+                <span className="text-[10px] text-gray-500 px-2 py-0.5 rounded-full bg-gray-800">{alternatives.alternatives?.length || 0} found</span>
               </div>
 
               {alternatives.alternatives?.length === 0 ? (
-                <p className="text-sm text-dim font-mono">No alternatives mapped yet for this model.</p>
+                <p className="text-sm text-gray-500">No alternatives mapped yet for this model.</p>
               ) : (
                 <div className="space-y-3">
                   {alternatives.alternatives.map((alt, i) => {
                     const blended = (alt.input_price_per_mtok * 0.3) + (alt.output_price_per_mtok * 0.7);
                     const tier = getPriceTier(blended);
                     return (
-                      <div key={i} className="card p-4 hover:border-neon/20 transition-all">
+                      <div key={i} className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 hover:border-gray-700 transition-colors">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-sm font-display font-semibold text-silver">{alt.name}</h3>
-                              <span className={`terminal-badge ${tier.bg} ${tier.color} ${tier.border}`}>
+                              <h3 className="text-sm font-semibold text-white">{alt.name}</h3>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full ${tier.bg} ${tier.color} ${tier.border} border`}>
                                 {tier.label}
                               </span>
                               {alt.is_open_weight ? (
-                                <span className="terminal-badge bg-neon/10 text-neon border-neon/20">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                   Open Source
                                 </span>
                               ) : null}
                             </div>
-                            <p className="text-xs text-dim mb-2">{alt.vendor} · {alt.family}</p>
-                            <p className="text-xs text-muted leading-relaxed">{alt.trade_off_notes}</p>
+                            <p className="text-xs text-gray-400 mb-2">{alt.vendor} · {alt.family}</p>
+                            <p className="text-xs text-gray-300 leading-relaxed">{alt.trade_off_notes}</p>
                           </div>
-                          <div className="text-right flex-shrink-0 font-mono">
+                          <div className="text-right flex-shrink-0">
                             <div className="flex items-center gap-1 mb-1">
-                              <span className="text-[11px] text-dim">Similarity</span>
+                              <span className="text-xs text-gray-500">Similarity</span>
                               <span className={`text-sm font-bold ${scoreColor(alt.similarity_score * 100)}`}>
                                 {Math.round(alt.similarity_score * 100)}%
                               </span>
                             </div>
                             <div className="flex items-center gap-1 mb-1">
-                              <span className="text-[11px] text-dim">Savings</span>
-                              <span className="text-sm font-bold text-neon">{alt.cost_savings_pct}%</span>
+                              <span className="text-xs text-gray-500">Savings</span>
+                              <span className="text-sm font-bold text-green-400">{alt.cost_savings_pct}%</span>
                             </div>
                             {alt.composite_score && (
                               <div className="flex items-center gap-1">
-                                <span className="text-[11px] text-dim">Score</span>
+                                <span className="text-xs text-gray-500">Score</span>
                                 <span className={`text-sm font-bold ${scoreColor(alt.composite_score)}`}>
                                   {Number(alt.composite_score).toFixed(1)}
                                 </span>
@@ -305,7 +315,7 @@ export default function ComparePage() {
                             )}
                           </div>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-edge flex items-center gap-4 text-[11px] text-dim font-mono">
+                        <div className="mt-3 pt-3 border-t border-gray-800 flex items-center gap-4 text-[10px] text-gray-500">
                           <span>Input: {formatPrice(alt.input_price_per_mtok)}/MTok</span>
                           <span>Output: {formatPrice(alt.output_price_per_mtok)}/MTok</span>
                           <span>Blended: {formatPrice(blended)}/MTok</span>
@@ -329,49 +339,49 @@ export default function ComparePage() {
             return (
               <div key={tier.label}>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className={`text-sm font-mono font-bold ${tier.color}`}>{tier.label}</span>
-                  <span className="text-[11px] text-dim font-mono">
+                  <span className={`text-sm font-bold ${tier.color}`}>{tier.label}</span>
+                  <span className="text-[10px] text-gray-500">
                     {tier.max === 0 ? '$0/MTok' : tier.max === Infinity ? `>$10/MTok` : `<$${tier.max}/MTok blended`}
                   </span>
-                  <span className="terminal-badge bg-elevated text-dim border-edge">{models.length}</span>
+                  <span className="text-[10px] text-gray-500 px-2 py-0.5 rounded-full bg-gray-800">{models.length} models</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {models.map(m => (
-                    <div key={m.slug} className={`card p-4 hover:border-opacity-50 transition-colors`} style={{ borderColor: `${tier.color === 'text-neon' ? '#00ff8830' : tier.color === 'text-cyan' ? '#00d4ff30' : tier.color === 'text-gold' ? '#fbbf2430' : '#ff336630'}` }}>
+                    <div key={m.slug} className={`rounded-xl border ${tier.border} bg-gray-900/50 p-4 hover:bg-gray-900/80 transition-colors`}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-xs font-display font-semibold text-silver">{m.name}</h3>
+                            <h3 className="text-xs font-semibold text-white">{m.name}</h3>
                             {m.is_open_weight ? (
-                              <Globe className="w-3 h-3 text-neon" />
+                              <Globe className="w-3 h-3 text-emerald-400" />
                             ) : null}
                           </div>
-                          <p className="text-[11px] text-dim mt-0.5">{m.vendor} · {m.family}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">{m.vendor} · {m.family}</p>
                         </div>
                         <div className="text-right">
                           {m.composite_score ? (
-                            <span className={`text-sm font-mono font-bold ${scoreColor(m.avg_benchmark_score)}`}>
+                            <span className={`text-sm font-bold ${scoreColor(m.avg_benchmark_score)}`}>
                               {m.avg_benchmark_score}
                             </span>
                           ) : null}
                         </div>
                       </div>
-                      <div className="mt-2 flex items-center gap-3 text-[11px] text-dim font-mono">
+                      <div className="mt-2 flex items-center gap-3 text-[10px] text-gray-500">
                         <span>In: {formatPrice(m.input_price_per_mtok)}/MTok</span>
                         <span>Out: {formatPrice(m.output_price_per_mtok)}/MTok</span>
-                        <span className={`font-semibold ${tier.color}`}>
+                        <span className={`font-medium ${tier.color}`}>
                           BFB: {m.bang_for_buck?.toFixed(1) || '—'}
                         </span>
                       </div>
                       {m.availability?.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
                           {m.availability.slice(0, 3).map((a, i) => (
-                            <span key={i} className="terminal-badge bg-elevated text-dim border-edge">
+                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
                               {a.tool_name}{a.plan_name ? ` · ${a.plan_name}` : ''}{a.price_monthly ? ` $${a.price_monthly}/mo` : ''}
                             </span>
                           ))}
                           {m.availability.length > 3 && (
-                            <span className="terminal-badge bg-elevated text-dim border-edge">+{m.availability.length - 3}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">+{m.availability.length - 3} more</span>
                           )}
                         </div>
                       )}
@@ -392,8 +402,10 @@ export default function ComparePage() {
 function ComparisonTable({ models }) {
   if (!models?.length) return null;
 
+  // All benchmark names across all models
   const allBenchmarks = [...new Set(models.flatMap(m => m.benchmarks?.map(b => b.benchmark_name) || []))];
 
+  // Find the "best" value for highlighting
   function bestOf(key, higher = true) {
     const vals = models.map(m => m[key]).filter(v => v != null);
     return higher ? Math.max(...vals) : Math.min(...vals);
@@ -404,43 +416,52 @@ function ComparisonTable({ models }) {
   const lowestOutput = bestOf('output_price_per_mtok', false);
 
   return (
-    <div className="overflow-x-auto card p-0">
-      <table className="data-table">
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
         <thead>
-          <tr>
-            <th className="w-32">Metric</th>
+          <tr className="border-b border-gray-800">
+            <th className="text-left py-3 px-3 text-gray-500 font-medium w-32">Metric</th>
             {models.map(m => (
-              <th key={m.slug} className="text-center">
-                <p className="text-silver font-semibold">{m.name}</p>
-                <p className="text-dim font-normal">{m.vendor}</p>
+              <th key={m.slug} className="text-center py-3 px-3">
+                <p className="text-white font-semibold">{m.name}</p>
+                <p className="text-[10px] text-gray-500 font-normal">{m.vendor}</p>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-gray-800/50">
+          {/* Composite Score */}
           <CompRow label="AllThingsAI Score" models={models} accessor={m => m.composite_score}
             format={v => v?.toFixed(1) || '—'}
             highlight={v => v === bestComposite}
           />
+
+          {/* Pricing */}
           <CompRow label="Input $/MTok" models={models} accessor={m => m.input_price_per_mtok}
             format={v => formatPrice(v)}
             highlight={v => v === lowestInput}
-            highlightColor="text-neon"
+            highlightColor="text-green-400"
           />
           <CompRow label="Output $/MTok" models={models} accessor={m => m.output_price_per_mtok}
             format={v => formatPrice(v)}
             highlight={v => v === lowestOutput}
-            highlightColor="text-neon"
+            highlightColor="text-green-400"
           />
           <CompRow label="Blended $/MTok" models={models} accessor={m => m.blended_cost}
             format={v => formatPrice(v)}
           />
+
+          {/* Context */}
           <CompRow label="Context Window" models={models} accessor={m => m.context_window}
             format={v => v ? `${(v / 1000).toFixed(0)}K` : '—'}
           />
+
+          {/* Open Weight */}
           <CompRow label="Open Source" models={models} accessor={m => m.is_open_weight}
             format={v => v ? 'Yes' : 'No'}
           />
+
+          {/* Benchmarks */}
           {allBenchmarks.map(name => {
             const bestScore = Math.max(...models.map(m => {
               const b = m.benchmarks?.find(b => b.benchmark_name === name);
@@ -454,21 +475,23 @@ function ComparisonTable({ models }) {
               />
             );
           })}
+
+          {/* Availability */}
           <tr>
-            <td className="text-dim font-medium align-top">Available on</td>
+            <td className="py-3 px-3 text-gray-500 font-medium align-top">Available on</td>
             {models.map(m => (
-              <td key={m.slug} className="text-center align-top">
+              <td key={m.slug} className="py-3 px-3 text-center align-top">
                 {m.availability?.length > 0 ? (
                   <div className="space-y-1">
                     {m.availability.slice(0, 4).map((a, i) => (
-                      <div key={i} className="text-[11px] text-muted">
+                      <div key={i} className="text-[10px] text-gray-400">
                         {a.tool_name}{a.plan_name ? ` (${a.plan_name})` : ''}
-                        {a.price_monthly ? <span className="text-neon"> ${a.price_monthly}/mo</span> : null}
+                        {a.price_monthly ? <span className="text-green-400"> ${a.price_monthly}/mo</span> : null}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[11px] text-dim">API only</span>
+                  <span className="text-[10px] text-gray-500">API only</span>
                 )}
               </td>
             ))}
@@ -479,16 +502,16 @@ function ComparisonTable({ models }) {
   );
 }
 
-function CompRow({ label, models, accessor, format, highlight, highlightColor = 'text-cyan' }) {
+function CompRow({ label, models, accessor, format, highlight, highlightColor = 'text-blue-400' }) {
   return (
     <tr>
-      <td className="text-dim font-medium">{label}</td>
+      <td className="py-2.5 px-3 text-gray-500 font-medium">{label}</td>
       {models.map(m => {
         const val = accessor(m);
         const formatted = format(val);
         const isHighlighted = highlight?.(val);
         return (
-          <td key={m.slug} className={`text-center font-medium ${isHighlighted ? highlightColor + ' font-bold' : 'text-muted'}`}>
+          <td key={m.slug} className={`py-2.5 px-3 text-center font-medium ${isHighlighted ? highlightColor + ' font-bold' : 'text-gray-300'}`}>
             {formatted}
           </td>
         );

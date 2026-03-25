@@ -18,10 +18,10 @@ import {
 import { api } from '../lib/api.js';
 
 const TYPE_STYLES = {
-  cost_saving: { accent: 'neon', text: 'text-neon', label: 'Cost Saving' },
-  new_tool: { accent: 'cyan', text: 'text-cyan', label: 'New Tool' },
-  model_upgrade: { accent: 'neon', text: 'text-neon', label: 'Model Upgrade' },
-  plan_switch: { accent: 'cyan', text: 'text-cyan', label: 'Plan Switch' },
+  cost_saving: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20', label: 'Cost Saving' },
+  new_tool: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', label: 'New Tool' },
+  model_upgrade: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', label: 'Model Upgrade' },
+  plan_switch: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20', label: 'Plan Switch' },
 };
 
 const TYPE_ICONS = {
@@ -48,12 +48,14 @@ function relativeTime(dateStr) {
 
 function RelevanceBar({ score }) {
   const pct = Math.min(100, Math.max(0, score));
+  const color =
+    pct >= 75 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : pct >= 25 ? 'bg-orange-500' : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
-      <div className="score-bar w-20">
-        <div className="score-bar-fill" style={{ width: `${pct}%` }} />
+      <div className="w-20 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-mono text-dim">{score}</span>
+      <span className="text-xs text-gray-500">{score}</span>
     </div>
   );
 }
@@ -61,33 +63,32 @@ function RelevanceBar({ score }) {
 function RecommendationCard({ rec, onDismiss }) {
   const style = TYPE_STYLES[rec.type] || TYPE_STYLES.new_tool;
   const Icon = TYPE_ICONS[rec.type] || Lightbulb;
-  const isNeon = style.accent === 'neon';
 
   return (
-    <div className={`card-glow relative group ${isNeon ? 'glow-neon' : 'glow-cyan'}`}>
+    <div className={`rounded-xl border ${style.border} ${style.bg} p-4 relative group`}>
       <button
         onClick={() => onDismiss(rec.id)}
-        className="absolute top-3 right-3 text-muted hover:text-neon opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-3 right-3 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label="Dismiss recommendation"
       >
         <X className="w-4 h-4" />
       </button>
       <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg ${isNeon ? 'bg-neon/10' : 'bg-cyan/10'}`}>
+        <div className={`p-2 rounded-lg ${style.bg}`}>
           <Icon className={`w-4 h-4 ${style.text}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider ${style.text}`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${style.text}`}>
               {style.label}
             </span>
           </div>
-          <h3 className="text-sm font-semibold text-silver mb-1">{rec.title}</h3>
-          <p className="text-xs text-muted leading-relaxed">{rec.body}</p>
+          <h3 className="text-sm font-semibold text-white mb-1">{rec.title}</h3>
+          <p className="text-xs text-gray-400 leading-relaxed">{rec.body}</p>
           {rec.related_tools?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {rec.related_tools.map((t) => (
-                <span key={t} className="terminal-badge">
+                <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
                   {t}
                 </span>
               ))}
@@ -96,7 +97,7 @@ function RecommendationCard({ rec, onDismiss }) {
           {rec.related_models?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1">
               {rec.related_models.map((m) => (
-                <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-elevated text-dim">
+                <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800/60 text-gray-500">
                   {m}
                 </span>
               ))}
@@ -110,33 +111,33 @@ function RecommendationCard({ rec, onDismiss }) {
 
 function NewsItem({ item, onBookmark, onMarkRead }) {
   return (
-    <div className={`card hover:border-edge-bright transition-colors ${item.is_read ? 'opacity-60' : ''}`}>
+    <div className={`p-4 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors ${item.is_read ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="terminal-badge">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 uppercase tracking-wider">
               {item.source}
             </span>
-            <span className="text-xs text-dim">{relativeTime(item.published_at)}</span>
+            <span className="text-xs text-gray-500">{relativeTime(item.published_at)}</span>
           </div>
           <a
             href={item.content_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium text-silver hover:text-cyan transition-colors flex items-center gap-1.5 group"
+            className="text-sm font-medium text-white hover:text-blue-400 transition-colors flex items-center gap-1.5 group"
           >
             {item.title}
-            <ExternalLink className="w-3 h-3 text-dim group-hover:text-cyan transition-colors" />
+            <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-blue-400 transition-colors" />
           </a>
           {item.summary && (
-            <p className="text-xs text-dim mt-1 line-clamp-2 leading-relaxed">{item.summary}</p>
+            <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{item.summary}</p>
           )}
           <div className="flex items-center gap-3 mt-2">
             <RelevanceBar score={item.relevance_score ?? 0} />
             {item.relevance_tags && (
               <div className="flex flex-wrap gap-1">
                 {(typeof item.relevance_tags === 'string' ? JSON.parse(item.relevance_tags) : item.relevance_tags).map((tag) => (
-                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-cyan/10 text-cyan">
+                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
                     {tag}
                   </span>
                 ))}
@@ -147,15 +148,15 @@ function NewsItem({ item, onBookmark, onMarkRead }) {
         <div className="flex flex-col gap-1.5 shrink-0">
           <button
             onClick={() => onBookmark(item.id)}
-            className="p-1.5 rounded-lg hover:bg-elevated text-muted hover:text-neon transition-colors"
+            className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-yellow-400 transition-colors"
             aria-label={item.is_bookmarked ? 'Remove bookmark' : 'Bookmark'}
           >
-            {item.is_bookmarked ? <BookmarkCheck className="w-4 h-4 text-neon" /> : <Bookmark className="w-4 h-4" />}
+            {item.is_bookmarked ? <BookmarkCheck className="w-4 h-4 text-yellow-400" /> : <Bookmark className="w-4 h-4" />}
           </button>
           {!item.is_read && (
             <button
               onClick={() => onMarkRead(item.id)}
-              className="p-1.5 rounded-lg hover:bg-elevated text-muted hover:text-neon transition-colors"
+              className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-green-400 transition-colors"
               aria-label="Mark as read"
             >
               <CheckCircle2 className="w-4 h-4" />
@@ -169,14 +170,14 @@ function NewsItem({ item, onBookmark, onMarkRead }) {
 
 function StatCard({ icon: Icon, label, value, color }) {
   return (
-    <div className="stat-card">
+    <div className="p-4 rounded-xl border border-gray-800 bg-gray-900/50">
       <div className="flex items-center gap-3">
         <div className={`p-2 rounded-lg ${color}`}>
           <Icon className="w-4 h-4" />
         </div>
         <div>
-          <p className="text-xs text-dim">{label}</p>
-          <p className="text-lg font-mono font-bold text-silver">{value}</p>
+          <p className="text-xs text-gray-500">{label}</p>
+          <p className="text-lg font-bold text-white">{value}</p>
         </div>
       </div>
     </div>
@@ -243,7 +244,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 text-neon animate-spin" />
+        <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
       </div>
     );
   }
@@ -251,16 +252,16 @@ export default function DashboardPage() {
   if (error && feed.length === 0 && recommendations.length === 0) {
     return (
       <div className="text-center py-16 max-w-md mx-auto">
-        <Sparkles className="w-12 h-12 text-cyan mx-auto mb-4" />
-        <h2 className="text-xl font-display font-semibold text-silver mb-2">Welcome to All Things AI</h2>
-        <p className="text-muted text-sm mb-4">
+        <Sparkles className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+        <h2 className="text-xl font-semibold text-white mb-2">Welcome to All Things AI</h2>
+        <p className="text-gray-400 text-sm mb-4">
           The Worker backend needs to be running to populate data. Start it with:
         </p>
-        <code className="block bg-elevated rounded-lg p-3 text-sm text-neon font-mono mb-4">
+        <code className="block bg-gray-800 rounded-lg p-3 text-sm text-green-400 mb-4">
           cd packages/worker && npm run dev
         </code>
-        <p className="text-dim text-xs">
-          Then run <code className="text-cyan font-mono">npm run db:migrate && npm run db:seed</code> to populate the database.
+        <p className="text-gray-500 text-xs">
+          Then run <code className="text-blue-400">npm run db:migrate && npm run db:seed</code> to populate the database.
         </p>
       </div>
     );
@@ -268,17 +269,17 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-display font-bold text-silver mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
 
       {/* Recommendations - full width */}
       <section className="mb-8">
-        <h2 className="section-label flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Lightbulb className="w-4 h-4" />
           Recommendations
         </h2>
         {recommendations.length === 0 ? (
-          <div className="text-center py-8 rounded-xl border border-edge border-dashed">
-            <p className="text-sm text-dim">No recommendations right now. Check back later.</p>
+          <div className="text-center py-8 rounded-xl border border-gray-800 border-dashed">
+            <p className="text-sm text-gray-500">No recommendations right now. Check back later.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -292,13 +293,13 @@ export default function DashboardPage() {
       {/* Feed (2/3) + Stats (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <section className="lg:col-span-2">
-          <h2 className="section-label flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <Newspaper className="w-4 h-4" />
             News Feed
           </h2>
           {feed.length === 0 ? (
-            <div className="text-center py-8 rounded-xl border border-edge border-dashed">
-              <p className="text-sm text-dim">No news items yet. Configure your sources in Settings.</p>
+            <div className="text-center py-8 rounded-xl border border-gray-800 border-dashed">
+              <p className="text-sm text-gray-500">No news items yet. Configure your sources in Settings.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -315,7 +316,7 @@ export default function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="section-label flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <Star className="w-4 h-4" />
             Quick Stats
           </h2>
@@ -324,25 +325,25 @@ export default function DashboardPage() {
               icon={DollarSign}
               label="Monthly Spend"
               value={totalSpend}
-              color="bg-neon/10 text-neon"
+              color="bg-green-500/10 text-green-400"
             />
             <StatCard
               icon={Wrench}
               label="Tools Tracked"
               value={toolsCount}
-              color="bg-cyan/10 text-cyan"
+              color="bg-blue-500/10 text-blue-400"
             />
             <StatCard
               icon={Newspaper}
               label="Unread News"
               value={unreadCount}
-              color="bg-warn/10 text-warn"
+              color="bg-orange-500/10 text-orange-400"
             />
             <StatCard
               icon={Lightbulb}
               label="Recommendations"
               value={recCount}
-              color="bg-cyan/10 text-cyan"
+              color="bg-purple-500/10 text-purple-400"
             />
           </div>
         </section>
