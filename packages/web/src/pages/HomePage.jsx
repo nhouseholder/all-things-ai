@@ -29,17 +29,17 @@ const VERSION = 'v0.6.0';
 const BUILD_DATE = 'Mar 24, 2026';
 
 function compositeColor(score) {
-  if (score >= 85) return 'text-green-400';
-  if (score >= 70) return 'text-blue-400';
-  if (score >= 55) return 'text-yellow-400';
-  return 'text-orange-400';
+  if (score >= 85) return 'text-neon';
+  if (score >= 70) return 'text-cyan';
+  if (score >= 55) return 'text-gold';
+  return 'text-warn';
 }
 
 function compositeBarBg(score) {
-  if (score >= 85) return 'bg-green-500';
-  if (score >= 70) return 'bg-blue-500';
-  if (score >= 55) return 'bg-yellow-500';
-  return 'bg-orange-500';
+  if (score >= 85) return 'bg-neon';
+  if (score >= 70) return 'bg-cyan';
+  if (score >= 55) return 'bg-gold';
+  return 'bg-warn';
 }
 
 const TASK_ICONS = {
@@ -86,11 +86,11 @@ export default function HomePage() {
       <section className="pt-6 pb-10">
         {/* Top bar with badges */}
         <div className="flex items-center gap-2 mb-5">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] font-medium text-blue-400">
+          <span className="terminal-badge">
             <Sparkles className="w-3 h-3" />
             Free &middot; Open &middot; Updated Daily
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-[11px] font-medium text-green-400">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neon/10 border border-neon/20 text-[11px] font-medium text-neon">
             <Globe className="w-3 h-3" />
             Includes Free &amp; Open-Source Models
           </span>
@@ -98,17 +98,20 @@ export default function HomePage() {
 
         {/* Title + version */}
         <div className="mb-6">
-          <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight mb-1">
-            <span className="text-white">The AI model guide</span>
+          <h1 className="text-4xl sm:text-5xl font-mono font-bold leading-tight mb-1">
+            <span className="text-silver">The AI model guide</span>
             <br />
-            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="text-neon glow-neon">
               for vibe coders
             </span>
           </h1>
-          <p className="text-[10px] text-gray-500 font-mono">{VERSION} &middot; {BUILD_DATE}</p>
+          <p className="text-[10px] text-dim font-mono">
+            <span className="terminal-badge text-[10px] py-0 px-1.5">{VERSION}</span>
+            {' '}&middot; {BUILD_DATE}
+          </p>
         </div>
 
-        <p className="text-lg text-gray-400 max-w-2xl mb-8 leading-relaxed">
+        <p className="text-lg text-muted max-w-2xl mb-8 leading-relaxed font-sans">
           Pick your coding task. See which AI model wins on quality <em>and</em> cost.
           Find the cheapest tool to run it on &mdash; from free open-source models
           to premium APIs. Backed by benchmarks, real pricing, and developer signals.
@@ -117,7 +120,7 @@ export default function HomePage() {
         <div className="flex flex-wrap gap-3">
           <Link
             to="/advisor"
-            className="group inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+            className="btn-neon group inline-flex items-center gap-2"
           >
             <Target className="w-4 h-4" />
             Find My Model
@@ -125,14 +128,14 @@ export default function HomePage() {
           </Link>
           <Link
             to="/compare"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 font-medium text-sm transition-colors"
+            className="btn-outline inline-flex items-center gap-2"
           >
             <Scale className="w-4 h-4" />
             Compare Models
           </Link>
           <Link
             to="/benchmarks"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white font-medium text-sm transition-colors"
+            className="btn-ghost inline-flex items-center gap-2"
           >
             <BarChart3 className="w-4 h-4" />
             Browse Benchmarks
@@ -144,36 +147,64 @@ export default function HomePage() {
       {!loading && (
         <section className="mb-10">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard value={modelCount} label="AI Models Ranked" sublabel="incl. free & open-source" icon={Brain} color="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/15" />
-            <StatCard value={10} label="Coding Tools" sublabel="Claude Code, Cursor, Copilot..." icon={Wrench} color="text-blue-400" bg="bg-blue-500/5" border="border-blue-500/15" />
-            <StatCard value={taskCount} label="Task Categories" sublabel="debugging to boilerplate" icon={Target} color="text-cyan-400" bg="bg-cyan-500/5" border="border-cyan-500/15" />
-            <StatCard value="$0" label="Free Models" sublabel="DeepSeek, Z AI, Llama, Gemma" icon={DollarSign} color="text-green-400" bg="bg-green-500/5" border="border-green-500/15" />
+            <div className="stat-card">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="w-4 h-4 text-cyan" />
+                <span className="text-xl font-mono font-bold text-silver">{modelCount}</span>
+              </div>
+              <p className="text-xs text-silver font-medium">AI Models Ranked</p>
+              <p className="text-[10px] text-dim mt-0.5">incl. free & open-source</p>
+            </div>
+            <div className="stat-card">
+              <div className="flex items-center gap-2 mb-2">
+                <Wrench className="w-4 h-4 text-neon" />
+                <span className="text-xl font-mono font-bold text-silver">10</span>
+              </div>
+              <p className="text-xs text-silver font-medium">Coding Tools</p>
+              <p className="text-[10px] text-dim mt-0.5">Claude Code, Cursor, Copilot...</p>
+            </div>
+            <div className="stat-card">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="w-4 h-4 text-gold" />
+                <span className="text-xl font-mono font-bold text-silver">{taskCount}</span>
+              </div>
+              <p className="text-xs text-silver font-medium">Task Categories</p>
+              <p className="text-[10px] text-dim mt-0.5">debugging to boilerplate</p>
+            </div>
+            <div className="stat-card">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="w-4 h-4 text-hot" />
+                <span className="text-xl font-mono font-bold text-silver">$0</span>
+              </div>
+              <p className="text-xs text-silver font-medium">Free Models</p>
+              <p className="text-[10px] text-dim mt-0.5">DeepSeek, Z AI, Llama, Gemma</p>
+            </div>
           </div>
         </section>
       )}
 
       {/* ── Value Pillars ─────────────────────────────────────────── */}
       <section className="mb-12">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Why vibe coders use this</h2>
+        <p className="section-label mb-4">Why vibe coders use this</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <ValueCard
             icon={Brain}
-            iconColor="text-purple-400"
-            iconBg="bg-purple-500/10"
+            iconColor="text-cyan"
+            iconBg="bg-cyan/10"
             title="Task-Matched Rankings"
             description="Select your coding task — complex debugging, feature implementation, refactoring — and see which model actually performs best for that specific workflow."
           />
           <ValueCard
             icon={DollarSign}
-            iconColor="text-green-400"
-            iconBg="bg-green-500/10"
+            iconColor="text-neon"
+            iconBg="bg-neon/10"
             title="Real Pricing + Free Options"
             description="Every model shows token costs, tool pricing, and free alternatives. From $0 open-source models to premium APIs — find what fits your budget."
           />
           <ValueCard
             icon={Scale}
-            iconColor="text-cyan-400"
-            iconBg="bg-cyan-500/10"
+            iconColor="text-gold"
+            iconBg="bg-gold/10"
             title="Like Opus? Try This Instead"
             description="Select any premium model and instantly see cheaper alternatives with similar capabilities. Save 50-95% without sacrificing much quality."
           />
@@ -182,12 +213,12 @@ export default function HomePage() {
 
       {/* ── How It Works ──────────────────────────────────────────── */}
       <section className="mb-12">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">How It Works</h2>
+        <p className="section-label mb-4">How It Works</p>
         <div className="flex flex-col sm:flex-row gap-4">
           <StepCard number="1" title="Pick your task" description="Debugging? Feature building? Boilerplate? Each task has different winners." />
-          <ChevronRight className="w-5 h-5 text-gray-700 self-center hidden sm:block flex-shrink-0" />
+          <ChevronRight className="w-5 h-5 text-dim self-center hidden sm:block flex-shrink-0" />
           <StepCard number="2" title="Compare models" description="See success rates, cost per task, and quality scores side-by-side. Filter by free or budget." />
-          <ChevronRight className="w-5 h-5 text-gray-700 self-center hidden sm:block flex-shrink-0" />
+          <ChevronRight className="w-5 h-5 text-dim self-center hidden sm:block flex-shrink-0" />
           <StepCard number="3" title="Find where to use it" description="Every model shows which tools offer it and at what price. Pick the cheapest path." />
         </div>
       </section>
@@ -195,7 +226,7 @@ export default function HomePage() {
       {/* ── Quick Task Picker ─────────────────────────────────────── */}
       {tasks && tasks.length > 0 && (
         <section className="mb-12">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">What are you building?</h2>
+          <p className="section-label mb-4">What are you building?</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {tasks.map(task => {
               const Icon = TASK_ICONS[task.slug] || Code2;
@@ -203,11 +234,11 @@ export default function HomePage() {
                 <Link
                   key={task.slug}
                   to={`/advisor?task=${task.slug}`}
-                  className="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all"
+                  className="group card p-4 hover:border-neon/30 hover:bg-neon/5 transition-all"
                 >
-                  <Icon className="w-5 h-5 text-gray-500 group-hover:text-blue-400 mb-2 transition-colors" />
-                  <h3 className="text-xs font-semibold text-white mb-0.5">{task.name}</h3>
-                  <p className="text-[10px] text-gray-500 leading-relaxed">
+                  <Icon className="w-5 h-5 text-dim group-hover:text-neon mb-2 transition-colors" />
+                  <h3 className="text-xs font-semibold text-silver mb-0.5">{task.name}</h3>
+                  <p className="text-[10px] text-dim leading-relaxed">
                     {task.complexity ? `${task.complexity} complexity` : 'See top models'}
                   </p>
                 </Link>
@@ -220,7 +251,7 @@ export default function HomePage() {
       {/* ── Live Rankings Preview ─────────────────────────────────── */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+          <Loader2 className="w-6 h-6 text-neon animate-spin" />
         </div>
       ) : (
         <section className="mb-12">
@@ -229,9 +260,9 @@ export default function HomePage() {
               title="Best Overall"
               subtitle="by AllThingsAI composite score"
               icon={Trophy}
-              iconColor="text-yellow-400"
-              headerBg="bg-yellow-500/5"
-              headerBorder="border-yellow-500/20"
+              iconColor="text-gold"
+              headerBg="bg-gold/5"
+              headerBorder="border-gold/20"
               models={topOverall}
               valueKey="composite_score"
               valueLabel="score"
@@ -242,9 +273,9 @@ export default function HomePage() {
               title="Best Bang for Buck"
               subtitle="quality per dollar spent"
               icon={Coins}
-              iconColor="text-green-400"
-              headerBg="bg-green-500/5"
-              headerBorder="border-green-500/20"
+              iconColor="text-neon"
+              headerBg="bg-neon/5"
+              headerBorder="border-neon/20"
               models={topValue}
               valueKey="value_score"
               valueLabel="value"
@@ -255,7 +286,7 @@ export default function HomePage() {
           <div className="mt-4 text-center">
             <Link
               to="/advisor"
-              className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-neon hover:text-cyan font-medium transition-colors"
             >
               See full rankings for all {modelCount} models
               <ArrowRight className="w-4 h-4" />
@@ -266,12 +297,12 @@ export default function HomePage() {
 
       {/* ── Free & Budget Highlight ──────────────────────────────── */}
       <section className="mb-12">
-        <div className="rounded-2xl border border-green-500/20 bg-gradient-to-br from-green-950/20 via-gray-900 to-gray-900 p-6">
+        <div className="card-glow p-6 border-neon/20">
           <div className="flex items-center gap-2 mb-3">
-            <Globe className="w-5 h-5 text-green-400" />
-            <h2 className="text-lg font-bold text-white">Free &amp; Open-Source Models</h2>
+            <Globe className="w-5 h-5 text-neon" />
+            <h2 className="text-lg font-mono font-bold text-silver">Free &amp; Open-Source Models</h2>
           </div>
-          <p className="text-sm text-gray-400 mb-4 max-w-lg">
+          <p className="text-sm text-muted mb-4 max-w-lg font-sans">
             Not every project needs a $100/mo subscription. These models are free or nearly free
             and competitive enough for many coding tasks.
           </p>
@@ -282,16 +313,16 @@ export default function HomePage() {
               { name: 'Llama 4 Maverick', note: 'Meta open-weight', cost: '$0.20/MTok' },
               { name: 'Z AI GLM-5', note: 'Totally free API', cost: 'Free' },
             ].map(m => (
-              <div key={m.name} className="rounded-lg bg-gray-800/50 border border-gray-700/50 p-3">
-                <p className="text-xs font-semibold text-white">{m.name}</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">{m.note}</p>
-                <p className="text-[10px] text-green-400 font-medium mt-1">{m.cost}</p>
+              <div key={m.name} className="rounded-lg bg-elevated border border-edge p-3">
+                <p className="text-xs font-semibold text-silver">{m.name}</p>
+                <p className="text-[10px] text-dim mt-0.5">{m.note}</p>
+                <p className="text-[10px] text-neon font-mono font-medium mt-1">{m.cost}</p>
               </div>
             ))}
           </div>
           <Link
             to="/compare"
-            className="inline-flex items-center gap-2 text-xs text-green-400 hover:text-green-300 font-medium transition-colors"
+            className="inline-flex items-center gap-2 text-xs text-neon hover:text-cyan font-medium transition-colors"
           >
             See all pricing tiers
             <ArrowRight className="w-3.5 h-3.5" />
@@ -301,16 +332,16 @@ export default function HomePage() {
 
       {/* ── Bottom CTA ────────────────────────────────────────────── */}
       <section className="mb-8">
-        <div className="rounded-2xl border border-gray-800 bg-gradient-to-br from-gray-900 via-gray-900 to-blue-950/30 p-8 text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Stop overpaying for AI</h2>
-          <p className="text-gray-400 text-sm mb-6 max-w-lg mx-auto">
+        <div className="rounded-2xl border border-edge bg-gradient-to-br from-surface via-surface to-neon/5 p-8 text-center">
+          <h2 className="text-2xl font-mono font-bold text-silver mb-2">Stop overpaying for AI</h2>
+          <p className="text-muted text-sm mb-6 max-w-lg mx-auto font-sans">
             Most vibe coders pick a model based on hype. Use our task-specific rankings
             to find the model that wins for <em>your</em> workflow — then find the cheapest place to use it.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link
               to="/advisor"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-colors shadow-lg shadow-blue-500/20"
+              className="btn-neon inline-flex items-center gap-2"
             >
               <Target className="w-4 h-4" />
               Open Task Advisor
@@ -318,7 +349,7 @@ export default function HomePage() {
             </Link>
             <Link
               to="/compare"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white font-medium text-sm transition-colors"
+              className="btn-outline inline-flex items-center gap-2"
             >
               <Scale className="w-4 h-4" />
               Find Alternatives
@@ -332,39 +363,26 @@ export default function HomePage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────
 
-function StatCard({ value, label, sublabel, icon: Icon, color, bg, border }) {
-  return (
-    <div className={`rounded-xl ${bg} border ${border} p-4`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className={`w-4 h-4 ${color}`} />
-        <span className={`text-xl font-bold text-white`}>{value}</span>
-      </div>
-      <p className="text-xs text-gray-300 font-medium">{label}</p>
-      {sublabel && <p className="text-[10px] text-gray-500 mt-0.5">{sublabel}</p>}
-    </div>
-  );
-}
-
 function ValueCard({ icon: Icon, iconColor, iconBg, title, description }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5 hover:border-gray-700 transition-colors">
+    <div className="card-glow p-5">
       <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center mb-3`}>
         <Icon className={`w-5 h-5 ${iconColor}`} />
       </div>
-      <h3 className="text-sm font-semibold text-white mb-1.5">{title}</h3>
-      <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+      <h3 className="text-sm font-mono font-semibold text-silver mb-1.5">{title}</h3>
+      <p className="text-xs text-muted leading-relaxed font-sans">{description}</p>
     </div>
   );
 }
 
 function StepCard({ number, title, description }) {
   return (
-    <div className="flex-1 rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-      <div className="w-7 h-7 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mb-3">
-        <span className="text-xs font-bold text-blue-400">{number}</span>
+    <div className="flex-1 card p-4">
+      <div className="w-7 h-7 rounded-full bg-neon/10 border border-neon/30 flex items-center justify-center mb-3">
+        <span className="text-xs font-mono font-bold text-neon">{number}</span>
       </div>
-      <h3 className="text-sm font-semibold text-white mb-1">{title}</h3>
-      <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+      <h3 className="text-sm font-mono font-semibold text-silver mb-1">{title}</h3>
+      <p className="text-xs text-muted leading-relaxed font-sans">{description}</p>
     </div>
   );
 }
@@ -373,9 +391,9 @@ function CommunityBadge({ reviews, sources }) {
   if (!reviews || reviews < 10) return null;
   const confidence = reviews >= 50 && sources >= 2 ? 'high' : reviews >= 25 ? 'medium' : 'low';
   const colors = {
-    high: 'text-green-400 bg-green-500/10 border-green-500/20',
-    medium: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
-    low: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
+    high: 'text-neon bg-neon/10 border-neon/20',
+    medium: 'text-gold bg-gold/10 border-gold/20',
+    low: 'text-dim bg-raised border-edge',
   };
   return (
     <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border ${colors[confidence]}`} title={`${reviews} reviews from ${sources} sources`}>
@@ -387,39 +405,39 @@ function CommunityBadge({ reviews, sources }) {
 
 function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, headerBorder, models, valueKey, valueLabel, formatValue }) {
   return (
-    <div className="rounded-xl border border-gray-800 overflow-hidden">
+    <div className="rounded-xl border border-edge overflow-hidden bg-surface">
       <div className={`${headerBg} border-b ${headerBorder} px-4 py-3`}>
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${iconColor}`} />
           <div>
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
-            <p className="text-[10px] text-gray-500">{subtitle}</p>
+            <h3 className="text-sm font-mono font-semibold text-silver">{title}</h3>
+            <p className="text-[10px] text-dim">{subtitle}</p>
           </div>
         </div>
       </div>
-      <div className="divide-y divide-gray-800">
+      <div className="divide-y divide-edge">
         {models.map((m, i) => {
           const score = m.composite_score ?? 0;
           return (
             <div key={m.model_slug} className="flex items-center gap-3 px-4 py-2.5">
-              <span className={`text-xs font-bold w-5 text-center ${i === 0 ? iconColor : 'text-gray-500'}`}>
+              <span className={`text-xs font-mono font-bold w-5 text-center ${i === 0 ? iconColor : 'text-dim'}`}>
                 {i + 1}
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-xs text-white font-medium truncate">{m.model_name}</p>
+                  <p className="text-xs text-silver font-medium truncate">{m.model_name}</p>
                   <CommunityBadge reviews={m.community_reviews} sources={m.community_sources} />
                 </div>
-                <p className="text-[10px] text-gray-500">{m.vendor}{m.community_adjustment ? ` · community ${m.community_adjustment > 0 ? '+' : ''}${m.community_adjustment.toFixed(1)}` : ''}</p>
+                <p className="text-[10px] text-dim">{m.vendor}{m.community_adjustment ? ` · community ${m.community_adjustment > 0 ? '+' : ''}${m.community_adjustment.toFixed(1)}` : ''}</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="score-bar w-16">
                   <div
-                    className={`h-full rounded-full ${compositeBarBg(score)}`}
+                    className={`score-bar-fill ${compositeBarBg(score)}`}
                     style={{ width: `${Math.min(100, score)}%` }}
                   />
                 </div>
-                <span className={`text-xs font-bold tabular-nums ${compositeColor(score)}`}>
+                <span className={`text-xs font-mono font-bold tabular-nums ${compositeColor(score)}`}>
                   {formatValue(m[valueKey])}
                 </span>
               </div>
