@@ -86,7 +86,7 @@ export default function HomePage() {
   return (
     <div className="max-w-5xl mx-auto">
       {/* ── Hero ─────────────────────────────────────────────────── */}
-      <section className="pt-6 pb-10">
+      <section className="pt-4 pb-6">
         {/* Top bar with badges */}
         <div className="flex items-center gap-2 mb-5">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] font-medium text-blue-400">
@@ -111,7 +111,7 @@ export default function HomePage() {
           <p className="text-[10px] text-gray-500 font-mono">{VERSION} &middot; {BUILD_DATE}</p>
         </div>
 
-        <p className="text-lg text-gray-400 max-w-2xl mb-8 leading-relaxed">
+        <p className="text-base text-gray-400 max-w-2xl mb-5 leading-relaxed">
           Pick your coding task. See which AI model wins on quality <em>and</em> cost.
           Find the cheapest tool to run it on &mdash; from free open-source models
           to premium APIs. Backed by benchmarks, real pricing, and developer signals.
@@ -151,6 +151,56 @@ export default function HomePage() {
             <StatCard value={10} label="Coding Tools" sublabel="Claude Code, Cursor, Copilot..." icon={Wrench} color="text-blue-400" bg="bg-blue-500/5" border="border-blue-500/15" />
             <StatCard value={taskCount} label="Task Categories" sublabel="debugging to boilerplate" icon={Target} color="text-cyan-400" bg="bg-cyan-500/5" border="border-cyan-500/15" />
             <StatCard value="$0" label="Free Models" sublabel="DeepSeek, Z AI, Llama, Gemma" icon={DollarSign} color="text-green-400" bg="bg-green-500/5" border="border-green-500/15" />
+          </div>
+        </section>
+      )}
+
+      {/* ── Best Overall Models (Bar Chart) ──────────────────────── */}
+      {!loading && topOverall.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Best Overall Models</h2>
+              <p className="text-xs text-gray-500">AllThingsAI composite score — benchmarks + community + pricing</p>
+            </div>
+            <Link
+              to="/advisor"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-600 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              See all {modelCount}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
+            <ChartContainer width="100%" height={topOverall.length * 38 + 20}>
+              <BarChart
+                data={topOverall.map(m => ({
+                  name: m.model_name,
+                  score: Number(m.composite_score).toFixed(1),
+                  rawScore: m.composite_score,
+                }))}
+                layout="vertical"
+                margin={{ top: 5, right: 40, left: 0, bottom: 5 }}
+              >
+                <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#374151' }} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={160} tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', fontSize: '12px' }}
+                  labelStyle={{ color: '#e5e7eb' }}
+                  itemStyle={{ color: '#60a5fa' }}
+                  cursor={{ fill: 'rgba(59,130,246,0.05)' }}
+                />
+                <Bar dataKey="rawScore" radius={[0, 4, 4, 0]} barSize={20}>
+                  {topOverall.map((m, i) => (
+                    <Cell
+                      key={m.model_slug}
+                      fill={quartileColor(i, topOverall.length)}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
           </div>
         </section>
       )}
@@ -216,56 +266,6 @@ export default function HomePage() {
                 </Link>
               );
             })}
-          </div>
-        </section>
-      )}
-
-      {/* ── Best Overall Models (Bar Chart) ──────────────────────── */}
-      {!loading && topOverall.length > 0 && (
-        <section className="mb-12">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Best Overall Models</h2>
-              <p className="text-xs text-gray-500">AllThingsAI composite score — benchmarks + community + pricing</p>
-            </div>
-            <Link
-              to="/advisor"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-600 text-xs text-gray-400 hover:text-white transition-colors"
-            >
-              See all {modelCount}
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-            <ChartContainer width="100%" height={topOverall.length * 38 + 20}>
-              <BarChart
-                data={topOverall.map(m => ({
-                  name: m.model_name,
-                  score: Number(m.composite_score).toFixed(1),
-                  rawScore: m.composite_score,
-                }))}
-                layout="vertical"
-                margin={{ top: 5, right: 40, left: 0, bottom: 5 }}
-              >
-                <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#374151' }} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={160} tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', fontSize: '12px' }}
-                  labelStyle={{ color: '#e5e7eb' }}
-                  itemStyle={{ color: '#60a5fa' }}
-                  cursor={{ fill: 'rgba(59,130,246,0.05)' }}
-                />
-                <Bar dataKey="rawScore" radius={[0, 4, 4, 0]} barSize={20}>
-                  {topOverall.map((m, i) => (
-                    <Cell
-                      key={m.model_slug}
-                      fill={quartileColor(i, topOverall.length)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ChartContainer>
           </div>
         </section>
       )}
