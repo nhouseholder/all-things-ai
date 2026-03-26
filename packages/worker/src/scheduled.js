@@ -58,6 +58,8 @@ export async function handleScheduled(event, env) {
       await runSafe('scrapeRedditReviews', () => scrapeRedditReviews(env));
       await runSafe('scrapeHNReviews', () => scrapeHNReviews(env));
       await runSafe('computeCompositeScores', () => computeCompositeScores(env));
+      // Invalidate rankings cache so next request gets fresh data
+      await runSafe('invalidateRankingsCache', () => env.CACHE.delete('rankings:v1'));
       break;
     default:
       console.log(`[CRON] Unknown schedule: ${cron}`);

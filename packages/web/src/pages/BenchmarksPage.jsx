@@ -15,10 +15,10 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
   CartesianGrid,
   Cell,
 } from 'recharts';
+import ChartContainer from '../components/ChartContainer.jsx';
 import { api } from '../lib/api.js';
 import { useBenchmarks } from '../lib/hooks.js';
 
@@ -380,7 +380,7 @@ function TokenPricingTab() {
             Score = average benchmark performance / blended token cost (30% input + 70% output). Higher = better value.
           </p>
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-            <ResponsiveContainer width="100%" height={Math.max(250, chartData.length * 36)}>
+            <ChartContainer width="100%" height={Math.max(250, chartData.length * 36)}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                 <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 11 }} />
@@ -397,7 +397,7 @@ function TokenPricingTab() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </section>
       )}
@@ -648,7 +648,7 @@ export default function BenchmarksPage() {
               Top Models {category && `- ${CATEGORIES.find((c) => c.value === category)?.label}`}
             </h2>
             <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-              <ResponsiveContainer width="100%" height={Math.max(250, chartData.length * 32)}>
+              <ChartContainer width="100%" height={Math.max(250, chartData.length * 32)}>
                 <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 11 }} />
@@ -665,7 +665,7 @@ export default function BenchmarksPage() {
                     ))}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             </div>
           </section>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Loader2,
   ChevronDown,
@@ -8,7 +8,7 @@ import {
   Package,
   Check,
 } from 'lucide-react';
-import { api } from '../lib/api.js';
+import { useTools } from '../lib/hooks.js';
 
 const CATEGORIES = [
   { value: 'all', label: 'All' },
@@ -151,25 +151,10 @@ function ToolCard({ tool }) {
 }
 
 export default function ToolsPage() {
-  const [tools, setTools] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [category, setCategory] = useState('all');
-
-  useEffect(() => {
-    async function loadTools() {
-      try {
-        const res = await api.getTools();
-        setTools(res.tools ?? res.data ?? res ?? []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadTools();
-  }, []);
-
+  const { data: toolsData, isLoading: loading, error: queryError } = useTools();
+  const error = queryError?.message;
+  const tools = toolsData?.tools ?? toolsData?.data ?? toolsData ?? [];
   const filtered = category === 'all' ? tools : tools.filter((t) => t.category === category);
 
   if (loading) {

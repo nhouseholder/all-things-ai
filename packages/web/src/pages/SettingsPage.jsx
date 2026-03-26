@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Loader2,
   Save,
@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { usePreferences } from '../lib/hooks.js';
 
 const LANGUAGES = ['Python', 'JavaScript', 'TypeScript', 'Go', 'Rust'];
 
@@ -52,44 +53,35 @@ function Toggle({ checked, onChange, label }) {
 }
 
 export default function SettingsPage() {
+  const { data: prefsData, isLoading: loading, error: queryError } = usePreferences();
   const [prefs, setPrefs] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(null); // 'success' | 'error' | null
-  const [error, setError] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const error = queryError?.message;
 
-  useEffect(() => {
-    async function loadPrefs() {
-      try {
-        const res = await api.getPreferences();
-        setPrefs(res.preferences ?? res.data ?? res ?? {});
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadPrefs();
-  }, []);
+  // Sync server data to local state for editing
+  const effectivePrefs = prefs ?? (prefsData?.preferences ?? prefsData?.data ?? prefsData ?? {});
 
   function updateField(key, value) {
-    setPrefs((prev) => ({ ...prev, [key]: value }));
+    setPrefs((prev) => ({ ...(prev ?? effectivePrefs), [key]: value }));
     setSaveStatus(null);
   }
 
   function toggleLanguage(lang) {
     setPrefs((prev) => {
-      const current = prev.languages ?? [];
+      const base = prev ?? effectivePrefs;
+      const current = base.languages ?? [];
       const next = current.includes(lang) ? current.filter((l) => l !== lang) : [...current, lang];
-      return { ...prev, languages: next };
+      return { ...base, languages: next };
     });
     setSaveStatus(null);
   }
 
   function toggleSource(sourceId) {
     setPrefs((prev) => {
-      const sources = prev.sources ?? {};
-      return { ...prev, sources: { ...sources, [sourceId]: !sources[sourceId] } };
+      const base = prev ?? effectivePrefs;
+      const sources = base.sources ?? {};
+      return { ...base, sources: { ...sources, [sourceId]: !sources[sourceId] } };
     });
     setSaveStatus(null);
   }
@@ -98,7 +90,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveStatus(null);
     try {
-      await api.updatePreferences(prefs);
+      await api.updatePreferences(effectivePrefs);
       setSaveStatus('success');
       setTimeout(() => setSaveStatus(null), 3000);
     } catch {
@@ -124,13 +116,13 @@ export default function SettingsPage() {
     );
   }
 
-  const languages = prefs?.languages ?? [];
-  const budget = prefs?.monthly_budget ?? 100;
-  const currentSpend = prefs?.current_spend ?? 0;
-  const sources = prefs?.sources ?? {};
-  const digestFrequency = prefs?.digest_frequency ?? 'weekly';
-  const digestEmail = prefs?.digest_email ?? '';
-  const projectTypes = prefs?.project_types ?? '';
+  const languages = effectivePrefs?.languages ?? [];
+  const budget = effectivePrefs?.monthly_budget ?? 100;
+  const currentSpend = effectivePrefs?.current_spend ?? 0;
+  const sources = effectivePrefs?.sources ?? {};
+  const digestFrequency = effectivePrefs?.digest_frequency ?? 'weekly';
+  const digestEmail = effectivePrefs?.digest_email ?? '';
+  const projectTypes = effectivePrefs?.project_types ?? '';
 
   // Default source keys if none exist
   const sourceKeys = Object.keys(sources).length > 0

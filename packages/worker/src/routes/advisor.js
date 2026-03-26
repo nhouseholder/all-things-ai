@@ -112,7 +112,14 @@ advisorRoutes.get('/matrix', async (c) => {
 });
 
 // GET /api/advisor/rankings — dual leaderboard (best overall + best bang for buck)
+// Cached in KV for 6 hours (refreshed by cron after computeCompositeScores)
 advisorRoutes.get('/rankings', async (c) => {
+  const cache = c.env.CACHE;
+  if (cache) {
+    const cached = await cache.get('rankings:v1', 'json');
+    if (cached) return c.json(cached);
+  }
+
   const { results } = await c.env.DB.prepare(`
     SELECT
       mcs.*,
@@ -180,7 +187,14 @@ advisorRoutes.get('/rankings', async (c) => {
     .filter(m => m.value_score != null)
     .sort((a, b) => b.value_score - a.value_score);
 
-  return c.json({ best_overall: bestOverall, bang_for_buck: bangForBuck });
+  const response = { best_overall: bestOverall, bang_for_buck: bangForBuck };
+
+  // Cache for 6 hours (21600 seconds)
+  if (cache) {
+    await cache.put('rankings:v1', JSON.stringify(response), { expirationTtl: 21600 });
+  }
+
+  return c.json(response);
 });
 
 // GET /api/advisor/model-availability — where each model is available + pricing

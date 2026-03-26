@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Loader2,
   DollarSign,
@@ -7,8 +7,10 @@ import {
   ArrowRight,
   PieChart as PieIcon,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import ChartContainer from '../components/ChartContainer.jsx';
 import { api } from '../lib/api.js';
+import { useCostSummary, useAlternatives } from '../lib/hooks.js';
 
 const PIE_COLORS = [
   '#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
@@ -40,37 +42,24 @@ function CustomLegend({ payload }) {
 }
 
 export default function CostPage() {
-  const [summary, setSummary] = useState(null);
-  const [alternatives, setAlternatives] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data: summaryData, isLoading: summaryLoading, error: summaryError } = useCostSummary();
+  const { data: altData, isLoading: altLoading } = useAlternatives();
+  const loading = summaryLoading || altLoading;
+  const error = summaryError?.message;
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [summaryRes, altRes] = await Promise.all([
-          api.getCostSummary(),
-          api.getAlternatives(),
-        ]);
-        setSummary(summaryRes);
-        setAlternatives(altRes.alternatives ?? altRes.data ?? altRes ?? []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const [localSummary, setLocalSummary] = useState(null);
+  const summary = localSummary ?? summaryData;
+  const alternatives = altData?.alternatives ?? altData?.data ?? altData ?? [];
 
   async function handleRemove(id) {
     try {
       await api.removeSubscription(id);
-      setSummary((prev) => {
-        if (!prev) return prev;
-        const subs = (prev.subscriptions ?? []).filter((s) => s.id !== id);
+      setLocalSummary((prev) => {
+        const base = prev ?? summary;
+        if (!base) return base;
+        const subs = (base.subscriptions ?? []).filter((s) => s.id !== id);
         const total = subs.reduce((sum, s) => sum + (s.monthly_cost ?? 0), 0);
-        return { ...prev, subscriptions: subs, total_monthly: total };
+        return { ...base, subscriptions: subs, total_monthly: total };
       });
     } catch {}
   }
@@ -133,7 +122,7 @@ export default function CostPage() {
                 </div>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ChartContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -151,7 +140,7 @@ export default function CostPage() {
                   <Tooltip content={<CustomTooltip />} />
                   <Legend content={<CustomLegend />} />
                 </PieChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             )}
           </div>
         </div>

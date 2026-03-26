@@ -23,11 +23,11 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
   CartesianGrid,
   Cell,
   ReferenceLine,
 } from 'recharts';
+import ChartContainer from '../components/ChartContainer.jsx';
 import { api } from '../lib/api.js';
 
 // ── Constants & Helpers ─────────────────────────────────────────────────
@@ -444,7 +444,7 @@ function DualLeaderboard({ rankings, availability }) {
 
       {/* Bar Chart */}
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 mb-4">
-        <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 34)}>
+        <ChartContainer width="100%" height={Math.max(300, chartData.length * 34)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
             <XAxis
@@ -465,7 +465,7 @@ function DualLeaderboard({ rankings, availability }) {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </ChartContainer>
       </div>
 
       {/* Expandable Table */}
@@ -938,7 +938,7 @@ function TimeSavingsChart({ matrixModels, selectedTask }) {
         Time to Complete (Minutes)
       </h3>
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-        <ResponsiveContainer width="100%" height={Math.max(250, chartData.length * 32)}>
+        <ChartContainer width="100%" height={Math.max(250, chartData.length * 32)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
             <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 11 }} />
@@ -956,7 +956,7 @@ function TimeSavingsChart({ matrixModels, selectedTask }) {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </ChartContainer>
       </div>
     </div>
   );

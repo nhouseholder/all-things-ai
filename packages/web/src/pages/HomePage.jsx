@@ -23,7 +23,8 @@ import {
   BookOpen,
   Users,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import ChartContainer from '../components/ChartContainer.jsx';
 import { api } from '../lib/api.js';
 
 const VERSION = 'v0.6.0';
@@ -236,7 +237,7 @@ export default function HomePage() {
           </div>
 
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-            <ResponsiveContainer width="100%" height={topOverall.length * 38 + 20}>
+            <ChartContainer width="100%" height={topOverall.length * 38 + 20}>
               <BarChart
                 data={topOverall.map(m => ({
                   name: m.model_name,
@@ -263,7 +264,7 @@ export default function HomePage() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </section>
       )}

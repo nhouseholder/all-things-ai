@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ArrowRight,
   ArrowDown,
@@ -14,6 +14,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { useModels, useModelPricing } from '../lib/hooks.js';
 
 const PRICE_TIERS = [
   { label: 'Free', max: 0, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
@@ -47,32 +48,21 @@ function scoreBarBg(score) {
 }
 
 export default function ComparePage() {
-  const [allModels, setAllModels] = useState([]);
-  const [pricing, setPricing] = useState([]);
+  const { data: modelsData, isLoading: modelsLoading } = useModels();
+  const { data: pricingData, isLoading: pricingLoading } = useModelPricing();
+  const loading = modelsLoading || pricingLoading;
+
+  const allModels = Array.isArray(modelsData) ? modelsData : [];
+  const pricing = pricingData?.models || [];
+
   const [selected, setSelected] = useState([]);
   const [comparison, setComparison] = useState(null);
   const [alternatives, setAlternatives] = useState(null);
   const [altModel, setAltModel] = useState('');
-  const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showPicker, setShowPicker] = useState(false);
-  const [activeTab, setActiveTab] = useState('compare'); // compare | alternatives | pricing
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const [modelsRes, pricingRes] = await Promise.all([
-          api.getModels(),
-          api.getModelPricing(),
-        ]);
-        setAllModels(Array.isArray(modelsRes) ? modelsRes : []);
-        setPricing(pricingRes.models || []);
-      } catch { /* non-critical */ }
-      finally { setLoading(false); }
-    }
-    load();
-  }, []);
+  const [activeTab, setActiveTab] = useState('compare');
 
   // Compare selected models
   async function runComparison() {
