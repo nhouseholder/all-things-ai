@@ -1,3 +1,9 @@
+-- ============================================================
+-- All Things AI — Consolidated Schema
+-- Includes all tables from migrations 0002-0015
+-- Last updated: 2026-03-25
+-- ============================================================
+
 -- News items from all sources
 CREATE TABLE IF NOT EXISTS news_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +38,7 @@ CREATE TABLE IF NOT EXISTS tools (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Pricing plans for each tool
+-- Pricing plans for each tool (includes 0012_overage_billing columns)
 CREATE TABLE IF NOT EXISTS pricing_plans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tool_id INTEGER NOT NULL REFERENCES tools(id),
@@ -45,11 +51,18 @@ CREATE TABLE IF NOT EXISTS pricing_plans (
     detected_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT,
     previous_price REAL,
+    included_requests INTEGER,
+    overage_model TEXT,
+    overage_rate_description TEXT,
+    overage_rate_unit TEXT,
+    overage_rate_value REAL,
+    fallback_behavior TEXT,
+    usage_notes TEXT,
     UNIQUE(tool_id, plan_name, is_current)
 );
 CREATE INDEX IF NOT EXISTS idx_plans_tool ON pricing_plans(tool_id);
 
--- LLM models
+-- LLM models (includes 0002_token_pricing columns)
 CREATE TABLE IF NOT EXISTS models (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -59,6 +72,13 @@ CREATE TABLE IF NOT EXISTS models (
     release_date TEXT,
     description TEXT,
     is_active INTEGER DEFAULT 1,
+    input_price_per_mtok REAL,
+    output_price_per_mtok REAL,
+    cache_hit_price_per_mtok REAL,
+    context_window INTEGER,
+    params_total TEXT,
+    params_active TEXT,
+    is_open_weight INTEGER DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -85,9 +105,13 @@ CREATE TABLE IF NOT EXISTS model_availability (
     plan_id INTEGER REFERENCES pricing_plans(id),
     access_level TEXT,
     notes TEXT,
+    credits_per_request REAL,
+    cost_notes TEXT,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(model_id, tool_id, plan_id)
 );
+CREATE INDEX IF NOT EXISTS idx_ma_model ON model_availability(model_id);
+CREATE INDEX IF NOT EXISTS idx_ma_tool ON model_availability(tool_id);
 
 -- User's current subscriptions
 CREATE TABLE IF NOT EXISTS user_subscriptions (
@@ -119,6 +143,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
     is_dismissed INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_recs_dismissed ON recommendations(is_dismissed);
 
 -- Price change history
 CREATE TABLE IF NOT EXISTS price_changes (
@@ -140,3 +165,131 @@ CREATE TABLE IF NOT EXISTS digest_log (
     items_count INTEGER,
     status TEXT DEFAULT 'sent'
 );
+
+-- ============================================================
+-- Tables from migration 0003: Task Intelligence
+-- ============================================================
+
+-- Task profiles define common coding task types
+CREATE TABLE IF NOT EXISTS task_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT,
+    avg_input_tokens INTEGER NOT NULL DEFAULT 8000,
+    avg_output_tokens INTEGER NOT NULL DEFAULT 4000,
+    complexity INTEGER NOT NULL DEFAULT 3 CHECK(complexity BETWEEN 1 AND 5),
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+-- Per-model estimates for each task profile
+CREATE TABLE IF NOT EXISTS model_task_estimates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL REFERENCES models(id),
+    task_profile_id INTEGER NOT NULL REFERENCES task_profiles(id),
+    first_attempt_success_rate REAL NOT NULL CHECK(first_attempt_success_rate BETWEEN 0 AND 1),
+    avg_messages_to_complete REAL NOT NULL DEFAULT 1.0,
+    avg_minutes_to_complete REAL,
+    steering_effort TEXT NOT NULL DEFAULT 'medium' CHECK(steering_effort IN ('low','medium','high')),
+    autonomy_score INTEGER CHECK(autonomy_score BETWEEN 0 AND 100),
+    cost_per_task_estimate REAL,
+    time_value_per_task REAL,
+    data_source TEXT NOT NULL DEFAULT 'estimated' CHECK(data_source IN ('benchmark','community','estimated')),
+    notes TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(model_id, task_profile_id)
+);
+CREATE INDEX IF NOT EXISTS idx_mte_model ON model_task_estimates(model_id);
+CREATE INDEX IF NOT EXISTS idx_mte_task ON model_task_estimates(task_profile_id);
+
+-- Composite scores aggregating benchmarks + community signal
+CREATE TABLE IF NOT EXISTS model_composite_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL REFERENCES models(id) UNIQUE,
+    composite_score REAL NOT NULL DEFAULT 0,
+    swe_bench_component REAL DEFAULT 0,
+    livecodebench_component REAL DEFAULT 0,
+    nuance_component REAL DEFAULT 0,
+    arena_component REAL DEFAULT 0,
+    tau_component REAL DEFAULT 0,
+    gpqa_component REAL DEFAULT 0,
+    success_rate_component REAL DEFAULT 0,
+    community_adjustment REAL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Community review aggregations by source (includes 0008 columns)
+CREATE TABLE IF NOT EXISTS community_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL REFERENCES models(id),
+    source TEXT NOT NULL,
+    sentiment_score REAL DEFAULT 0 CHECK(sentiment_score BETWEEN -1 AND 1),
+    coding_satisfaction INTEGER DEFAULT 50 CHECK(coding_satisfaction BETWEEN 0 AND 100),
+    common_complaints TEXT,
+    common_praises TEXT,
+    review_count INTEGER DEFAULT 0,
+    sample_quotes TEXT,
+    casual_sentiment REAL DEFAULT 0 CHECK(casual_sentiment BETWEEN -1 AND 1),
+    casual_satisfaction INTEGER DEFAULT 50 CHECK(casual_satisfaction BETWEEN 0 AND 100),
+    casual_count INTEGER DEFAULT 0,
+    vibe_coder_sentiment REAL DEFAULT 0 CHECK(vibe_coder_sentiment BETWEEN -1 AND 1),
+    vibe_coder_satisfaction INTEGER DEFAULT 50 CHECK(vibe_coder_satisfaction BETWEEN 0 AND 100),
+    vibe_coder_count INTEGER DEFAULT 0,
+    heavy_coder_sentiment REAL DEFAULT 0 CHECK(heavy_coder_sentiment BETWEEN -1 AND 1),
+    heavy_coder_satisfaction INTEGER DEFAULT 50 CHECK(heavy_coder_satisfaction BETWEEN 0 AND 100),
+    heavy_coder_count INTEGER DEFAULT 0,
+    last_scraped TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(model_id, source)
+);
+CREATE INDEX IF NOT EXISTS idx_cr_model ON community_reviews(model_id);
+
+-- Recommended tool+model combos per task
+CREATE TABLE IF NOT EXISTS task_tool_recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_profile_id INTEGER NOT NULL REFERENCES task_profiles(id),
+    tool_id INTEGER NOT NULL REFERENCES tools(id),
+    plan_id INTEGER REFERENCES pricing_plans(id),
+    model_id INTEGER NOT NULL REFERENCES models(id),
+    recommendation_text TEXT NOT NULL,
+    value_proposition TEXT,
+    rank INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(task_profile_id, tool_id, model_id)
+);
+
+-- ============================================================
+-- Table from migration 0005: Model Alternatives
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS model_alternatives (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL REFERENCES models(id),
+    alternative_model_id INTEGER NOT NULL REFERENCES models(id),
+    similarity_score REAL NOT NULL DEFAULT 0.0,
+    cost_savings_pct REAL,
+    trade_off_notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_alt_model ON model_alternatives(model_id);
+
+-- ============================================================
+-- Table from migration 0008: Raw Review Cache
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS community_review_raw (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_slug TEXT NOT NULL,
+    source TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    author TEXT,
+    text TEXT NOT NULL,
+    score INTEGER DEFAULT 0,
+    user_type TEXT NOT NULL DEFAULT 'casual' CHECK(user_type IN ('casual','vibe_coder','heavy_coder')),
+    sentiment REAL DEFAULT 0 CHECK(sentiment BETWEEN -1 AND 1),
+    coding_satisfaction INTEGER CHECK(coding_satisfaction BETWEEN 0 AND 100),
+    keywords_matched TEXT,
+    scraped_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(source, post_id, author)
+);
+CREATE INDEX IF NOT EXISTS idx_crr_model ON community_review_raw(model_slug);
+CREATE INDEX IF NOT EXISTS idx_crr_source ON community_review_raw(source);

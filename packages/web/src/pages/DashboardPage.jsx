@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Lightbulb,
   X,
@@ -16,6 +16,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { useRecommendations, useFeed, useDismissRecommendation } from '../lib/hooks.js';
+import { SkeletonDashboard } from '../components/Skeleton.jsx';
 
 const TYPE_STYLES = {
   cost_saving: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20', label: 'Cost Saving' },
@@ -65,7 +67,7 @@ function RecommendationCard({ rec, onDismiss }) {
   const Icon = TYPE_ICONS[rec.type] || Lightbulb;
 
   return (
-    <div className={`rounded-xl border ${style.border} ${style.bg} p-4 relative group`}>
+    <div className={`rounded-xl border ${style.border} ${style.bg} p-4 relative group card-hover`}>
       <button
         onClick={() => onDismiss(rec.id)}
         className="absolute top-3 right-3 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -111,7 +113,7 @@ function RecommendationCard({ rec, onDismiss }) {
 
 function NewsItem({ item, onBookmark, onMarkRead }) {
   return (
-    <div className={`p-4 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors ${item.is_read ? 'opacity-60' : ''}`}>
+    <div className={`p-4 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors card-hover ${item.is_read ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
@@ -185,42 +187,30 @@ function StatCard({ icon: Icon, label, value, color }) {
 }
 
 export default function DashboardPage() {
-  const [recommendations, setRecommendations] = useState([]);
-  const [feed, setFeed] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const recsQuery = useRecommendations();
+  const feedQuery = useFeed();
+  const dismissMutation = useDismissRecommendation();
+  const [localFeed, setLocalFeed] = useState(null);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [recsRes, feedRes] = await Promise.all([
-          api.getRecommendations(),
-          api.getFeed(),
-        ]);
-        setRecommendations(recsRes.recommendations ?? recsRes.data ?? recsRes ?? []);
-        const feedItems = feedRes.items ?? feedRes.data ?? feedRes ?? [];
-        setFeed(feedItems.sort((a, b) => (b.relevance_score ?? 0) - (a.relevance_score ?? 0)));
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const recsData = recsQuery.data;
+  const recommendations = recsData?.recommendations ?? recsData?.data ?? recsData ?? [];
 
-  async function handleDismiss(id) {
-    try {
-      await api.dismissRecommendation(id);
-      setRecommendations((prev) => prev.filter((r) => r.id !== id));
-    } catch {}
+  const feedData = feedQuery.data;
+  const rawFeed = feedData?.items ?? feedData?.data ?? feedData ?? [];
+  const feed = localFeed ?? [...rawFeed].sort((a, b) => (b.relevance_score ?? 0) - (a.relevance_score ?? 0));
+
+  const loading = recsQuery.isLoading || feedQuery.isLoading;
+  const error = recsQuery.error || feedQuery.error;
+
+  function handleDismiss(id) {
+    dismissMutation.mutate(id);
   }
 
   async function handleBookmark(id) {
     try {
       await api.toggleBookmark(id);
-      setFeed((prev) =>
-        prev.map((item) =>
+      setLocalFeed((prev) =>
+        (prev ?? feed).map((item) =>
           item.id === id ? { ...item, is_bookmarked: !item.is_bookmarked } : item
         )
       );
@@ -230,8 +220,8 @@ export default function DashboardPage() {
   async function handleMarkRead(id) {
     try {
       await api.markRead(id);
-      setFeed((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, is_read: true } : item))
+      setLocalFeed((prev) =>
+        (prev ?? feed).map((item) => (item.id === id ? { ...item, is_read: true } : item))
       );
     } catch {}
   }
@@ -242,11 +232,7 @@ export default function DashboardPage() {
   const recCount = recommendations.length;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-      </div>
-    );
+    return <SkeletonDashboard />;
   }
 
   if (error && feed.length === 0 && recommendations.length === 0) {
@@ -268,7 +254,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
 
       {/* Recommendations - full width */}
@@ -283,8 +269,10 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {recommendations.map((rec) => (
-              <RecommendationCard key={rec.id} rec={rec} onDismiss={handleDismiss} />
+            {recommendations.map((rec, i) => (
+              <div key={rec.id} className="stagger-item">
+                <RecommendationCard rec={rec} onDismiss={handleDismiss} />
+              </div>
             ))}
           </div>
         )}

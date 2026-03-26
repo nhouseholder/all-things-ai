@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Loader2,
   BarChart3,
@@ -20,6 +20,7 @@ import {
   Cell,
 } from 'recharts';
 import { api } from '../lib/api.js';
+import { useBenchmarks } from '../lib/hooks.js';
 
 const CATEGORIES = [
   { value: '', label: 'All' },
@@ -487,27 +488,12 @@ function TokenPricingTab() {
 
 // ── Main Page ──────────────────────────────────────────────────────────
 export default function BenchmarksPage() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [category, setCategory] = useState('');
   const [selectedModel, setSelectedModel] = useState(null);
   const [activeTab, setActiveTab] = useState('benchmarks');
 
-  useEffect(() => {
-    async function loadBenchmarks() {
-      setLoading(true);
-      try {
-        const res = await api.getBenchmarks(category || undefined);
-        setData(res);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadBenchmarks();
-  }, [category]);
+  const { data, isLoading: loading, error: queryError } = useBenchmarks(category || undefined);
+  const error = queryError?.message;
 
   // ── Tab Selector ─────────────────────────────────────────────────────
   const tabBar = (

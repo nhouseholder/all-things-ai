@@ -10,6 +10,7 @@ import { preferencesRoutes } from './routes/preferences.js';
 import { advisorRoutes } from './routes/advisor.js';
 import { handleScheduled } from './scheduled.js';
 import { requireAdmin } from './middleware/auth.js';
+import { rateLimit } from './middleware/rate-limit.js';
 import { fetchAllRSS } from './pipelines/rss-fetcher.js';
 import { scrapeReddit } from './pipelines/reddit-scraper.js';
 import { scrapeHackerNews } from './pipelines/hn-scraper.js';
@@ -34,6 +35,9 @@ app.use('/api/*', cors({
   origin: (origin) => ALLOWED_ORIGINS.includes(origin) ? origin : null,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
+
+// Rate limiting on public GET endpoints (60 req/min per IP)
+app.use('/api/*', rateLimit({ max: 60, windowSec: 60 }));
 
 // Health check with DB verification (S4)
 app.get('/', async (c) => {
@@ -98,7 +102,7 @@ app.get('/api/reviews', async (c) => {
     query += ' WHERE m.slug = ?';
     params.push(modelSlug);
   }
-  query += ' ORDER BY cr.review_count DESC';
+  query += ' ORDER BY cr.review_count DESC LIMIT 100';
 
   const { results } = await c.env.DB.prepare(query).bind(...params).all();
   return c.json({ reviews: results });
