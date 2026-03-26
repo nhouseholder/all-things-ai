@@ -38,7 +38,7 @@ const COMMUNITY_WEIGHTS = {
 const MIN_REVIEWS_THRESHOLD = 10;   // Below this: 0 community adjustment
 const FULL_CONFIDENCE_N = 50;       // At or above: full community weight
 const MIN_SOURCES_FULL = 2;         // Need 2+ sources for full confidence
-const MAX_COMMUNITY_ADJ = 5.5;     // ±5.5 points at full confidence (reduced from 7.5 — was allowing community buzz to flip close cross-vendor rankings)
+const MAX_COMMUNITY_ADJ = 5.0;     // ±5.0 points at full confidence
 const OUTLIER_CAP_SIGMA = 1.5;     // Cap per-source at ±1.5σ from cross-source mean
 
 function normalizeBenchmark(key, score) {
