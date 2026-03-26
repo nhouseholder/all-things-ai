@@ -499,3 +499,204 @@ advisorRoutes.get('/recommend', async (c) => {
     recommendations,
   });
 });
+
+// POST /api/advisor/chat — AI-powered conversational model recommender
+advisorRoutes.post('/chat', async (c) => {
+  const body = await c.req.json();
+  const messages = body.messages || [];
+
+  if (!messages.length || messages.length > 20) {
+    return c.json({ error: 'messages required (max 20)' }, 400);
+  }
+
+  // 1. Gather context data for the system prompt
+  const { results: tasks } = await c.env.DB.prepare(
+    'SELECT name, slug, description, complexity FROM task_profiles ORDER BY sort_order'
+  ).all();
+
+  const { results: topModels } = await c.env.DB.prepare(`
+    SELECT m.name, m.slug, m.vendor, m.input_price_per_mtok, m.output_price_per_mtok,
+           mcs.composite_score
+    FROM model_composite_scores mcs
+    JOIN models m ON m.id = mcs.model_id
+    WHERE m.is_active = 1
+    ORDER BY mcs.composite_score DESC
+    LIMIT 15
+  `).all();
+
+  const { results: availability } = await c.env.DB.prepare(`
+    SELECT m.slug as model_slug, t.name as tool_name, pp.plan_name, pp.price_monthly
+    FROM model_availability ma
+    JOIN models m ON m.id = ma.model_id
+    JOIN tools t ON t.id = ma.tool_id
+    LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
+    WHERE m.is_active = 1
+    ORDER BY pp.price_monthly ASC NULLS LAST
+    LIMIT 80
+  `).all();
+
+  const taskList = tasks.map(t => `- ${t.name} (${t.slug}): ${t.description || ''} [complexity: ${t.complexity}/5]`).join('\n');
+  const modelList = topModels.map(m =>
+    `- ${m.name} (${m.vendor}): score=${m.composite_score?.toFixed(1) || '?'}, $${m.input_price_per_mtok || '?'}/$${m.output_price_per_mtok || '?'} per MTok`
+  ).join('\n');
+
+  // Group availability by model
+  const availMap = {};
+  for (const a of availability) {
+    if (!availMap[a.model_slug]) availMap[a.model_slug] = [];
+    availMap[a.model_slug].push(`${a.tool_name} ${a.plan_name || ''} ($${a.price_monthly || 'BYOK'}/mo)`);
+  }
+  const availList = Object.entries(availMap).map(([slug, tools]) =>
+    `- ${slug}: ${tools.slice(0, 3).join(', ')}`
+  ).join('\n');
+
+  // 2. Build system prompt
+  const systemPrompt = `You are the AllThingsAI Model Advisor — a friendly, knowledgeable AI that helps users find the perfect AI model for their needs at the best price.
+
+YOUR ROLE:
+- Ask 2-3 focused questions to understand what the user needs
+- Recommend specific models with real data (scores, prices, where to use them)
+- Be concise and conversational, not robotic
+
+CONVERSATION FLOW:
+1. First message: Ask what they mainly use AI for and what matters most (quality vs cost vs speed)
+2. If coding: Ask what kind (greenfield, debugging, refactoring, code review) and team size
+3. Based on answers: Give your top 1-3 recommendations with reasoning
+
+WHEN RECOMMENDING, you MUST include for each model:
+- Model name and vendor
+- Quality score (out of 100)
+- Token pricing
+- Where to use it (which tool + plan + monthly price)
+- Why this model fits their needs
+
+After gathering enough info (usually 2-3 exchanges), output your recommendation in this EXACT format, on its own line:
+[RECOMMEND]{"task":"<task_slug>","priority":"<quality|value|budget>","use_case":"<brief description>"}[/RECOMMEND]
+
+The system will inject real recommendation data when it sees this tag.
+
+AVAILABLE TASK PROFILES:
+${taskList}
+
+TOP MODELS (by composite quality score):
+${modelList}
+
+WHERE TO USE THEM (cheapest options):
+${availList}
+
+RULES:
+- Never make up scores, prices, or availability — use ONLY the data above
+- If asked about a model not in the list, say you don't have data for it yet
+- Keep responses under 150 words unless giving final recommendations
+- Be enthusiastic but honest about trade-offs
+- Always mention the cheapest way to access a recommended model`;
+
+  // 3. Call Workers AI
+  const aiMessages = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map(m => ({ role: m.role, content: m.content })),
+  ];
+
+  let aiResponse;
+  try {
+    aiResponse = await c.env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
+      messages: aiMessages,
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+  } catch (e) {
+    console.error('[ADVISOR-CHAT] Workers AI error:', e.message);
+    return c.json({ error: 'AI service temporarily unavailable' }, 503);
+  }
+
+  const reply = aiResponse.response || aiResponse.result?.response || '';
+
+  // 4. Check if the AI wants to make a recommendation
+  const recommendMatch = reply.match(/\[RECOMMEND\](.*?)\[\/RECOMMEND\]/s);
+  let recommendations = null;
+
+  if (recommendMatch) {
+    try {
+      const params = JSON.parse(recommendMatch[1]);
+      // Query real recommendation data
+      const taskSlug = params.task || 'implementation';
+      const task = await c.env.DB.prepare('SELECT id, name, slug FROM task_profiles WHERE slug = ?').bind(taskSlug).first();
+
+      if (task) {
+        const { results: candidates } = await c.env.DB.prepare(`
+          SELECT mte.*, m.name as model_name, m.slug as model_slug, m.vendor,
+                 m.input_price_per_mtok, m.output_price_per_mtok,
+                 mcs.composite_score
+          FROM model_task_estimates mte
+          JOIN models m ON m.id = mte.model_id
+          LEFT JOIN model_composite_scores mcs ON mcs.model_id = mte.model_id
+          WHERE mte.task_profile_id = ? AND m.is_active = 1
+          ORDER BY mcs.composite_score DESC
+        `).bind(task.id).all();
+
+        // Get availability for top candidates
+        const topIds = candidates.slice(0, 10).map(c => c.model_id);
+        const placeholders = topIds.map(() => '?').join(',');
+        const { results: avail } = topIds.length ? await c.env.DB.prepare(`
+          SELECT ma.model_id, t.name as tool_name, pp.plan_name, pp.price_monthly
+          FROM model_availability ma
+          JOIN tools t ON t.id = ma.tool_id
+          LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
+          WHERE ma.model_id IN (${placeholders})
+          ORDER BY pp.price_monthly ASC NULLS LAST
+        `).bind(...topIds).all() : { results: [] };
+
+        const availByModel = {};
+        for (const a of (avail.results || avail || [])) {
+          if (!availByModel[a.model_id]) availByModel[a.model_id] = [];
+          availByModel[a.model_id].push(a);
+        }
+
+        // Build top 3 recommendations based on priority
+        const priority = params.priority || 'quality';
+        let sorted;
+        if (priority === 'budget') {
+          sorted = [...candidates].sort((a, b) => (a.cost_per_task_estimate || 999) - (b.cost_per_task_estimate || 999));
+        } else if (priority === 'value') {
+          sorted = [...candidates]
+            .filter(c => (c.composite_score || 0) >= 60)
+            .sort((a, b) => {
+              const costA = (a.cost_per_task_estimate || 0) + (a.time_value_per_task || 0);
+              const costB = (b.cost_per_task_estimate || 0) + (b.time_value_per_task || 0);
+              return costA - costB;
+            });
+        } else {
+          sorted = [...candidates].sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0));
+        }
+
+        recommendations = sorted.slice(0, 3).map(m => ({
+          name: m.model_name,
+          slug: m.model_slug,
+          vendor: m.vendor,
+          composite_score: m.composite_score,
+          input_price: m.input_price_per_mtok,
+          output_price: m.output_price_per_mtok,
+          success_rate: m.first_attempt_success_rate,
+          cost_per_task: m.cost_per_task_estimate,
+          steering_effort: m.steering_effort,
+          available_on: (availByModel[m.model_id] || []).slice(0, 3).map(a => ({
+            tool: a.tool_name,
+            plan: a.plan_name,
+            price: a.price_monthly,
+          })),
+        }));
+      }
+    } catch (e) {
+      console.error('[ADVISOR-CHAT] Recommendation parse error:', e.message);
+    }
+  }
+
+  // Strip the [RECOMMEND] tag from the visible reply
+  const cleanReply = reply.replace(/\[RECOMMEND\].*?\[\/RECOMMEND\]/s, '').trim();
+
+  return c.json({
+    reply: cleanReply,
+    recommendations,
+    done: recommendations != null,
+  });
+});

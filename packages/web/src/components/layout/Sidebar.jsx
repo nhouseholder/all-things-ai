@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot } from 'lucide-react';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/advisor', icon: Brain, label: 'Models' },
+  { to: '/advisor/chat', icon: Bot, label: 'AI Advisor' },
   { to: '/compare', icon: Scale, label: 'Compare' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },

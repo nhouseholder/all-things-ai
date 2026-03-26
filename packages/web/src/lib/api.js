@@ -74,6 +74,12 @@ export const api = {
   getToolRankings: () => request('/api/tools/rankings'),
   getPluginRankings: () => request('/api/coding-tools/rankings'),
 
+  // Advisor Chat
+  chatWithAdvisor: (messages) => request('/api/advisor/chat', {
+    method: 'POST',
+    body: JSON.stringify({ messages }),
+  }),
+
   // Coding Tools
   getCodingTools: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

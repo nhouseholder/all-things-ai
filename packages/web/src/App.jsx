@@ -15,6 +15,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const CodingToolsPage = lazy(() => import('./pages/CodingToolsPage.jsx'));
 const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
+const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
 
 function PageLoader() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="tools" element={<ToolsPage />} />
           <Route path="cost" element={<CostPage />} />
           <Route path="advisor" element={<ModelsPage />} />
+          <Route path="advisor/chat" element={<AdvisorChatPage />} />
           <Route path="compare" element={<ComparePage />} />
           <Route path="benchmarks" element={<Navigate to="/advisor" replace />} />
           <Route path="success-rate" element={<Navigate to="/advisor" replace />} />
