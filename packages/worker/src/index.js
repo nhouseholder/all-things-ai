@@ -8,6 +8,7 @@ import { costRoutes } from './routes/cost.js';
 import { recommendationsRoutes } from './routes/recommendations.js';
 import { preferencesRoutes } from './routes/preferences.js';
 import { advisorRoutes } from './routes/advisor.js';
+import { adminRoutes } from './routes/admin.js';
 import { handleScheduled } from './scheduled.js';
 import { requireAdmin } from './middleware/auth.js';
 import { rateLimit } from './middleware/rate-limit.js';
@@ -57,6 +58,7 @@ app.route('/api/cost', costRoutes);
 app.route('/api/recommendations', recommendationsRoutes);
 app.route('/api/preferences', preferencesRoutes);
 app.route('/api/advisor', advisorRoutes);
+app.route('/api/admin', adminRoutes);
 
 // Manual trigger for data ingestion (dev/admin use) — C1: require auth
 app.post('/api/ingest', requireAdmin(), async (c) => {

@@ -8,6 +8,8 @@ import { buildAndSendDigest } from './pipelines/digest-builder.js';
 import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
 import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
 import { computeCompositeScores } from './services/composite-score-engine.js';
+import { discoverNewModels } from './pipelines/model-discovery.js';
+import { scrapeBenchmarks } from './pipelines/benchmark-scraper.js';
 
 export async function handleScheduled(event, env) {
   const cron = event.cron;
@@ -38,6 +40,8 @@ export async function handleScheduled(event, env) {
     case '0 7 * * *':
       await runSafe('scoreUnscored', () => scoreUnscored(env));
       await runSafe('generateRecommendations', () => generateRecommendations(env));
+      // Model discovery: scan recent news for new model releases
+      await runSafe('discoverNewModels', () => discoverNewModels(env));
       // C3 + S7: Daily cleanup of old data
       await runSafe('cleanupOldData', async () => {
         const newsResult = await env.DB.prepare(
@@ -52,14 +56,19 @@ export async function handleScheduled(event, env) {
       break;
     case '0 8 * * 1':
       await runSafe('buildAndSendDigest', () => buildAndSendDigest(env));
+      // Weekly benchmark scrape from authoritative leaderboards
+      await runSafe('scrapeBenchmarks', () => scrapeBenchmarks(env));
       break;
     // Community review scrape: every 6 hours
     case '0 */6 * * *':
       await runSafe('scrapeRedditReviews', () => scrapeRedditReviews(env));
       await runSafe('scrapeHNReviews', () => scrapeHNReviews(env));
       await runSafe('computeCompositeScores', () => computeCompositeScores(env));
-      // Invalidate rankings cache so next request gets fresh data
-      await runSafe('invalidateRankingsCache', () => env.CACHE.delete('rankings:v1'));
+      // Invalidate caches so next request gets fresh data
+      await runSafe('invalidateCaches', async () => {
+        await env.CACHE.delete('rankings:v1');
+        await env.CACHE.delete('model-aliases:merged');
+      });
       break;
     default:
       console.log(`[CRON] Unknown schedule: ${cron}`);

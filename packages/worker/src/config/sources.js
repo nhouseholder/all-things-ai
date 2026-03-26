@@ -25,3 +25,21 @@ export const PRICING_TARGETS = [
   { tool_slug: 'windsurf', url: 'https://windsurf.com/pricing' },
   { tool_slug: 'github-copilot', url: 'https://github.com/features/copilot' },
 ];
+
+// Known AI vendors and their model naming patterns for auto-discovery
+export const KNOWN_VENDORS = {
+  'Anthropic': { family: 'Claude', prefixes: ['claude', 'opus', 'sonnet', 'haiku'] },
+  'OpenAI': { family: 'GPT', prefixes: ['gpt-', 'gpt ', 'o1', 'o3', 'o4', 'codex', 'chatgpt'] },
+  'Google': { family: 'Gemini', prefixes: ['gemini', 'gemma'] },
+  'Meta': { family: 'Llama', prefixes: ['llama'] },
+  'DeepSeek': { family: 'DeepSeek', prefixes: ['deepseek'] },
+  'Mistral AI': { family: 'Mistral', prefixes: ['mistral', 'codestral', 'pixtral'] },
+  'Alibaba': { family: 'Qwen', prefixes: ['qwen'] },
+  'xAI': { family: 'Grok', prefixes: ['grok'] },
+  'Zhipu AI': { family: 'GLM', prefixes: ['glm', 'z ai'] },
+  'MiniMax': { family: 'MiniMax', prefixes: ['minimax', 'abab'] },
+  'Moonshot': { family: 'Kimi', prefixes: ['kimi', 'moonshot'] },
+  'Cohere': { family: 'Command', prefixes: ['command', 'cohere'] },
+  'AI21': { family: 'Jamba', prefixes: ['jamba', 'ai21'] },
+  'Amazon': { family: 'Nova', prefixes: ['nova', 'amazon nova'] },
+};

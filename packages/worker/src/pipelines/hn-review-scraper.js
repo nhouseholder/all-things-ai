@@ -6,7 +6,7 @@
  * toward expert/heavy coders — this is our second community source.
  */
 
-import { analyzeReview, aggregateReviews } from '../services/review-analysis-engine.js';
+import { analyzeReview, aggregateReviews, loadAliases } from '../services/review-analysis-engine.js';
 
 const ALGOLIA_SEARCH = 'https://hn.algolia.com/api/v1/search';
 const ALGOLIA_RECENT = 'https://hn.algolia.com/api/v1/search_by_date';
@@ -69,7 +69,7 @@ async function fetchHNJson(url, env, rateLimitKey) {
 /**
  * Search HN for stories mentioning AI models
  */
-async function searchHNStories(query, env) {
+async function searchHNStories(query, env, aliases) {
   const reviews = [];
   const rateLimitKey = `review:hn:story:${query.replace(/\s+/g, '_')}`;
 
@@ -90,7 +90,7 @@ async function searchHNStories(query, env) {
     const text = `${title} ${hit.story_text || ''}`;
     if (text.length < 15) continue;
 
-    const analysis = analyzeReview(text, hit.points || 0);
+    const analysis = analyzeReview(text, hit.points || 0, aliases);
     if (analysis.models.length === 0) continue;
 
     reviews.push({
@@ -109,7 +109,7 @@ async function searchHNStories(query, env) {
 /**
  * Search HN comments for model discussions (higher signal)
  */
-async function searchHNComments(query, env) {
+async function searchHNComments(query, env, aliases) {
   const reviews = [];
   const rateLimitKey = `review:hn:comment:${query.replace(/\s+/g, '_')}`;
 
@@ -127,7 +127,7 @@ async function searchHNComments(query, env) {
     const text = (hit.comment_text || '').replace(/<[^>]*>/g, ' ').trim();
     if (text.length < 30) continue;
 
-    const analysis = analyzeReview(text, hit.points || 0);
+    const analysis = analyzeReview(text, hit.points || 0, aliases);
     if (analysis.models.length === 0) continue;
 
     reviews.push({
@@ -148,12 +148,16 @@ async function searchHNComments(query, env) {
  */
 export async function scrapeHNReviews(env) {
   console.log('[HNReview] Starting Hacker News review scrape...');
+
+  // Pre-load dynamic aliases once for the entire scrape run
+  const aliases = await loadAliases(env);
+
   const allRawReviews = [];
 
   for (const query of HN_MODEL_QUERIES) {
     try {
-      const storyReviews = await searchHNStories(query, env);
-      const commentReviews = await searchHNComments(query, env);
+      const storyReviews = await searchHNStories(query, env, aliases);
+      const commentReviews = await searchHNComments(query, env, aliases);
       allRawReviews.push(...storyReviews, ...commentReviews);
       console.log(`[HNReview] "${query}": ${storyReviews.length} stories, ${commentReviews.length} comments`);
     } catch (err) {

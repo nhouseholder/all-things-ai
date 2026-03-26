@@ -10,7 +10,7 @@
  *   Expert/coder:  r/ClaudeAI, r/LocalLLaMA, r/CursorAI, r/MachineLearning
  */
 
-import { analyzeReview, aggregateReviews } from '../services/review-analysis-engine.js';
+import { analyzeReview, aggregateReviews, loadAliases } from '../services/review-analysis-engine.js';
 
 const RATE_LIMIT_SECONDS = 14400; // 4 hours between scrapes per subreddit
 
@@ -86,7 +86,7 @@ async function fetchRedditJson(url, env, rateLimitKey) {
 /**
  * Scrape a subreddit's search results for model discussions
  */
-async function scrapeSubredditReviews(sub, env) {
+async function scrapeSubredditReviews(sub, env, aliases) {
   const reviews = [];
 
   for (const query of MODEL_SEARCH_QUERIES) {
@@ -103,7 +103,7 @@ async function scrapeSubredditReviews(sub, env) {
       const text = `${post.title || ''} ${(post.selftext || '').slice(0, 1500)}`;
       if (text.trim().length < 20) continue;
 
-      const analysis = analyzeReview(text, post.score);
+      const analysis = analyzeReview(text, post.score, aliases);
 
       // Only keep reviews that mention at least one model
       if (analysis.models.length === 0) continue;
@@ -130,12 +130,16 @@ async function scrapeSubredditReviews(sub, env) {
  */
 export async function scrapeRedditReviews(env) {
   console.log('[RedditReview] Starting community review scrape...');
+
+  // Pre-load dynamic aliases once for the entire scrape run
+  const aliases = await loadAliases(env);
+
   let totalReviews = 0;
   const allRawReviews = [];
 
   for (const sub of REVIEW_SUBREDDITS) {
     try {
-      const reviews = await scrapeSubredditReviews(sub, env);
+      const reviews = await scrapeSubredditReviews(sub, env, aliases);
       totalReviews += reviews.length;
       allRawReviews.push(...reviews);
       console.log(`[RedditReview] ${sub.sub}: ${reviews.length} relevant reviews`);

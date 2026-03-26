@@ -293,3 +293,37 @@ CREATE TABLE IF NOT EXISTS community_review_raw (
 );
 CREATE INDEX IF NOT EXISTS idx_crr_model ON community_review_raw(model_slug);
 CREATE INDEX IF NOT EXISTS idx_crr_source ON community_review_raw(source);
+
+-- ============================================================
+-- Tables from migration 0016: Admin Pipeline
+-- ============================================================
+
+-- Staging table for models awaiting review
+CREATE TABLE IF NOT EXISTS pending_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    vendor TEXT NOT NULL,
+    family TEXT,
+    release_date TEXT,
+    description TEXT,
+    input_price_per_mtok REAL,
+    output_price_per_mtok REAL,
+    cache_hit_price_per_mtok REAL,
+    context_window INTEGER,
+    is_open_weight INTEGER DEFAULT 0,
+    discovery_source TEXT,
+    discovery_url TEXT,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Dynamic model aliases for community review matching
+CREATE TABLE IF NOT EXISTS model_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_slug TEXT NOT NULL,
+    alias TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_alias_slug ON model_aliases(model_slug);

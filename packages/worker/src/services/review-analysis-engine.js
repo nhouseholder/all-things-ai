@@ -128,14 +128,54 @@ const CODING_SATISFACTION_KEYWORDS = {
 // ── Core analysis functions ──────────────────────────────────────────────
 
 /**
- * Detect which models are mentioned in a text
+ * Load dynamic aliases from DB, merge with hardcoded, and cache in KV.
+ * Call once per scraper run, then pass result to detectModels.
+ */
+export async function loadAliases(env) {
+  // Try KV cache first
+  if (env.CACHE) {
+    const cached = await env.CACHE.get('model-aliases:merged', 'json');
+    if (cached) return cached;
+  }
+
+  // Load from DB
+  let dynamic = {};
+  try {
+    const { results } = await env.DB.prepare('SELECT model_slug, alias FROM model_aliases').all();
+    for (const row of results) {
+      if (!dynamic[row.model_slug]) dynamic[row.model_slug] = [];
+      dynamic[row.model_slug].push(row.alias.toLowerCase());
+    }
+  } catch {
+    // Table may not exist yet — use hardcoded only
+  }
+
+  // Merge: hardcoded + dynamic
+  const merged = { ...MODEL_ALIASES };
+  for (const [slug, aliases] of Object.entries(dynamic)) {
+    merged[slug] = [...new Set([...(merged[slug] || []), ...aliases])];
+  }
+
+  // Cache for 6 hours
+  if (env.CACHE) {
+    await env.CACHE.put('model-aliases:merged', JSON.stringify(merged), { expirationTtl: 21600 });
+  }
+
+  return merged;
+}
+
+/**
+ * Detect which models are mentioned in a text.
+ * @param {string} text - Text to search
+ * @param {object} [aliases] - Pre-loaded aliases map. Falls back to hardcoded MODEL_ALIASES.
  * @returns {string[]} array of model slugs
  */
-export function detectModels(text) {
+export function detectModels(text, aliases) {
   const lower = text.toLowerCase();
   const found = [];
-  for (const [slug, aliases] of Object.entries(MODEL_ALIASES)) {
-    for (const alias of aliases) {
+  const aliasMap = aliases || MODEL_ALIASES;
+  for (const [slug, aliasList] of Object.entries(aliasMap)) {
+    for (const alias of aliasList) {
       if (lower.includes(alias)) {
         found.push(slug);
         break;
@@ -263,8 +303,8 @@ export function extractTopThemes(reviews) {
 /**
  * Analyze a single review text and return structured analysis
  */
-export function analyzeReview(text, postScore = 0) {
-  const models = detectModels(text);
+export function analyzeReview(text, postScore = 0, aliases) {
+  const models = detectModels(text, aliases);
   const userType = classifyUserType(text);
   const sentiment = extractSentiment(text);
   const codingSatisfaction = extractCodingSatisfaction(text);
