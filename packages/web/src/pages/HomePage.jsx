@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import ChartContainer from '../components/ChartContainer.jsx';
+import { quartileColor } from '../lib/chart-utils.js';
 import { api } from '../lib/api.js';
 
 const VERSION = 'v0.6.0';
@@ -256,10 +257,10 @@ export default function HomePage() {
                   cursor={{ fill: 'rgba(59,130,246,0.05)' }}
                 />
                 <Bar dataKey="rawScore" radius={[0, 4, 4, 0]} barSize={20}>
-                  {topOverall.map((m) => (
+                  {topOverall.map((m, i) => (
                     <Cell
                       key={m.model_slug}
-                      fill={m.composite_score >= 80 ? '#22c55e' : m.composite_score >= 70 ? '#10b981' : '#3b82f6'}
+                      fill={quartileColor(i, topOverall.length)}
                     />
                   ))}
                 </Bar>

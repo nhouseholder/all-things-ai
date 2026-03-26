@@ -21,6 +21,7 @@ import {
 import ChartContainer from '../components/ChartContainer.jsx';
 import { api } from '../lib/api.js';
 import { useBenchmarks } from '../lib/hooks.js';
+import { quartileColor } from '../lib/chart-utils.js';
 
 const CATEGORIES = [
   { value: '', label: 'All' },
@@ -393,7 +394,7 @@ function TokenPricingTab() {
                 <Tooltip content={<BangForBuckTooltip />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
                 <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={22}>
                   {chartData.map((entry, i) => (
-                    <Cell key={i} fill={bangForBuckBarColor(entry.score)} />
+                    <Cell key={i} fill={quartileColor(i, chartData.length)} />
                   ))}
                 </Bar>
               </BarChart>
@@ -599,13 +600,7 @@ export default function BenchmarksPage() {
     .sort((a, b) => b.avg - a.avg)
     .slice(0, 15);
 
-  const barColor = (score) => {
-    if (score >= 80) return '#22c55e';
-    if (score >= 60) return '#10b981';
-    if (score >= 40) return '#eab308';
-    if (score >= 20) return '#f97316';
-    return '#ef4444';
-  };
+  // Quartile-based coloring: color by rank position, not absolute score
 
   return (
     <div>
@@ -661,7 +656,7 @@ export default function BenchmarksPage() {
                   <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
                   <Bar dataKey="avg" radius={[0, 4, 4, 0]} barSize={20}>
                     {chartData.map((entry, i) => (
-                      <Cell key={i} fill={barColor(entry.avg)} />
+                      <Cell key={i} fill={quartileColor(i, chartData.length)} />
                     ))}
                   </Bar>
                 </BarChart>

@@ -28,6 +28,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import ChartContainer from '../components/ChartContainer.jsx';
+import { quartileColor } from '../lib/chart-utils.js';
 import { api } from '../lib/api.js';
 
 // ── Constants & Helpers ─────────────────────────────────────────────────
@@ -461,7 +462,7 @@ function DualLeaderboard({ rankings, availability }) {
             <Tooltip content={<CompositeTooltip />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
             <Bar dataKey={chartKey} radius={[0, 4, 4, 0]} barSize={22}>
               {chartData.map((entry, i) => (
-                <Cell key={i} fill={activeTab === 'overall' ? compositeBarColor(entry.composite_score) : '#22c55e'} />
+                <Cell key={i} fill={quartileColor(i, chartData.length)} />
               ))}
             </Bar>
           </BarChart>
@@ -952,7 +953,7 @@ function TimeSavingsChart({ matrixModels, selectedTask }) {
             <ReferenceLine x={avgMinutes} stroke="#6b7280" strokeDasharray="4 4" label={{ value: 'Avg', fill: '#6b7280', fontSize: 10 }} />
             <Bar dataKey="minutes" radius={[0, 4, 4, 0]} barSize={20}>
               {chartData.map((entry, i) => (
-                <Cell key={i} fill={compositeBarColor(entry.composite_score ?? 70)} />
+                <Cell key={i} fill={quartileColor(i, chartData.length)} />
               ))}
             </Bar>
           </BarChart>
