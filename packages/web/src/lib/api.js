@@ -67,4 +67,17 @@ export const api = {
   getRankings: () => request('/api/advisor/rankings'),
   getModelAvailability: () => request('/api/advisor/model-availability'),
   getTaskRankings: (task) => request(`/api/advisor/task-rankings?task=${task}`),
+
+  // Coding Tools
+  getCodingTools: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/coding-tools${qs ? '?' + qs : ''}`);
+  },
+  getCodingTool: (slug) => request(`/api/coding-tools/${slug}`),
+  getCodingToolCategories: () => request('/api/coding-tools/categories'),
+  getCodingToolTags: () => request('/api/coding-tools/tags'),
+  getToolRecommendations: (data) => request('/api/coding-tools/recommend', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
 };

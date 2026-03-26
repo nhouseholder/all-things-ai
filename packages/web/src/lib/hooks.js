@@ -85,3 +85,16 @@ export function useCompareModels(slugs) {
     enabled: slugs?.length >= 2,
   });
 }
+
+// Coding Tools
+export function useCodingTools(params) {
+  return useQuery({ queryKey: ['coding-tools', params], queryFn: () => api.getCodingTools(params) });
+}
+
+export function useCodingToolCategories() {
+  return useQuery({ queryKey: ['coding-tools', 'categories'], queryFn: api.getCodingToolCategories });
+}
+
+export function useCodingToolTags() {
+  return useQuery({ queryKey: ['coding-tools', 'tags'], queryFn: api.getCodingToolTags });
+}
