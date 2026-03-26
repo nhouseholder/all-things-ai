@@ -43,6 +43,7 @@ export const api = {
   addSubscription: (data) => request('/api/cost/subscriptions', { method: 'POST', body: JSON.stringify(data) }),
   removeSubscription: (id) => request(`/api/cost/subscriptions/${id}`, { method: 'DELETE' }),
   getAlternatives: () => request('/api/cost/alternatives'),
+  getOptimizer: () => request('/api/cost/optimizer'),
 
   // Recommendations
   getRecommendations: (params = {}) => {

@@ -34,6 +34,10 @@ export function useAlternatives() {
   return useQuery({ queryKey: ['cost', 'alternatives'], queryFn: api.getAlternatives });
 }
 
+export function useOptimizer() {
+  return useQuery({ queryKey: ['cost', 'optimizer'], queryFn: api.getOptimizer });
+}
+
 // Recommendations
 export function useRecommendations(params) {
   return useQuery({ queryKey: ['recommendations', params], queryFn: () => api.getRecommendations(params) });

@@ -57,6 +57,92 @@ costRoutes.delete('/subscriptions/:id', requireAdmin(), async (c) => {
   return c.json({ ok: true });
 });
 
+// GET /api/cost/optimizer — all models with availability + alternatives for optimization
+costRoutes.get('/optimizer', async (c) => {
+  // 1. All active models with pricing and quality score
+  const { results: models } = await c.env.DB.prepare(`
+    SELECT m.id, m.name, m.slug, m.vendor, m.family,
+           m.input_price_per_mtok, m.output_price_per_mtok, m.context_window,
+           mcs.composite_score
+    FROM models m
+    LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
+    WHERE m.is_active = 1
+    ORDER BY mcs.composite_score DESC NULLS LAST
+  `).all();
+
+  if (!models.length) return c.json({ models: [] });
+
+  // 2. Model availability — which tools/plans offer each model
+  const { results: availability } = await c.env.DB.prepare(`
+    SELECT ma.model_id, t.name as tool_name, t.slug as tool_slug,
+           pp.plan_name, pp.price_monthly, ma.access_level,
+           pp.included_requests, pp.overage_rate_description
+    FROM model_availability ma
+    JOIN tools t ON t.id = ma.tool_id
+    LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
+  `).all();
+
+  const availByModel = {};
+  for (const a of availability) {
+    if (!availByModel[a.model_id]) availByModel[a.model_id] = [];
+    availByModel[a.model_id].push({
+      tool: a.tool_name,
+      tool_slug: a.tool_slug,
+      plan: a.plan_name,
+      price_monthly: a.price_monthly,
+      access_level: a.access_level,
+      included_requests: a.included_requests,
+      overage: a.overage_rate_description,
+    });
+  }
+
+  // 3. Model alternatives with similarity and savings
+  const { results: alternatives } = await c.env.DB.prepare(`
+    SELECT ma.model_id, ma.similarity_score, ma.cost_savings_pct, ma.trade_off_notes,
+           m.name as alt_name, m.slug as alt_slug, m.vendor as alt_vendor,
+           m.input_price_per_mtok as alt_input_price, m.output_price_per_mtok as alt_output_price,
+           mcs.composite_score as alt_composite_score
+    FROM model_alternatives ma
+    JOIN models m ON m.id = ma.alternative_model_id
+    LEFT JOIN model_composite_scores mcs ON mcs.model_id = ma.alternative_model_id
+    WHERE m.is_active = 1
+    ORDER BY ma.cost_savings_pct DESC
+  `).all();
+
+  const altsByModel = {};
+  for (const a of alternatives) {
+    if (!altsByModel[a.model_id]) altsByModel[a.model_id] = [];
+    altsByModel[a.model_id].push({
+      name: a.alt_name,
+      slug: a.alt_slug,
+      vendor: a.alt_vendor,
+      similarity: a.similarity_score,
+      cost_savings_pct: a.cost_savings_pct,
+      trade_off_notes: a.trade_off_notes,
+      input_price: a.alt_input_price,
+      output_price: a.alt_output_price,
+      composite_score: a.alt_composite_score,
+    });
+  }
+
+  // 4. Assemble response
+  const result = models.map(m => ({
+    id: m.id,
+    name: m.name,
+    slug: m.slug,
+    vendor: m.vendor,
+    family: m.family,
+    input_price: m.input_price_per_mtok,
+    output_price: m.output_price_per_mtok,
+    context_window: m.context_window,
+    composite_score: m.composite_score,
+    available_on: (availByModel[m.id] || []).sort((a, b) => (a.price_monthly || 999) - (b.price_monthly || 999)),
+    alternatives: (altsByModel[m.id] || []).slice(0, 5),
+  }));
+
+  return c.json({ models: result });
+});
+
 // GET /api/cost/alternatives — cheaper alternatives for current stack (W2: single query)
 costRoutes.get('/alternatives', async (c) => {
   const { results: currentSubs } = await c.env.DB.prepare(`

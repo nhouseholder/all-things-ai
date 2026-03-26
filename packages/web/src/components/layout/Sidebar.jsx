@@ -8,7 +8,7 @@ const links = [
   { to: '/compare', icon: Scale, label: 'Compare' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },
-  { to: '/cost', icon: DollarSign, label: 'Cost' },
+  { to: '/cost', icon: DollarSign, label: 'Optimize' },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
