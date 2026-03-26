@@ -17,6 +17,9 @@ export async function scrapeBenchmarks(env) {
   const scrapers = [
     { name: 'lmarena', fn: () => scrapeArenaELO(env, slugMap) },
     { name: 'livebench', fn: () => scrapeLiveBench(env, slugMap) },
+    { name: 'swebench', fn: () => scrapeSWEBench(env, slugMap) },
+    { name: 'gpqa', fn: () => scrapeGPQA(env, slugMap) },
+    { name: 'taubench', fn: () => scrapeTAUBench(env, slugMap) },
   ];
 
   for (const scraper of scrapers) {
@@ -224,6 +227,149 @@ async function processLiveBenchData(env, data, slugMap) {
   }
 
   return { matched, unmatched: unmatched.length, source: 'livebench' };
+}
+
+/**
+ * Scrape SWE-bench Verified scores from the official leaderboard.
+ * SWE-bench publishes results on GitHub (princeton-nlp/SWE-bench).
+ */
+async function scrapeSWEBench(env, slugMap) {
+  const cacheKey = 'benchmark:swebench:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] SWE-bench: using cached data');
+    return await processGenericBenchmark(env, cached, slugMap, 'SWE-bench Verified', 'coding', 100, 'https://www.swebench.com');
+  }
+
+  // SWE-bench leaderboard data on GitHub
+  const resp = await fetchWithTimeout(
+    'https://raw.githubusercontent.com/princeton-nlp/SWE-bench/main/docs/leaderboard.json',
+    { headers: { 'User-Agent': USER_AGENT } }
+  );
+
+  if (!resp.ok) {
+    // Fallback: try the HF dataset
+    const resp2 = await fetchWithTimeout(
+      'https://huggingface.co/api/datasets/princeton-nlp/SWE-bench_Verified',
+      { headers: { 'User-Agent': USER_AGENT } }
+    );
+    if (!resp2.ok) {
+      console.log(`[BENCHMARK] SWE-bench: fetch returned ${resp.status}, skipping`);
+      return { matched: 0, unmatched: 0, source: 'swebench-unavailable' };
+    }
+    // HF API returns metadata, not scores — skip gracefully
+    console.log('[BENCHMARK] SWE-bench: only metadata available from HF, skipping');
+    return { matched: 0, unmatched: 0, source: 'swebench-hf-metadata' };
+  }
+
+  const data = await resp.json();
+  await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+  return await processGenericBenchmark(env, data, slugMap, 'SWE-bench Verified', 'coding', 100, 'https://www.swebench.com');
+}
+
+/**
+ * Scrape GPQA Diamond scores.
+ * GPQA is published via academic papers; scores are often on GitHub or PapersWithCode.
+ */
+async function scrapeGPQA(env, slugMap) {
+  const cacheKey = 'benchmark:gpqa:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] GPQA: using cached data');
+    return await processGenericBenchmark(env, cached, slugMap, 'GPQA Diamond', 'reasoning', 100, 'https://arxiv.org/abs/2311.12022');
+  }
+
+  // Try PapersWithCode API for GPQA Diamond leaderboard
+  const resp = await fetchWithTimeout(
+    'https://paperswithcode.com/api/v1/get-leaderboard/?task=gpqa-diamond',
+    { headers: { 'User-Agent': USER_AGENT } }
+  );
+
+  if (!resp.ok) {
+    console.log(`[BENCHMARK] GPQA: fetch returned ${resp.status}, skipping`);
+    return { matched: 0, unmatched: 0, source: 'gpqa-unavailable' };
+  }
+
+  const data = await resp.json();
+  await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+  return await processGenericBenchmark(env, data, slugMap, 'GPQA Diamond', 'reasoning', 100, 'https://arxiv.org/abs/2311.12022');
+}
+
+/**
+ * Scrape TAU-bench Retail scores.
+ * TAU-bench results are published on GitHub by Sierra Research.
+ */
+async function scrapeTAUBench(env, slugMap) {
+  const cacheKey = 'benchmark:taubench:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] TAU-bench: using cached data');
+    return await processGenericBenchmark(env, cached, slugMap, 'TAU-bench Retail', 'agent', 100, 'https://github.com/sierra-research/tau-bench');
+  }
+
+  const resp = await fetchWithTimeout(
+    'https://raw.githubusercontent.com/sierra-research/tau-bench/main/results/leaderboard.json',
+    { headers: { 'User-Agent': USER_AGENT } }
+  );
+
+  if (!resp.ok) {
+    console.log(`[BENCHMARK] TAU-bench: fetch returned ${resp.status}, skipping`);
+    return { matched: 0, unmatched: 0, source: 'taubench-unavailable' };
+  }
+
+  const data = await resp.json();
+  await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+  return await processGenericBenchmark(env, data, slugMap, 'TAU-bench Retail', 'agent', 100, 'https://github.com/sierra-research/tau-bench');
+}
+
+/**
+ * Generic benchmark processor — handles varied JSON formats from leaderboards.
+ * Tries multiple common field names for model name and score.
+ */
+async function processGenericBenchmark(env, data, slugMap, benchmarkName, category, maxScore, sourceUrl) {
+  let matched = 0;
+  const unmatched = [];
+
+  // Handle multiple JSON shapes: array, {results: [...]}, {data: [...]}, {rows: [...]}
+  const entries = Array.isArray(data)
+    ? data
+    : (data.results || data.data || data.rows || data.models || data.leaderboard || []);
+
+  for (const entry of entries) {
+    // Try multiple field names for model name
+    const name = entry.model || entry.name || entry.Model || entry.model_name || entry.agent || '';
+    // Try multiple field names for score
+    const score = entry.score || entry.accuracy || entry.resolved || entry.pass_rate
+      || entry.global_avg || entry.avg_score || entry.result || entry.success_rate || null;
+
+    if (!name || score == null) continue;
+
+    // Normalize score to 0-100 range if needed
+    const normalizedScore = score > 1 ? score : score * 100;
+
+    const slug = matchModel(name, slugMap);
+    if (!slug) {
+      unmatched.push(name);
+      continue;
+    }
+
+    const model = await env.DB.prepare('SELECT id FROM models WHERE slug = ?').bind(slug).first();
+    if (!model) continue;
+
+    await env.DB.prepare(`
+      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(model_id, benchmark_name) DO UPDATE SET
+        score = excluded.score, measured_at = datetime('now')
+    `).bind(model.id, benchmarkName, category, normalizedScore, maxScore, sourceUrl).run();
+    matched++;
+  }
+
+  if (unmatched.length > 0) {
+    console.log(`[BENCHMARK] ${benchmarkName}: ${unmatched.length} unmatched:`, unmatched.slice(0, 10).join(', '));
+  }
+
+  return { matched, unmatched: unmatched.length, source: benchmarkName };
 }
 
 async function fetchWithTimeout(url, options = {}) {

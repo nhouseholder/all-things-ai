@@ -12,6 +12,7 @@ import { computeToolScores } from './services/tool-score-engine.js';
 import { computePluginScores } from './services/plugin-score-engine.js';
 import { discoverNewModels } from './pipelines/model-discovery.js';
 import { scrapeBenchmarks } from './pipelines/benchmark-scraper.js';
+import { discoverGitHubTools } from './pipelines/github-tool-discovery.js';
 
 export async function handleScheduled(event, env) {
   const cron = event.cron;
@@ -60,6 +61,8 @@ export async function handleScheduled(event, env) {
       await runSafe('buildAndSendDigest', () => buildAndSendDigest(env));
       // Weekly benchmark scrape from authoritative leaderboards
       await runSafe('scrapeBenchmarks', () => scrapeBenchmarks(env));
+      // Weekly GitHub tool discovery — find new MCP servers, skills, agents
+      await runSafe('discoverGitHubTools', () => discoverGitHubTools(env));
       break;
     // Community review scrape: every 6 hours
     case '0 */6 * * *':

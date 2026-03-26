@@ -24,6 +24,18 @@ export const PRICING_TARGETS = [
   { tool_slug: 'cursor', url: 'https://www.cursor.com/pricing' },
   { tool_slug: 'windsurf', url: 'https://windsurf.com/pricing' },
   { tool_slug: 'github-copilot', url: 'https://github.com/features/copilot' },
+  { tool_slug: 'claude-code', url: 'https://www.anthropic.com/claude/code' },
+  { tool_slug: 'aider', url: 'https://aider.chat' },
+  { tool_slug: 'cody', url: 'https://sourcegraph.com/cody/pricing' },
+  { tool_slug: 'codex', url: 'https://openai.com/codex' },
+  { tool_slug: 'jetbrains-ai', url: 'https://www.jetbrains.com/ai/' },
+  { tool_slug: 'tabnine', url: 'https://www.tabnine.com/pricing' },
+  { tool_slug: 'continue-dev', url: 'https://continue.dev/pricing' },
+  { tool_slug: 'augment-code', url: 'https://www.augmentcode.com/pricing' },
+  { tool_slug: 'amazon-q', url: 'https://aws.amazon.com/q/developer/pricing/' },
+  { tool_slug: 'gemini-code-assist', url: 'https://cloud.google.com/gemini/docs/codeassist/overview' },
+  { tool_slug: 'roo-code', url: 'https://roocode.com' },
+  { tool_slug: 'zed-ai', url: 'https://zed.dev/pricing' },
 ];
 
 // Known AI vendors and their model naming patterns for auto-discovery
