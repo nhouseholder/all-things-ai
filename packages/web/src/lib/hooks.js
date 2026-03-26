@@ -86,6 +86,10 @@ export function useCompareModels(slugs) {
   });
 }
 
+export function useSuccessRateRankings() {
+  return useQuery({ queryKey: ['advisor', 'success-rate-rankings'], queryFn: api.getSuccessRateRankings });
+}
+
 // Coding Tools
 export function useCodingTools(params) {
   return useQuery({ queryKey: ['coding-tools', params], queryFn: () => api.getCodingTools(params) });

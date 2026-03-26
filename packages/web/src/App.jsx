@@ -16,6 +16,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const CodingToolsPage = lazy(() => import('./pages/CodingToolsPage.jsx'));
 const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
+const SuccessRatePage = lazy(() => import('./pages/SuccessRatePage.jsx'));
 
 function PageLoader() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="benchmarks" element={<BenchmarksPage />} />
           <Route path="coding-tools" element={<CodingToolsPage />} />
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
+          <Route path="success-rate" element={<SuccessRatePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

@@ -197,6 +197,29 @@ advisorRoutes.get('/rankings', async (c) => {
   return c.json(response);
 });
 
+// GET /api/advisor/success-rate-rankings — models ranked by avg first_attempt_success_rate
+advisorRoutes.get('/success-rate-rankings', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      mte.model_id,
+      m.name as model_name,
+      m.slug as model_slug,
+      m.vendor,
+      m.family,
+      ROUND(AVG(mte.first_attempt_success_rate) * 100, 1) as avg_success_rate,
+      COUNT(mte.task_profile_id) as tasks_evaluated
+    FROM model_task_estimates mte
+    JOIN models m ON m.id = mte.model_id
+    WHERE m.is_active = 1
+      AND mte.first_attempt_success_rate IS NOT NULL
+    GROUP BY mte.model_id
+    HAVING tasks_evaluated >= 1
+    ORDER BY avg_success_rate DESC
+  `).all();
+
+  return c.json(results);
+});
+
 // GET /api/advisor/model-availability — where each model is available + pricing
 advisorRoutes.get('/model-availability', async (c) => {
   const { results } = await c.env.DB.prepare(`

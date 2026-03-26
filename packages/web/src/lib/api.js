@@ -67,6 +67,7 @@ export const api = {
   getRankings: () => request('/api/advisor/rankings'),
   getModelAvailability: () => request('/api/advisor/model-availability'),
   getTaskRankings: (task) => request(`/api/advisor/task-rankings?task=${task}`),
+  getSuccessRateRankings: () => request('/api/advisor/success-rate-rankings'),
 
   // Coding Tools
   getCodingTools: (params = {}) => {
