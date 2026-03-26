@@ -163,9 +163,9 @@ function computeCommunityAdjustment(reviewRows) {
 }
 
 export async function computeCompositeScores(env) {
-  // 1. Get all active models
+  // 1. Get all active models (with family for intra-family ordering)
   const { results: models } = await env.DB.prepare(
-    'SELECT id, name FROM models WHERE is_active = 1'
+    'SELECT id, name, vendor, family FROM models WHERE is_active = 1'
   ).all();
 
   if (!models.length) {
@@ -214,20 +214,8 @@ export async function computeCompositeScores(env) {
     successByModel[r.model_id] = r.avg_success;
   }
 
-  // 5. Compute composite score for each model
-  let topModel = null;
-  let topScore = -1;
-  let computed = 0;
-
-  const insertStmt = env.DB.prepare(`
-    INSERT OR REPLACE INTO model_composite_scores
-      (model_id, composite_score, swe_bench_component, livecodebench_component,
-       nuance_component, arena_component, tau_component, gpqa_component,
-       success_rate_component, community_adjustment, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `);
-
-  const batch = [];
+  // 5. Compute composite score for each model (first pass — raw scores)
+  const scoreEntries = [];
 
   for (const model of models) {
     const components = {};
@@ -269,6 +257,71 @@ export async function computeCompositeScores(env) {
 
     const compositeScore = Math.max(0, Math.min(100, weightedSum + community.adjustment));
 
+    scoreEntries.push({
+      model,
+      components,
+      benchmarkScore: weightedSum,
+      community,
+      compositeScore,
+    });
+
+    if (community.totalReviews > 0) {
+      console.log(`[COMPOSITE] ${model.name}: bench=${weightedSum.toFixed(2)}, adj=${community.adjustment.toFixed(2)}, final=${compositeScore.toFixed(2)}, ${community.details}`);
+    }
+  }
+
+  // 6. Family-aware ordering fix: community noise must not invert benchmark order
+  // within the same vendor+family (e.g., GPT-5.4 High > Medium by benchmarks)
+  const familyGroups = {};
+  for (const entry of scoreEntries) {
+    const key = `${entry.model.vendor}:${entry.model.family || ''}`;
+    if (!familyGroups[key]) familyGroups[key] = [];
+    familyGroups[key].push(entry);
+  }
+
+  for (const [familyKey, members] of Object.entries(familyGroups)) {
+    if (members.length < 2) continue;
+
+    // Sort by raw benchmark score (no community) descending
+    const byBenchmark = [...members].sort((a, b) => b.benchmarkScore - a.benchmarkScore);
+    // Sort by composite score descending
+    const byComposite = [...members].sort((a, b) => b.compositeScore - a.compositeScore);
+
+    // Check for inversions: if benchmark order disagrees with composite order
+    for (let i = 0; i < byBenchmark.length; i++) {
+      const benchModel = byBenchmark[i];
+      const compositeIdx = byComposite.findIndex(m => m.model.id === benchModel.model.id);
+
+      if (compositeIdx > i) {
+        // This model ranks LOWER in composite than its benchmark position warrants
+        // A sibling with worse benchmarks outranks it due to community buzz
+        // Fix: ensure the composite score is at least as high as the sibling below it
+        const siblingAbove = byComposite[compositeIdx - 1];
+        if (siblingAbove && siblingAbove.benchmarkScore < benchModel.benchmarkScore) {
+          const oldScore = benchModel.compositeScore;
+          benchModel.compositeScore = siblingAbove.compositeScore + 0.1;
+          console.log(`[COMPOSITE] FAMILY FIX: ${benchModel.model.name} ${oldScore.toFixed(2)} → ${benchModel.compositeScore.toFixed(2)} (was below ${siblingAbove.model.name} despite higher benchmarks)`);
+        }
+      }
+    }
+  }
+
+  // 7. Write to database
+  const insertStmt = env.DB.prepare(`
+    INSERT OR REPLACE INTO model_composite_scores
+      (model_id, composite_score, swe_bench_component, livecodebench_component,
+       nuance_component, arena_component, tau_component, gpqa_component,
+       success_rate_component, community_adjustment, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+
+  const batch = [];
+  let topModel = null;
+  let topScore = -1;
+
+  for (const entry of scoreEntries) {
+    const { model, components, community, compositeScore } = entry;
+
     batch.push(insertStmt.bind(
       model.id,
       Number(compositeScore.toFixed(2)),
@@ -282,14 +335,9 @@ export async function computeCompositeScores(env) {
       Number(community.adjustment.toFixed(2))
     ));
 
-    computed++;
     if (compositeScore > topScore) {
       topScore = compositeScore;
       topModel = model.name;
-    }
-
-    if (community.totalReviews > 0) {
-      console.log(`[COMPOSITE] ${model.name}: adj=${community.adjustment.toFixed(2)}, ${community.details}`);
     }
   }
 
@@ -297,5 +345,5 @@ export async function computeCompositeScores(env) {
     await env.DB.batch(batch);
   }
 
-  console.log(`[COMPOSITE] v3: Computed scores for ${computed} models, top: ${topModel} (${topScore.toFixed(2)})`);
+  console.log(`[COMPOSITE] v3.1: Computed scores for ${scoreEntries.length} models, top: ${topModel} (${topScore.toFixed(2)})`);
 }
