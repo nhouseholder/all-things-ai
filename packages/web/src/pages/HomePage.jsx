@@ -79,7 +79,7 @@ export default function HomePage() {
   }, []);
 
   const topOverall = rankings?.best_overall?.slice(0, 10) || [];
-  const topValue = rankings?.bang_for_buck?.slice(0, 5) || [];
+  const topValue = rankings?.bang_for_buck?.slice(0, 10) || [];
   const modelCount = rankings?.best_overall?.length || 0;
   const taskCount = tasks?.length || 0;
 
