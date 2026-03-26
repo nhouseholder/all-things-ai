@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout.jsx';
 
 // Eagerly load HomePage (landing page — always hit first)
@@ -9,14 +9,12 @@ import HomePage from './pages/HomePage.jsx';
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const ToolsPage = lazy(() => import('./pages/ToolsPage.jsx'));
 const CostPage = lazy(() => import('./pages/CostPage.jsx'));
-const AdvisorPage = lazy(() => import('./pages/AdvisorPage.jsx'));
-const BenchmarksPage = lazy(() => import('./pages/BenchmarksPage.jsx'));
+const ModelsPage = lazy(() => import('./pages/ModelsPage.jsx'));
 const ComparePage = lazy(() => import('./pages/ComparePage.jsx'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const CodingToolsPage = lazy(() => import('./pages/CodingToolsPage.jsx'));
 const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
-const SuccessRatePage = lazy(() => import('./pages/SuccessRatePage.jsx'));
 
 function PageLoader() {
   return (
@@ -35,12 +33,12 @@ export default function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tools" element={<ToolsPage />} />
           <Route path="cost" element={<CostPage />} />
-          <Route path="advisor" element={<AdvisorPage />} />
+          <Route path="advisor" element={<ModelsPage />} />
           <Route path="compare" element={<ComparePage />} />
-          <Route path="benchmarks" element={<BenchmarksPage />} />
+          <Route path="benchmarks" element={<Navigate to="/advisor" replace />} />
+          <Route path="success-rate" element={<Navigate to="/advisor" replace />} />
           <Route path="coding-tools" element={<CodingToolsPage />} />
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
-          <Route path="success-rate" element={<SuccessRatePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

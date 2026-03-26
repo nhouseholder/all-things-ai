@@ -31,7 +31,7 @@ export default function SuccessRatePage() {
   if (isLoading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Real World Success Rate</h1>
+
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
         </div>
@@ -42,7 +42,7 @@ export default function SuccessRatePage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Real World Success Rate</h1>
+
         <div className="text-center py-16">
           <p className="text-red-400 text-sm">Failed to load data: {error}</p>
         </div>
@@ -55,7 +55,7 @@ export default function SuccessRatePage() {
   if (models.length === 0) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Real World Success Rate</h1>
+
         <div className="text-center py-12 rounded-xl border border-gray-800 border-dashed">
           <Target className="w-8 h-8 text-gray-500 mx-auto mb-2" />
           <p className="text-sm text-gray-500">No success rate data available yet.</p>
@@ -73,11 +73,6 @@ export default function SuccessRatePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-2">Real World Success Rate</h1>
-      <p className="text-sm text-gray-400 mb-6">
-        Average first-attempt success rate across all coding tasks. Higher = fewer retries needed.
-      </p>
-
       {/* Bar Chart */}
       <section className="mb-8">
         <div className="flex items-center gap-2 mb-3">

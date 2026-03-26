@@ -523,7 +523,7 @@ export default function BenchmarksPage() {
   if (activeTab === 'pricing') {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Benchmarks</h1>
+
         {tabBar}
         <TokenPricingTab />
       </div>
@@ -534,7 +534,7 @@ export default function BenchmarksPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Benchmarks</h1>
+
         {tabBar}
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
@@ -546,7 +546,7 @@ export default function BenchmarksPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Benchmarks</h1>
+
         {tabBar}
         <div className="text-center py-16">
           <p className="text-red-400 text-sm">Failed to load benchmarks: {error}</p>

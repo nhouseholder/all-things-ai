@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, BarChart3, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Target } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle } from 'lucide-react';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
-  { to: '/advisor', icon: Brain, label: 'Advisor' },
+  { to: '/advisor', icon: Brain, label: 'Models' },
   { to: '/compare', icon: Scale, label: 'Compare' },
-  { to: '/benchmarks', icon: BarChart3, label: 'Benchmarks' },
-  { to: '/success-rate', icon: Target, label: 'Success Rate' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },
   { to: '/cost', icon: DollarSign, label: 'Cost' },

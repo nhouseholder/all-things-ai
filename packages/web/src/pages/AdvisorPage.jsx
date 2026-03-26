@@ -1240,12 +1240,6 @@ export default function AdvisorPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white mb-1">Task Intelligence Advisor</h1>
-        <p className="text-sm text-gray-500">What model should you use — and where?</p>
-      </div>
-
       {/* Section 1: Dual Ranking Leaderboard */}
       {loadingScores ? (
         <div className="flex items-center justify-center h-48 mb-10">
