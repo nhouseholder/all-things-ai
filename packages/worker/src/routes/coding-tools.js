@@ -78,6 +78,21 @@ codingToolsRoutes.get('/', async (c) => {
   return c.json({ tools, total: countRes[0]?.total || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 
+// GET /api/coding-tools/rankings — plugins ranked by composite score
+codingToolsRoutes.get('/rankings', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT ct.id, ct.name, ct.slug, ct.category, ct.platform, ct.stars,
+           ct.community_rating, ct.setup_complexity, ct.has_docs,
+           pcs.composite_score, pcs.stars_score, pcs.freshness_score,
+           pcs.compatibility_score, pcs.community_score, pcs.simplicity_score,
+           pcs.docs_score, pcs.updated_at
+    FROM plugin_composite_scores pcs
+    JOIN coding_tools ct ON ct.id = pcs.plugin_id AND ct.is_active = 1
+    ORDER BY pcs.composite_score DESC
+  `).all();
+  return c.json({ rankings: results, updated_at: results[0]?.updated_at || null });
+});
+
 // GET /api/coding-tools/categories — category counts
 codingToolsRoutes.get('/categories', async (c) => {
   const { results } = await c.env.DB.prepare(

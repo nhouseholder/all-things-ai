@@ -8,6 +8,8 @@ import { buildAndSendDigest } from './pipelines/digest-builder.js';
 import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
 import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
 import { computeCompositeScores } from './services/composite-score-engine.js';
+import { computeToolScores } from './services/tool-score-engine.js';
+import { computePluginScores } from './services/plugin-score-engine.js';
 import { discoverNewModels } from './pipelines/model-discovery.js';
 import { scrapeBenchmarks } from './pipelines/benchmark-scraper.js';
 
@@ -64,6 +66,8 @@ export async function handleScheduled(event, env) {
       await runSafe('scrapeRedditReviews', () => scrapeRedditReviews(env));
       await runSafe('scrapeHNReviews', () => scrapeHNReviews(env));
       await runSafe('computeCompositeScores', () => computeCompositeScores(env));
+      await runSafe('computeToolScores', () => computeToolScores(env));
+      await runSafe('computePluginScores', () => computePluginScores(env));
       // Invalidate caches so next request gets fresh data
       await runSafe('invalidateCaches', async () => {
         await env.CACHE.delete('rankings:v1');

@@ -15,6 +15,19 @@ toolsRoutes.get('/', async (c) => {
   return c.json(results.map(t => ({ ...t, plans: JSON.parse(t.plans || '[]') })));
 });
 
+// GET /api/tools/rankings — tools ranked by composite score
+toolsRoutes.get('/rankings', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT t.id, t.name, t.slug, t.vendor, t.category, t.logo_url, t.last_release_date,
+           tcs.composite_score, tcs.model_breadth_score, tcs.pricing_score,
+           tcs.community_score, tcs.feature_score, tcs.freshness_score, tcs.updated_at
+    FROM tool_composite_scores tcs
+    JOIN tools t ON t.id = tcs.tool_id
+    ORDER BY tcs.composite_score DESC
+  `).all();
+  return c.json({ rankings: results, updated_at: results[0]?.updated_at || null });
+});
+
 // GET /api/tools/:slug
 toolsRoutes.get('/:slug', async (c) => {
   const slug = c.req.param('slug');

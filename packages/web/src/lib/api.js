@@ -69,6 +69,10 @@ export const api = {
   getTaskRankings: (task) => request(`/api/advisor/task-rankings?task=${task}`),
   getSuccessRateRankings: () => request('/api/advisor/success-rate-rankings'),
 
+  // Tool Rankings
+  getToolRankings: () => request('/api/tools/rankings'),
+  getPluginRankings: () => request('/api/coding-tools/rankings'),
+
   // Coding Tools
   getCodingTools: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

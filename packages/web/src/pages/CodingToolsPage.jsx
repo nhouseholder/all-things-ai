@@ -4,7 +4,17 @@ import {
   Loader2, Search, Filter, ExternalLink, Star, ChevronDown, ChevronUp,
   Puzzle, Github, Terminal, Cpu, Plug, Wand2, Sparkles, ArrowRight,
 } from 'lucide-react';
-import { useCodingTools, useCodingToolCategories } from '../lib/hooks.js';
+import { useCodingTools, useCodingToolCategories, usePluginRankings } from '../lib/hooks.js';
+import RankingChart from '../components/RankingChart.jsx';
+
+const PLUGIN_DIMENSIONS = [
+  { key: 'stars_score', label: 'GitHub Stars', color: 'bg-yellow-500' },
+  { key: 'freshness_score', label: 'Freshness', color: 'bg-green-500' },
+  { key: 'compatibility_score', label: 'Compatibility', color: 'bg-purple-500' },
+  { key: 'community_score', label: 'Community', color: 'bg-blue-500' },
+  { key: 'simplicity_score', label: 'Setup Ease', color: 'bg-cyan-500' },
+  { key: 'docs_score', label: 'Documentation', color: 'bg-orange-500' },
+];
 
 const CATEGORY_CONFIG = {
   'skill':         { label: 'Skills',       color: 'bg-purple-500/10 text-purple-400 border-purple-500/20', icon: Sparkles },
@@ -182,6 +192,8 @@ export default function CodingToolsPage() {
 
   const { data, isLoading, error } = useCodingTools(params);
   const { data: catData } = useCodingToolCategories();
+  const { data: rankingsData } = usePluginRankings();
+  const rankings = rankingsData?.rankings ?? [];
 
   const tools = data?.tools || [];
   const categories = catData?.categories || [];
@@ -218,6 +230,16 @@ export default function CodingToolsPage() {
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
+
+      {/* Rankings */}
+      {rankings.length > 0 && (
+        <RankingChart
+          rankings={rankings.slice(0, 15)}
+          dimensions={PLUGIN_DIMENSIONS}
+          title="Plugin Rankings"
+          subtitle="Composite score based on stars, freshness, compatibility, community, setup ease, and docs"
+        />
+      )}
 
       {/* Filters */}
       <div className="space-y-3 mb-6">

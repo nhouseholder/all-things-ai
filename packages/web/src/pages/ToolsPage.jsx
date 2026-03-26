@@ -8,7 +8,16 @@ import {
   Package,
   Check,
 } from 'lucide-react';
-import { useTools } from '../lib/hooks.js';
+import { useTools, useToolRankings } from '../lib/hooks.js';
+import RankingChart from '../components/RankingChart.jsx';
+
+const TOOL_DIMENSIONS = [
+  { key: 'model_breadth_score', label: 'Model Breadth', color: 'bg-purple-500' },
+  { key: 'pricing_score', label: 'Pricing', color: 'bg-green-500' },
+  { key: 'community_score', label: 'Community', color: 'bg-blue-500' },
+  { key: 'feature_score', label: 'Features', color: 'bg-cyan-500' },
+  { key: 'freshness_score', label: 'Freshness', color: 'bg-yellow-500' },
+];
 
 const CATEGORIES = [
   { value: 'all', label: 'All' },
@@ -153,8 +162,10 @@ function ToolCard({ tool }) {
 export default function ToolsPage() {
   const [category, setCategory] = useState('all');
   const { data: toolsData, isLoading: loading, error: queryError } = useTools();
+  const { data: rankingsData } = useToolRankings();
   const error = queryError?.message;
   const tools = toolsData?.tools ?? toolsData?.data ?? toolsData ?? [];
+  const rankings = rankingsData?.rankings ?? [];
   const filtered = category === 'all' ? tools : tools.filter((t) => t.category === category);
 
   if (loading) {
@@ -174,8 +185,19 @@ export default function ToolsPage() {
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-white mb-6">Tools</h1>
+    <div className="animate-fade-in">
+      <h1 className="text-2xl font-bold text-white mb-1">Tools</h1>
+      <p className="text-sm text-gray-500 mb-6">AI coding tools ranked by model access, pricing, community satisfaction, features, and update frequency</p>
+
+      {/* Rankings */}
+      {rankings.length > 0 && (
+        <RankingChart
+          rankings={rankings}
+          dimensions={TOOL_DIMENSIONS}
+          title="Tool Rankings"
+          subtitle="Composite score based on 5 weighted dimensions"
+        />
+      )}
 
       {/* Category Filter */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">

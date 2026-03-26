@@ -90,6 +90,15 @@ export function useSuccessRateRankings() {
   return useQuery({ queryKey: ['advisor', 'success-rate-rankings'], queryFn: api.getSuccessRateRankings });
 }
 
+// Tool & Plugin Rankings
+export function useToolRankings() {
+  return useQuery({ queryKey: ['tools', 'rankings'], queryFn: api.getToolRankings });
+}
+
+export function usePluginRankings() {
+  return useQuery({ queryKey: ['coding-tools', 'rankings'], queryFn: api.getPluginRankings });
+}
+
 // Coding Tools
 export function useCodingTools(params) {
   return useQuery({ queryKey: ['coding-tools', params], queryFn: () => api.getCodingTools(params) });

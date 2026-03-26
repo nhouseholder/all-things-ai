@@ -371,3 +371,57 @@ CREATE TABLE IF NOT EXISTS coding_tool_tags (
 );
 CREATE INDEX IF NOT EXISTS idx_ctt_tag ON coding_tool_tags(tag);
 CREATE INDEX IF NOT EXISTS idx_ctt_tool ON coding_tool_tags(tool_id);
+
+-- ============================================================
+-- Tables from migration 0019: Tool & Plugin Rankings
+-- ============================================================
+
+-- Tool features for feature-coverage scoring (IDE tools)
+CREATE TABLE IF NOT EXISTS tool_features (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_id INTEGER NOT NULL REFERENCES tools(id),
+    feature TEXT NOT NULL,
+    supported INTEGER DEFAULT 1,
+    UNIQUE(tool_id, feature)
+);
+CREATE INDEX IF NOT EXISTS idx_tf_tool ON tool_features(tool_id);
+
+-- Tool reviews (community signals for IDE tools)
+CREATE TABLE IF NOT EXISTS tool_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_id INTEGER NOT NULL REFERENCES tools(id),
+    source TEXT NOT NULL,
+    sentiment_score REAL DEFAULT 0,
+    satisfaction INTEGER DEFAULT 50,
+    review_count INTEGER DEFAULT 0,
+    common_complaints TEXT,
+    common_praises TEXT,
+    scraped_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(tool_id, source)
+);
+CREATE INDEX IF NOT EXISTS idx_tr_tool ON tool_reviews(tool_id);
+
+-- Tool composite scores (IDE tools)
+CREATE TABLE IF NOT EXISTS tool_composite_scores (
+    tool_id INTEGER PRIMARY KEY REFERENCES tools(id),
+    model_breadth_score REAL DEFAULT 0,
+    pricing_score REAL DEFAULT 0,
+    community_score REAL DEFAULT 0,
+    feature_score REAL DEFAULT 0,
+    freshness_score REAL DEFAULT 0,
+    composite_score REAL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Plugin composite scores (coding tools: MCP servers, skills, extensions)
+CREATE TABLE IF NOT EXISTS plugin_composite_scores (
+    plugin_id INTEGER PRIMARY KEY REFERENCES coding_tools(id),
+    stars_score REAL DEFAULT 0,
+    freshness_score REAL DEFAULT 0,
+    compatibility_score REAL DEFAULT 0,
+    community_score REAL DEFAULT 0,
+    simplicity_score REAL DEFAULT 0,
+    docs_score REAL DEFAULT 0,
+    composite_score REAL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
