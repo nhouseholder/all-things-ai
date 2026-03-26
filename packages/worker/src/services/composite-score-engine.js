@@ -38,7 +38,7 @@ const COMMUNITY_WEIGHTS = {
 const MIN_REVIEWS_THRESHOLD = 10;   // Below this: 0 community adjustment
 const FULL_CONFIDENCE_N = 50;       // At or above: full community weight
 const MIN_SOURCES_FULL = 2;         // Need 2+ sources for full confidence
-const MAX_COMMUNITY_ADJ = 7.5;     // ±7.5 points at full confidence
+const MAX_COMMUNITY_ADJ = 5.5;     // ±5.5 points at full confidence (reduced from 7.5 — was allowing community buzz to flip close cross-vendor rankings)
 const OUTLIER_CAP_SIGMA = 1.5;     // Cap per-source at ±1.5σ from cross-source mean
 
 function normalizeBenchmark(key, score) {
@@ -301,6 +301,33 @@ export async function computeCompositeScores(env) {
           const oldScore = benchModel.compositeScore;
           benchModel.compositeScore = siblingAbove.compositeScore + 0.1;
           console.log(`[COMPOSITE] FAMILY FIX: ${benchModel.model.name} ${oldScore.toFixed(2)} → ${benchModel.compositeScore.toFixed(2)} (was below ${siblingAbove.model.name} despite higher benchmarks)`);
+        }
+      }
+    }
+  }
+
+  // 6b. Cross-vendor proximity guard: if two models from different vendors are
+  // within 2 points on raw benchmarks, community adjustment cannot flip their order.
+  // This prevents hype from overriding benchmark data for near-tied models.
+  const CROSS_VENDOR_PROXIMITY = 2.0;
+  const byBenchmarkGlobal = [...scoreEntries].sort((a, b) => b.benchmarkScore - a.benchmarkScore);
+  const byCompositeGlobal = [...scoreEntries].sort((a, b) => b.compositeScore - a.compositeScore);
+
+  for (let i = 0; i < byBenchmarkGlobal.length; i++) {
+    const benchModel = byBenchmarkGlobal[i];
+    const compositeIdx = byCompositeGlobal.findIndex(m => m.model.id === benchModel.model.id);
+
+    if (compositeIdx > i) {
+      // This model is ranked lower in composite than its benchmark position
+      // Check if it was flipped by a cross-vendor model within the proximity threshold
+      for (let j = i; j < compositeIdx; j++) {
+        const rival = byCompositeGlobal[j];
+        if (rival.model.vendor === benchModel.model.vendor) continue; // same vendor = handled by family fix
+        const benchGap = Math.abs(benchModel.benchmarkScore - rival.benchmarkScore);
+        if (benchGap <= CROSS_VENDOR_PROXIMITY && rival.benchmarkScore < benchModel.benchmarkScore) {
+          const oldScore = benchModel.compositeScore;
+          benchModel.compositeScore = rival.compositeScore + 0.05;
+          console.log(`[COMPOSITE] CROSS-VENDOR FIX: ${benchModel.model.name} ${oldScore.toFixed(2)} → ${benchModel.compositeScore.toFixed(2)} (was below ${rival.model.name} despite higher benchmarks within ${benchGap.toFixed(1)}pt)`);
         }
       }
     }
