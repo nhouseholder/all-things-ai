@@ -103,6 +103,11 @@ export function usePluginRankings() {
   return useQuery({ queryKey: ['coding-tools', 'rankings'], queryFn: api.getPluginRankings });
 }
 
+// Task Profiles
+export function useTaskProfiles() {
+  return useQuery({ queryKey: ['advisor', 'task-profiles'], queryFn: api.getTaskProfiles });
+}
+
 // Coding Tools
 export function useCodingTools(params) {
   return useQuery({ queryKey: ['coding-tools', params], queryFn: () => api.getCodingTools(params) });

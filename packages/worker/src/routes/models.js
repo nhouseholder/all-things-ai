@@ -146,7 +146,7 @@ modelsRoutes.get('/alternatives', async (c) => {
   return c.json({ models: results });
 });
 
-// GET /api/models/compare — side-by-side comparison of 2-4 models
+// GET /api/models/compare — enriched side-by-side comparison of 2-4 models
 modelsRoutes.get('/compare', async (c) => {
   const slugs = c.req.query('models')?.split(',').slice(0, 4);
   if (!slugs?.length) return c.json({ error: 'Provide ?models=slug1,slug2' }, 400);
@@ -156,52 +156,120 @@ modelsRoutes.get('/compare', async (c) => {
   const { results: models } = await c.env.DB.prepare(`
     SELECT m.*,
       mcs.composite_score, mcs.swe_bench_component, mcs.livecodebench_component,
-      mcs.nuance_component, mcs.arena_component, mcs.gpqa_component
+      mcs.nuance_component, mcs.arena_component, mcs.tau_component,
+      mcs.gpqa_component, mcs.success_rate_component, mcs.community_adjustment
     FROM models m
     LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
     WHERE m.slug IN (${placeholders}) AND m.is_active = 1
   `).bind(...slugs).all();
 
-  // Get benchmarks for these models
   const modelIds = models.map(m => m.id);
+  if (!modelIds.length) return c.json({ models: [], task_profiles: [] });
   const idPlaceholders = modelIds.map(() => '?').join(',');
 
-  const { results: benchmarks } = await c.env.DB.prepare(`
-    SELECT model_id, benchmark_name, category, score, max_score
-    FROM benchmarks WHERE model_id IN (${idPlaceholders})
-  `).bind(...modelIds).all();
+  // Parallel queries: benchmarks, availability, community reviews, task estimates, task profiles
+  const [benchRes, availRes, reviewRes, taskEstRes, taskProfileRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT model_id, benchmark_name, category, score, max_score
+      FROM benchmarks WHERE model_id IN (${idPlaceholders})
+    `).bind(...modelIds).all(),
 
-  // Get availability
-  const { results: availability } = await c.env.DB.prepare(`
-    SELECT ma.model_id, t.name as tool_name, t.slug as tool_slug,
-      pp.plan_name, pp.price_monthly, ma.access_level
-    FROM model_availability ma
-    JOIN tools t ON t.id = ma.tool_id
-    LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
-    WHERE ma.model_id IN (${idPlaceholders})
-    ORDER BY pp.price_monthly ASC
-  `).bind(...modelIds).all();
+    c.env.DB.prepare(`
+      SELECT ma.model_id, t.name as tool_name, t.slug as tool_slug,
+        pp.plan_name, pp.price_monthly, ma.access_level
+      FROM model_availability ma
+      JOIN tools t ON t.id = ma.tool_id
+      LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
+      WHERE ma.model_id IN (${idPlaceholders})
+      ORDER BY pp.price_monthly ASC
+    `).bind(...modelIds).all(),
 
-  // Index by model
+    c.env.DB.prepare(`
+      SELECT model_id,
+        SUM(review_count) as total_reviews,
+        ROUND(AVG(coding_satisfaction), 1) as avg_satisfaction,
+        ROUND(AVG(sentiment_score), 2) as avg_sentiment,
+        SUM(COALESCE(heavy_coder_count, 0)) as heavy_count,
+        SUM(COALESCE(vibe_coder_count, 0)) as vibe_count,
+        SUM(COALESCE(casual_count, 0)) as casual_count
+      FROM community_reviews
+      WHERE model_id IN (${idPlaceholders})
+      GROUP BY model_id
+    `).bind(...modelIds).all(),
+
+    c.env.DB.prepare(`
+      SELECT mte.model_id, mte.task_profile_id,
+        tp.name as task_name, tp.slug as task_slug,
+        mte.first_attempt_success_rate, mte.avg_messages_to_complete,
+        mte.avg_minutes_to_complete, mte.steering_effort,
+        mte.autonomy_score, mte.cost_per_task_estimate, mte.time_value_per_task
+      FROM model_task_estimates mte
+      JOIN task_profiles tp ON tp.id = mte.task_profile_id
+      WHERE mte.model_id IN (${idPlaceholders})
+      ORDER BY tp.sort_order
+    `).bind(...modelIds).all(),
+
+    c.env.DB.prepare('SELECT id, name, slug, complexity FROM task_profiles ORDER BY sort_order').all(),
+  ]);
+
+  // Index all data by model_id
   const benchmarksByModel = {};
   const availByModel = {};
-  for (const b of benchmarks) {
-    if (!benchmarksByModel[b.model_id]) benchmarksByModel[b.model_id] = [];
-    benchmarksByModel[b.model_id].push(b);
+  const reviewByModel = {};
+  const tasksByModel = {};
+
+  for (const b of benchRes.results) {
+    (benchmarksByModel[b.model_id] ??= []).push(b);
   }
-  for (const a of availability) {
-    if (!availByModel[a.model_id]) availByModel[a.model_id] = [];
-    availByModel[a.model_id].push(a);
+  for (const a of availRes.results) {
+    (availByModel[a.model_id] ??= []).push(a);
+  }
+  for (const r of reviewRes.results) {
+    reviewByModel[r.model_id] = r;
+  }
+  for (const t of taskEstRes.results) {
+    if (!tasksByModel[t.model_id]) tasksByModel[t.model_id] = {};
+    tasksByModel[t.model_id][t.task_slug] = {
+      success_rate: t.first_attempt_success_rate,
+      avg_messages: t.avg_messages_to_complete,
+      avg_minutes: t.avg_minutes_to_complete,
+      steering_effort: t.steering_effort,
+      autonomy_score: t.autonomy_score,
+      cost_per_task: t.cost_per_task_estimate,
+      time_value: t.time_value_per_task,
+    };
   }
 
-  const comparison = models.map(m => ({
-    ...m,
-    benchmarks: benchmarksByModel[m.id] || [],
-    availability: availByModel[m.id] || [],
-    blended_cost: (m.input_price_per_mtok * 0.3 + m.output_price_per_mtok * 0.7),
-  }));
+  const comparison = models.map(m => {
+    const rev = reviewByModel[m.id];
+    return {
+      ...m,
+      benchmarks: benchmarksByModel[m.id] || [],
+      availability: availByModel[m.id] || [],
+      blended_cost: (m.input_price_per_mtok * 0.3 + m.output_price_per_mtok * 0.7),
+      score_components: {
+        swe_bench: m.swe_bench_component,
+        livecodebench: m.livecodebench_component,
+        nuance: m.nuance_component,
+        arena: m.arena_component,
+        tau: m.tau_component,
+        gpqa: m.gpqa_component,
+        success_rate: m.success_rate_component,
+        community: m.community_adjustment,
+      },
+      community: rev ? {
+        total_reviews: rev.total_reviews,
+        satisfaction: rev.avg_satisfaction,
+        sentiment: rev.avg_sentiment,
+        heavy_count: rev.heavy_count,
+        vibe_count: rev.vibe_count,
+        casual_count: rev.casual_count,
+      } : null,
+      task_estimates: tasksByModel[m.id] || {},
+    };
+  });
 
-  return c.json({ models: comparison });
+  return c.json({ models: comparison, task_profiles: taskProfileRes.results });
 });
 
 // GET /api/models/:slug

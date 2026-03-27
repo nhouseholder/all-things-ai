@@ -1,18 +1,23 @@
 import { useState, useMemo } from 'react';
 import {
-  ArrowRight,
-  ArrowDown,
   BarChart3,
   ChevronDown,
+  ChevronUp,
+  Crown,
   DollarSign,
+  Globe,
   Loader2,
   Scale,
   Search,
   Sparkles,
   X,
   Zap,
-  Globe,
 } from 'lucide-react';
+import {
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  Radar, ResponsiveContainer, Tooltip,
+  BarChart, Bar, XAxis, YAxis, Cell,
+} from 'recharts';
 import { api } from '../lib/api.js';
 import { useModels, useModelPricing } from '../lib/hooks.js';
 
@@ -21,6 +26,18 @@ const PRICE_TIERS = [
   { label: 'Budget', max: 2, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
   { label: 'Mid-range', max: 10, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
   { label: 'Premium', max: Infinity, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+];
+
+const MODEL_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'];
+
+const SCORE_DIMENSIONS = [
+  { key: 'swe_bench', label: 'SWE-bench' },
+  { key: 'livecodebench', label: 'LiveCode' },
+  { key: 'nuance', label: 'Nuance' },
+  { key: 'arena', label: 'Arena' },
+  { key: 'tau', label: 'TAU-bench' },
+  { key: 'gpqa', label: 'GPQA' },
+  { key: 'success_rate', label: 'Success Rate' },
 ];
 
 function getPriceTier(blendedCost) {
@@ -47,6 +64,20 @@ function scoreBarBg(score) {
   return 'bg-orange-500';
 }
 
+function steeringBadge(effort) {
+  const map = {
+    low: { bg: 'bg-green-500/15', text: 'text-green-400', border: 'border-green-500/30' },
+    medium: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
+    high: { bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/30' },
+  };
+  const s = map[effort] || map.medium;
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.bg} ${s.text} border ${s.border} capitalize`}>
+      {effort}
+    </span>
+  );
+}
+
 export default function ComparePage() {
   const { data: modelsData, isLoading: modelsLoading } = useModels();
   const { data: pricingData, isLoading: pricingLoading } = useModelPricing();
@@ -57,12 +88,15 @@ export default function ComparePage() {
 
   const [selected, setSelected] = useState([]);
   const [comparison, setComparison] = useState(null);
+  const [taskProfiles, setTaskProfiles] = useState([]);
   const [alternatives, setAlternatives] = useState(null);
   const [altModel, setAltModel] = useState('');
   const [comparing, setComparing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [activeTab, setActiveTab] = useState('compare');
+  const [selectedTask, setSelectedTask] = useState('');
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   // Compare selected models
   async function runComparison() {
@@ -71,6 +105,10 @@ export default function ComparePage() {
     try {
       const res = await api.compareModels(selected);
       setComparison(res.models || []);
+      setTaskProfiles(res.task_profiles || []);
+      if (res.task_profiles?.length && !selectedTask) {
+        setSelectedTask(res.task_profiles[0].slug);
+      }
     } catch { /* */ }
     finally { setComparing(false); }
   }
@@ -115,7 +153,6 @@ export default function ComparePage() {
       const tier = getPriceTier(blended);
       groups[tier.label]?.push({ ...m, blended_cost: blended, tier });
     }
-    // Sort each group by bang_for_buck descending
     for (const key of Object.keys(groups)) {
       groups[key].sort((a, b) => (b.bang_for_buck || 0) - (a.bang_for_buck || 0));
     }
@@ -130,20 +167,24 @@ export default function ComparePage() {
     );
   }
 
+  const tabs = [
+    { id: 'compare', label: 'Compare Models', icon: Scale },
+    { id: 'tasks', label: 'Task Performance', icon: Zap },
+    { id: 'availability', label: 'Where to Use', icon: Globe },
+    { id: 'alternatives', label: 'Find Alternatives', icon: Sparkles },
+    { id: 'pricing', label: 'Pricing Tiers', icon: DollarSign },
+  ];
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-white mb-1">Model Compare</h1>
-        <p className="text-sm text-gray-400">Side-by-side comparison, pricing tiers, and affordable alternatives.</p>
+        <p className="text-sm text-gray-400">Deep comparison with benchmarks, task performance, and availability.</p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 p-1 bg-gray-900 rounded-xl border border-gray-800 w-fit">
-        {[
-          { id: 'compare', label: 'Compare Models', icon: Scale },
-          { id: 'alternatives', label: 'Find Alternatives', icon: Sparkles },
-          { id: 'pricing', label: 'Pricing Tiers', icon: DollarSign },
-        ].map(tab => (
+      <div className="flex gap-1 mb-6 p-1 bg-gray-900 rounded-xl border border-gray-800 w-fit flex-wrap">
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -159,78 +200,75 @@ export default function ComparePage() {
         ))}
       </div>
 
+      {/* Model Picker — shared across compare/tasks/availability tabs */}
+      {['compare', 'tasks', 'availability'].includes(activeTab) && (
+        <ModelPicker
+          selected={selected}
+          allModels={allModels}
+          filteredModels={filteredModels}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          showPicker={showPicker}
+          setShowPicker={setShowPicker}
+          addModel={addModel}
+          removeModel={removeModel}
+          runComparison={runComparison}
+          comparing={comparing}
+        />
+      )}
+
       {/* ── Compare Tab ──────────────────────────────────── */}
-      {activeTab === 'compare' && (
-        <div>
-          {/* Model picker */}
-          <div className="mb-6">
-            <div className="flex flex-wrap gap-2 items-center">
-              {selected.map(slug => {
-                const m = allModels.find(m => m.slug === slug);
-                return (
-                  <div key={slug} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
-                    <span className="text-xs text-white font-medium">{m?.name || slug}</span>
-                    <button onClick={() => removeModel(slug)} className="text-gray-500 hover:text-red-400">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-              {selected.length < 4 && (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowPicker(!showPicker)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-gray-600 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
-                  >
-                    + Add Model
-                  </button>
-                  {showPicker && (
-                    <div className="absolute top-full left-0 mt-2 w-72 max-h-64 overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
-                      <div className="sticky top-0 bg-gray-900 p-2 border-b border-gray-800">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-500" />
-                          <input
-                            autoFocus
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            placeholder="Search models..."
-                            className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder:text-gray-500 outline-none focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      {filteredModels.filter(m => !selected.includes(m.slug)).map(m => (
-                        <button
-                          key={m.slug}
-                          onClick={() => addModel(m.slug)}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0"
-                        >
-                          <p className="text-xs text-white font-medium">{m.name}</p>
-                          <p className="text-[10px] text-gray-500">{m.vendor} · {m.input_price_per_mtok != null ? `$${m.input_price_per_mtok}/$${m.output_price_per_mtok} per MTok` : 'Free'}</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {selected.length >= 2 && (
-                <button
-                  onClick={runComparison}
-                  disabled={comparing}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
-                >
-                  {comparing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5" />}
-                  Compare
-                </button>
-              )}
-            </div>
-            {selected.length < 2 && (
-              <p className="text-[10px] text-gray-500 mt-2">Select 2-4 models to compare side by side</p>
-            )}
+      {activeTab === 'compare' && comparison && comparison.length > 0 && (
+        <div className="space-y-6">
+          {/* Radar Chart */}
+          <RadarComparisonChart models={comparison} />
+
+          {/* Score Breakdown (expandable) */}
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden">
+            <button
+              onClick={() => setShowBreakdown(!showBreakdown)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50 transition-colors"
+            >
+              <span className="text-xs font-semibold text-white flex items-center gap-2">
+                <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                Score Component Breakdown
+              </span>
+              {showBreakdown
+                ? <ChevronUp className="w-4 h-4 text-gray-500" />
+                : <ChevronDown className="w-4 h-4 text-gray-500" />
+              }
+            </button>
+            {showBreakdown && <ScoreBreakdown models={comparison} />}
           </div>
 
-          {/* Comparison results */}
-          {comparison && comparison.length > 0 && (
-            <ComparisonTable models={comparison} />
+          {/* Main Comparison Table */}
+          <ComparisonTable models={comparison} />
+        </div>
+      )}
+
+      {/* ── Task Performance Tab ────────────────────────── */}
+      {activeTab === 'tasks' && (
+        <div>
+          {!comparison || comparison.length === 0 ? (
+            <p className="text-sm text-gray-500 mt-4">Select and compare 2-4 models first to see task performance.</p>
+          ) : (
+            <TaskPerformanceTab
+              models={comparison}
+              taskProfiles={taskProfiles}
+              selectedTask={selectedTask}
+              setSelectedTask={setSelectedTask}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── Where to Use Tab ────────────────────────────── */}
+      {activeTab === 'availability' && (
+        <div>
+          {!comparison || comparison.length === 0 ? (
+            <p className="text-sm text-gray-500 mt-4">Select and compare 2-4 models first to see availability.</p>
+          ) : (
+            <AvailabilityMatrix models={comparison} />
           )}
         </div>
       )}
@@ -387,15 +425,481 @@ export default function ComparePage() {
   );
 }
 
-// ── Comparison Table ────────────────────────────────────────────
+// ── Model Picker (shared) ────────────────────────────────────────
+function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearchTerm, showPicker, setShowPicker, addModel, removeModel, runComparison, comparing }) {
+  return (
+    <div className="mb-6">
+      <div className="flex flex-wrap gap-2 items-center">
+        {selected.map(slug => {
+          const m = allModels.find(m => m.slug === slug);
+          const idx = selected.indexOf(slug);
+          return (
+            <div key={slug} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[idx] }} />
+              <span className="text-xs text-white font-medium">{m?.name || slug}</span>
+              <button onClick={() => removeModel(slug)} className="text-gray-500 hover:text-red-400">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })}
+        {selected.length < 4 && (
+          <div className="relative">
+            <button
+              onClick={() => setShowPicker(!showPicker)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-gray-600 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
+            >
+              + Add Model
+            </button>
+            {showPicker && (
+              <div className="absolute top-full left-0 mt-2 w-72 max-h-64 overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
+                <div className="sticky top-0 bg-gray-900 p-2 border-b border-gray-800">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-500" />
+                    <input
+                      autoFocus
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      placeholder="Search models..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder:text-gray-500 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                {filteredModels.filter(m => !selected.includes(m.slug)).map(m => (
+                  <button
+                    key={m.slug}
+                    onClick={() => addModel(m.slug)}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0"
+                  >
+                    <p className="text-xs text-white font-medium">{m.name}</p>
+                    <p className="text-[10px] text-gray-500">{m.vendor} · {m.input_price_per_mtok != null ? `$${m.input_price_per_mtok}/$${m.output_price_per_mtok} per MTok` : 'Free'}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {selected.length >= 2 && (
+          <button
+            onClick={runComparison}
+            disabled={comparing}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            {comparing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5" />}
+            Compare
+          </button>
+        )}
+      </div>
+      {selected.length < 2 && (
+        <p className="text-[10px] text-gray-500 mt-2">Select 2-4 models to compare side by side</p>
+      )}
+    </div>
+  );
+}
 
+// ── Radar Comparison Chart ───────────────────────────────────────
+function RadarComparisonChart({ models }) {
+  // Build radar data from score components
+  const radarData = SCORE_DIMENSIONS.map(dim => {
+    const point = { dimension: dim.label };
+    for (const m of models) {
+      const val = m.score_components?.[dim.key];
+      // Normalize component scores to 0-100 scale (they're weighted portions, scale up)
+      point[m.slug] = val != null ? Math.min(100, Math.round(val * 5)) : 0;
+    }
+    return point;
+  });
+
+  const hasData = radarData.some(d => models.some(m => d[m.slug] > 0));
+  if (!hasData) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
+      <h3 className="text-xs font-semibold text-white mb-3 flex items-center gap-2">
+        <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+        Capability Profile
+      </h3>
+      <div className="flex items-center gap-4 mb-2 flex-wrap">
+        {models.map((m, i) => (
+          <div key={m.slug} className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
+            <span className="text-[10px] text-gray-400">{m.name}</span>
+          </div>
+        ))}
+      </div>
+      <ResponsiveContainer width="100%" height={280}>
+        <RadarChart data={radarData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
+          <PolarGrid stroke="#374151" />
+          <PolarAngleAxis dataKey="dimension" tick={{ fill: '#9ca3af', fontSize: 10 }} />
+          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+          {models.map((m, i) => (
+            <Radar
+              key={m.slug}
+              name={m.name}
+              dataKey={m.slug}
+              stroke={MODEL_COLORS[i]}
+              fill={MODEL_COLORS[i]}
+              fillOpacity={0.1}
+              strokeWidth={2}
+            />
+          ))}
+          <Tooltip
+            contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px' }}
+            itemStyle={{ color: '#e5e7eb' }}
+          />
+        </RadarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Score Component Breakdown ────────────────────────────────────
+function ScoreBreakdown({ models }) {
+  return (
+    <div className="px-4 pb-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-800">
+              <th className="text-left py-2 px-2 text-gray-500 font-medium w-28">Component</th>
+              {models.map((m, i) => (
+                <th key={m.slug} className="text-center py-2 px-2">
+                  <span className="text-white font-medium">{m.name}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-800/50">
+            {SCORE_DIMENSIONS.map(dim => {
+              const vals = models.map(m => m.score_components?.[dim.key] ?? 0);
+              const max = Math.max(...vals);
+              return (
+                <tr key={dim.key}>
+                  <td className="py-2 px-2 text-gray-500 font-medium">{dim.label}</td>
+                  {models.map((m, i) => {
+                    const val = m.score_components?.[dim.key];
+                    const normalized = val != null ? Math.min(100, val * 5) : 0;
+                    const isWinner = val != null && val === max && max > 0;
+                    return (
+                      <td key={m.slug} className="py-2 px-2">
+                        <div className="flex items-center gap-2 justify-center">
+                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${normalized}%`, backgroundColor: MODEL_COLORS[i] }}
+                            />
+                          </div>
+                          <span className={`text-[10px] font-medium ${isWinner ? 'text-white' : 'text-gray-400'}`}>
+                            {val != null ? val.toFixed(1) : '—'}
+                          </span>
+                          {isWinner && <Crown className="w-3 h-3 text-yellow-400" />}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+            {/* Community adjustment */}
+            <tr>
+              <td className="py-2 px-2 text-gray-500 font-medium">Community</td>
+              {models.map((m) => {
+                const val = m.score_components?.community;
+                return (
+                  <td key={m.slug} className="py-2 px-2 text-center">
+                    <span className={`text-[10px] font-medium ${val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                      {val != null ? (val > 0 ? '+' : '') + val.toFixed(1) : '—'}
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+            {/* Total */}
+            <tr className="border-t-2 border-gray-700">
+              <td className="py-2 px-2 text-white font-semibold">Total Score</td>
+              {models.map(m => {
+                const best = Math.max(...models.map(mm => mm.composite_score || 0));
+                const isWinner = m.composite_score === best && best > 0;
+                return (
+                  <td key={m.slug} className="py-2 px-2 text-center">
+                    <span className={`text-sm font-bold ${isWinner ? 'text-white' : scoreColor(m.composite_score || 0)}`}>
+                      {m.composite_score?.toFixed(1) || '—'}
+                    </span>
+                    {isWinner && <Crown className="w-3 h-3 text-yellow-400 inline ml-1" />}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Task Performance Tab ─────────────────────────────────────────
+function TaskPerformanceTab({ models, taskProfiles, selectedTask, setSelectedTask }) {
+  const taskData = useMemo(() => {
+    if (!selectedTask) return null;
+    return models.map(m => ({
+      slug: m.slug,
+      name: m.name,
+      ...m.task_estimates?.[selectedTask],
+    }));
+  }, [models, selectedTask]);
+
+  const successData = useMemo(() => {
+    if (!taskData) return [];
+    return taskData
+      .filter(d => d.success_rate != null)
+      .map((d, i) => ({
+        name: d.name.length > 18 ? d.name.substring(0, 16) + '…' : d.name,
+        rate: Math.round((d.success_rate || 0) * 100),
+        fill: MODEL_COLORS[i],
+      }));
+  }, [taskData]);
+
+  if (!taskProfiles?.length) {
+    return <p className="text-sm text-gray-500 mt-4">No task profiles available.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Task selector */}
+      <div>
+        <label className="text-xs text-gray-400 mb-2 block">Select task type:</label>
+        <div className="flex flex-wrap gap-2">
+          {taskProfiles.map(tp => (
+            <button
+              key={tp.slug}
+              onClick={() => setSelectedTask(tp.slug)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                selectedTask === tp.slug
+                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                  : 'bg-gray-800 text-gray-400 border border-gray-700 hover:text-white'
+              }`}
+            >
+              {tp.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Success rate bar chart */}
+      {successData.length > 0 && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
+          <h3 className="text-xs font-semibold text-white mb-3">First-Attempt Success Rate</h3>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={successData} layout="vertical" margin={{ left: 0, right: 20 }}>
+              <XAxis type="number" domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 10 }} tickFormatter={v => `${v}%`} />
+              <YAxis type="category" dataKey="name" tick={{ fill: '#e5e7eb', fontSize: 11 }} width={120} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px' }}
+                formatter={(v) => [`${v}%`, 'Success Rate']}
+              />
+              <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
+                {successData.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Detailed metrics table */}
+      {taskData && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-800">
+                  <th className="text-left py-3 px-3 text-gray-500 font-medium">Metric</th>
+                  {taskData.map((d, i) => (
+                    <th key={d.slug} className="text-center py-3 px-3">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
+                        <span className="text-white font-medium">{d.name}</span>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/50">
+                <TaskRow label="Success Rate" data={taskData} accessor={d => d.success_rate}
+                  format={v => v != null ? `${Math.round(v * 100)}%` : '—'}
+                  best={d => d.success_rate || 0} higher />
+                <TaskRow label="Cost / Task" data={taskData} accessor={d => d.cost_per_task}
+                  format={v => v != null ? `$${v.toFixed(3)}` : '—'}
+                  best={d => d.cost_per_task || 999} />
+                <TaskRow label="Avg Minutes" data={taskData} accessor={d => d.avg_minutes}
+                  format={v => v != null ? `${v.toFixed(1)} min` : '—'}
+                  best={d => d.avg_minutes || 999} />
+                <TaskRow label="Avg Messages" data={taskData} accessor={d => d.avg_messages}
+                  format={v => v != null ? v.toFixed(1) : '—'}
+                  best={d => d.avg_messages || 999} />
+                <TaskRow label="Autonomy" data={taskData} accessor={d => d.autonomy_score}
+                  format={v => v != null ? `${v}/100` : '—'}
+                  best={d => d.autonomy_score || 0} higher />
+                <tr>
+                  <td className="py-2.5 px-3 text-gray-500 font-medium">Steering</td>
+                  {taskData.map(d => (
+                    <td key={d.slug} className="py-2.5 px-3 text-center">
+                      {d.steering_effort ? steeringBadge(d.steering_effort) : <span className="text-gray-600">—</span>}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskRow({ label, data, accessor, format, best, higher = false }) {
+  const vals = data.map(d => accessor(d)).filter(v => v != null);
+  const bestVal = vals.length > 0 ? (higher ? Math.max(...vals) : Math.min(...vals)) : null;
+
+  return (
+    <tr>
+      <td className="py-2.5 px-3 text-gray-500 font-medium">{label}</td>
+      {data.map(d => {
+        const val = accessor(d);
+        const isWinner = val != null && val === bestVal && vals.length > 1;
+        return (
+          <td key={d.slug} className={`py-2.5 px-3 text-center font-medium ${isWinner ? 'text-white' : 'text-gray-300'}`}>
+            <span className="inline-flex items-center gap-1">
+              {format(val)}
+              {isWinner && <Crown className="w-3 h-3 text-yellow-400" />}
+            </span>
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+// ── Availability Matrix Tab ──────────────────────────────────────
+function AvailabilityMatrix({ models }) {
+  // Collect all unique tools across all models
+  const allTools = useMemo(() => {
+    const toolMap = new Map();
+    for (const m of models) {
+      for (const a of (m.availability || [])) {
+        if (!toolMap.has(a.tool_slug)) {
+          toolMap.set(a.tool_slug, a.tool_name);
+        }
+      }
+    }
+    return [...toolMap.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [models]);
+
+  // Find cheapest plan per model
+  const cheapestPerModel = useMemo(() => {
+    const result = {};
+    for (const m of models) {
+      const plans = (m.availability || []).filter(a => a.price_monthly != null);
+      if (plans.length > 0) {
+        result[m.slug] = Math.min(...plans.map(a => a.price_monthly));
+      }
+    }
+    return result;
+  }, [models]);
+
+  if (allTools.length === 0) {
+    return <p className="text-sm text-gray-500 mt-4">No availability data for these models.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Cheapest access summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {models.map((m, i) => {
+          const cheapest = cheapestPerModel[m.slug];
+          const cheapestPlan = (m.availability || []).find(a => a.price_monthly === cheapest);
+          return (
+            <div key={m.slug} className="rounded-xl border border-gray-800 bg-gray-900/50 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
+                <span className="text-xs font-semibold text-white truncate">{m.name}</span>
+              </div>
+              {cheapest != null ? (
+                <>
+                  <p className="text-lg font-bold text-green-400">${cheapest}<span className="text-[10px] text-gray-500">/mo</span></p>
+                  <p className="text-[10px] text-gray-500 truncate">{cheapestPlan?.tool_name} {cheapestPlan?.plan_name ? `· ${cheapestPlan.plan_name}` : ''}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-bold text-cyan-400">BYOK</p>
+                  <p className="text-[10px] text-gray-500">API access only</p>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Full availability matrix */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-3 px-3 text-gray-500 font-medium w-32">Platform</th>
+                {models.map((m, i) => (
+                  <th key={m.slug} className="text-center py-3 px-3">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
+                      <span className="text-white font-medium">{m.name}</span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800/50">
+              {allTools.map(([toolSlug, toolName]) => (
+                <tr key={toolSlug}>
+                  <td className="py-2.5 px-3 text-gray-400 font-medium">{toolName}</td>
+                  {models.map(m => {
+                    const plans = (m.availability || []).filter(a => a.tool_slug === toolSlug);
+                    if (plans.length === 0) {
+                      return <td key={m.slug} className="py-2.5 px-3 text-center text-gray-700">—</td>;
+                    }
+                    const cheapest = plans.reduce((min, p) => (p.price_monthly || 0) < (min.price_monthly || Infinity) ? p : min, plans[0]);
+                    const isCheapestOverall = cheapest.price_monthly != null && cheapest.price_monthly === cheapestPerModel[m.slug];
+                    return (
+                      <td key={m.slug} className="py-2.5 px-3 text-center">
+                        <div className="space-y-0.5">
+                          {plans.slice(0, 2).map((p, j) => (
+                            <div key={j} className={`text-[10px] ${p === cheapest && isCheapestOverall ? 'text-green-400 font-semibold' : 'text-gray-400'}`}>
+                              {p.plan_name || 'Default'}{p.price_monthly != null ? ` $${p.price_monthly}/mo` : ' BYOK'}
+                            </div>
+                          ))}
+                          {plans.length > 2 && (
+                            <div className="text-[9px] text-gray-600">+{plans.length - 2} more</div>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Comparison Table ────────────────────────────────────────────
 function ComparisonTable({ models }) {
   if (!models?.length) return null;
 
-  // All benchmark names across all models
   const allBenchmarks = [...new Set(models.flatMap(m => m.benchmarks?.map(b => b.benchmark_name) || []))];
 
-  // Find the "best" value for highlighting
   function bestOf(key, higher = true) {
     const vals = models.map(m => m[key]).filter(v => v != null);
     return higher ? Math.max(...vals) : Math.min(...vals);
@@ -404,90 +908,113 @@ function ComparisonTable({ models }) {
   const bestComposite = bestOf('composite_score');
   const lowestInput = bestOf('input_price_per_mtok', false);
   const lowestOutput = bestOf('output_price_per_mtok', false);
+  const largestContext = bestOf('context_window');
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-gray-800">
-            <th className="text-left py-3 px-3 text-gray-500 font-medium w-32">Metric</th>
-            {models.map(m => (
-              <th key={m.slug} className="text-center py-3 px-3">
-                <p className="text-white font-semibold">{m.name}</p>
-                <p className="text-[10px] text-gray-500 font-normal">{m.vendor}</p>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-800/50">
-          {/* Composite Score */}
-          <CompRow label="AllThingsAI Score" models={models} accessor={m => m.composite_score}
-            format={v => v?.toFixed(1) || '—'}
-            highlight={v => v === bestComposite}
-          />
-
-          {/* Pricing */}
-          <CompRow label="Input $/MTok" models={models} accessor={m => m.input_price_per_mtok}
-            format={v => formatPrice(v)}
-            highlight={v => v === lowestInput}
-            highlightColor="text-green-400"
-          />
-          <CompRow label="Output $/MTok" models={models} accessor={m => m.output_price_per_mtok}
-            format={v => formatPrice(v)}
-            highlight={v => v === lowestOutput}
-            highlightColor="text-green-400"
-          />
-          <CompRow label="Blended $/MTok" models={models} accessor={m => m.blended_cost}
-            format={v => formatPrice(v)}
-          />
-
-          {/* Context */}
-          <CompRow label="Context Window" models={models} accessor={m => m.context_window}
-            format={v => v ? `${(v / 1000).toFixed(0)}K` : '—'}
-          />
-
-          {/* Open Weight */}
-          <CompRow label="Open Source" models={models} accessor={m => m.is_open_weight}
-            format={v => v ? 'Yes' : 'No'}
-          />
-
-          {/* Benchmarks */}
-          {allBenchmarks.map(name => {
-            const bestScore = Math.max(...models.map(m => {
-              const b = m.benchmarks?.find(b => b.benchmark_name === name);
-              return b?.score || 0;
-            }));
-            return (
-              <CompRow key={name} label={name} models={models}
-                accessor={m => m.benchmarks?.find(b => b.benchmark_name === name)?.score}
-                format={v => v != null ? Number(v).toFixed(1) : '—'}
-                highlight={v => v === bestScore && bestScore > 0}
-              />
-            );
-          })}
-
-          {/* Availability */}
-          <tr>
-            <td className="py-3 px-3 text-gray-500 font-medium align-top">Available on</td>
-            {models.map(m => (
-              <td key={m.slug} className="py-3 px-3 text-center align-top">
-                {m.availability?.length > 0 ? (
-                  <div className="space-y-1">
-                    {m.availability.slice(0, 4).map((a, i) => (
-                      <div key={i} className="text-[10px] text-gray-400">
-                        {a.tool_name}{a.plan_name ? ` (${a.plan_name})` : ''}
-                        {a.price_monthly ? <span className="text-green-400"> ${a.price_monthly}/mo</span> : null}
-                      </div>
-                    ))}
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-800">
+              <th className="text-left py-3 px-3 text-gray-500 font-medium w-32">Metric</th>
+              {models.map((m, i) => (
+                <th key={m.slug} className="text-center py-3 px-3">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
+                    <div>
+                      <p className="text-white font-semibold">{m.name}</p>
+                      <p className="text-[10px] text-gray-500 font-normal">{m.vendor}</p>
+                    </div>
                   </div>
-                ) : (
-                  <span className="text-[10px] text-gray-500">API only</span>
-                )}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-800/50">
+            <CompRow label="AllThingsAI Score" models={models} accessor={m => m.composite_score}
+              format={v => v?.toFixed(1) || '—'}
+              highlight={v => v === bestComposite && bestComposite > 0}
+            />
+            <CompRow label="Input $/MTok" models={models} accessor={m => m.input_price_per_mtok}
+              format={v => formatPrice(v)}
+              highlight={v => v === lowestInput}
+              highlightColor="text-green-400"
+            />
+            <CompRow label="Output $/MTok" models={models} accessor={m => m.output_price_per_mtok}
+              format={v => formatPrice(v)}
+              highlight={v => v === lowestOutput}
+              highlightColor="text-green-400"
+            />
+            <CompRow label="Blended $/MTok" models={models} accessor={m => m.blended_cost}
+              format={v => formatPrice(v)}
+            />
+            <CompRow label="Context Window" models={models} accessor={m => m.context_window}
+              format={v => v ? `${(v / 1000).toFixed(0)}K` : '—'}
+              highlight={v => v === largestContext && largestContext > 0}
+            />
+            <CompRow label="Open Source" models={models} accessor={m => m.is_open_weight}
+              format={v => v ? 'Yes' : 'No'}
+            />
+
+            {/* Community sentiment */}
+            <tr>
+              <td className="py-2.5 px-3 text-gray-500 font-medium">Community</td>
+              {models.map(m => (
+                <td key={m.slug} className="py-2.5 px-3 text-center">
+                  {m.community ? (
+                    <div className="space-y-0.5">
+                      <div className={`text-xs font-bold ${scoreColor(m.community.satisfaction || 0)}`}>
+                        {m.community.satisfaction || '—'}%
+                      </div>
+                      <div className="text-[9px] text-gray-500">
+                        {m.community.total_reviews} reviews
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-600">No reviews</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+
+            {/* Benchmarks */}
+            {allBenchmarks.map(name => {
+              const bestScore = Math.max(...models.map(m => {
+                const b = m.benchmarks?.find(b => b.benchmark_name === name);
+                return b?.score || 0;
+              }));
+              return (
+                <CompRow key={name} label={name} models={models}
+                  accessor={m => m.benchmarks?.find(b => b.benchmark_name === name)?.score}
+                  format={v => v != null ? Number(v).toFixed(1) : '—'}
+                  highlight={v => v === bestScore && bestScore > 0}
+                />
+              );
+            })}
+
+            {/* Availability */}
+            <tr>
+              <td className="py-3 px-3 text-gray-500 font-medium align-top">Available on</td>
+              {models.map(m => (
+                <td key={m.slug} className="py-3 px-3 text-center align-top">
+                  {m.availability?.length > 0 ? (
+                    <div className="space-y-1">
+                      {m.availability.slice(0, 4).map((a, i) => (
+                        <div key={i} className="text-[10px] text-gray-400">
+                          {a.tool_name}{a.plan_name ? ` (${a.plan_name})` : ''}
+                          {a.price_monthly ? <span className="text-green-400"> ${a.price_monthly}/mo</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-500">API only</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -502,7 +1029,10 @@ function CompRow({ label, models, accessor, format, highlight, highlightColor = 
         const isHighlighted = highlight?.(val);
         return (
           <td key={m.slug} className={`py-2.5 px-3 text-center font-medium ${isHighlighted ? highlightColor + ' font-bold' : 'text-gray-300'}`}>
-            {formatted}
+            <span className="inline-flex items-center gap-1">
+              {formatted}
+              {isHighlighted && <Crown className="w-3 h-3 text-yellow-400" />}
+            </span>
           </td>
         );
       })}
