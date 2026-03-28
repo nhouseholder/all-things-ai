@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Lightbulb,
   X,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useRecommendations, useFeed, useDismissRecommendation } from '../lib/hooks.js';
+import { setPageTitle } from '../lib/format.js';
 import { SkeletonDashboard } from '../components/Skeleton.jsx';
 
 const TYPE_STYLES = {
@@ -187,6 +188,7 @@ function StatCard({ icon: Icon, label, value, color }) {
 }
 
 export default function DashboardPage() {
+  useEffect(() => { setPageTitle('Dashboard'); }, []);
   const recsQuery = useRecommendations();
   const feedQuery = useFeed();
   const dismissMutation = useDismissRecommendation();

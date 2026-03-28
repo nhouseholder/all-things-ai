@@ -7,7 +7,6 @@ import {
   Zap,
   Trophy,
   Coins,
-  Loader2,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -28,24 +27,11 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import ChartContainer from '../components/ChartContainer.jsx';
 import { quartileColor } from '../lib/chart-utils.js';
-import { api } from '../lib/api.js';
+import { useRankings, useTaskProfiles } from '../lib/hooks.js';
+import { compositeColor, compositeBarBg, setPageTitle } from '../lib/format.js';
 
 const VERSION = 'v0.7.0';
 const BUILD_DATE = 'Mar 28, 2026';
-
-function compositeColor(score) {
-  if (score >= 85) return 'text-green-400';
-  if (score >= 70) return 'text-blue-400';
-  if (score >= 55) return 'text-yellow-400';
-  return 'text-orange-400';
-}
-
-function compositeBarBg(score) {
-  if (score >= 85) return 'bg-green-500';
-  if (score >= 70) return 'bg-blue-500';
-  if (score >= 55) return 'bg-yellow-500';
-  return 'bg-orange-500';
-}
 
 const TASK_ICONS = {
   'complex-debugging': Bug,
@@ -58,32 +44,17 @@ const TASK_ICONS = {
 };
 
 export default function HomePage() {
-  const [rankings, setRankings] = useState(null);
-  const [tasks, setTasks] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: rankings, isLoading: rankingsLoading } = useRankings();
+  const { data: tasksData, isLoading: tasksLoading } = useTaskProfiles();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [rankingsRes, tasksRes] = await Promise.all([
-          api.getRankings(),
-          api.getTaskProfiles(),
-        ]);
-        setRankings(rankingsRes);
-        setTasks(Array.isArray(tasksRes) ? tasksRes : tasksRes.tasks ?? []);
-      } catch {
-        // Non-critical
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
+  const loading = rankingsLoading || tasksLoading;
+  const tasks = Array.isArray(tasksData) ? tasksData : tasksData?.tasks ?? [];
   const topOverall = rankings?.best_overall?.slice(0, 10) || [];
   const topValue = rankings?.bang_for_buck?.slice(0, 10) || [];
   const modelCount = rankings?.best_overall?.length || 0;
   const taskCount = tasks?.length || 0;
+
+  useEffect(() => { setPageTitle(null); }, []);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -274,9 +245,31 @@ export default function HomePage() {
 
       {/* ── Live Rankings Preview ─────────────────────────────────── */}
       {loading ? (
-        <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-        </div>
+        <section className="mb-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[1, 2].map(i => (
+              <div key={i} className="rounded-xl border border-gray-800 overflow-hidden">
+                <div className="bg-gray-900/50 border-b border-gray-800 px-4 py-3">
+                  <div className="h-4 w-32 bg-gray-800 rounded animate-pulse" />
+                  <div className="h-3 w-48 bg-gray-800/50 rounded animate-pulse mt-1" />
+                </div>
+                <div className="divide-y divide-gray-800">
+                  {[1, 2, 3, 4, 5].map(j => (
+                    <div key={j} className="flex items-center gap-3 px-4 py-2.5">
+                      <div className="w-5 h-4 bg-gray-800 rounded animate-pulse" />
+                      <div className="flex-1">
+                        <div className="h-3.5 w-28 bg-gray-800 rounded animate-pulse" />
+                        <div className="h-2.5 w-16 bg-gray-800/50 rounded animate-pulse mt-1" />
+                      </div>
+                      <div className="w-16 h-1.5 bg-gray-800 rounded-full animate-pulse" />
+                      <div className="w-8 h-3.5 bg-gray-800 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : (
         <section className="mb-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

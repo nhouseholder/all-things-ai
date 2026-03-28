@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Loader2,
   Save,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { usePreferences } from '../lib/hooks.js';
+import { setPageTitle } from '../lib/format.js';
 
 const LANGUAGES = ['Python', 'JavaScript', 'TypeScript', 'Go', 'Rust'];
 
@@ -53,6 +54,7 @@ function Toggle({ checked, onChange, label }) {
 }
 
 export default function SettingsPage() {
+  useEffect(() => { setPageTitle('Settings'); }, []);
   const { data: prefsData, isLoading: loading, error: queryError } = usePreferences();
   const [prefs, setPrefs] = useState(null);
   const [saving, setSaving] = useState(false);

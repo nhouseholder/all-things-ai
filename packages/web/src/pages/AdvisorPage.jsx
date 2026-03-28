@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { setPageTitle } from '../lib/format.js';
 import {
   Loader2,
   Bug,
@@ -1127,6 +1128,7 @@ function TaskSubRankings({ taskRankings }) {
 // ── Main Page Component ─────────────────────────────────────────────────
 
 export default function AdvisorPage() {
+  useEffect(() => { setPageTitle('Models & Rankings'); }, []);
   const [rankings, setRankings] = useState(null);
   const [modelAvailability, setModelAvailability] = useState(null);
   const [taskProfiles, setTaskProfiles] = useState(null);

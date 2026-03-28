@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { setPageTitle } from '../lib/format.js';
 import {
   Loader2, Search, Check, X, ArrowRight, TrendingDown,
   Zap, DollarSign, Cpu, ChevronDown, ChevronUp, Sparkles,
@@ -163,6 +164,7 @@ function AvailabilityCard({ model }) {
 }
 
 export default function CostPage() {
+  useEffect(() => { setPageTitle('Optimize Costs'); }, []);
   const { data, isLoading, error } = useOptimizer();
   const { data: prefsData } = usePreferences();
 

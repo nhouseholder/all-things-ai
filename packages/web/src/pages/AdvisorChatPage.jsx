@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { setPageTitle } from '../lib/format.js';
 import { Link } from 'react-router-dom';
 import {
   Send, Loader2, Bot, User, RotateCcw, Sparkles,
@@ -169,8 +170,9 @@ export default function AdvisorChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Focus input on mount
+  // Focus input on mount + set page title
   useEffect(() => {
+    setPageTitle('AI Advisor');
     inputRef.current?.focus();
   }, []);
 

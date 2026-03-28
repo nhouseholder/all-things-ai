@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Loader2,
   ChevronDown,
@@ -14,6 +14,7 @@ import {
   ThumbsDown,
 } from 'lucide-react';
 import { useTools, useToolRankings } from '../lib/hooks.js';
+import { setPageTitle } from '../lib/format.js';
 import RankingChart from '../components/RankingChart.jsx';
 
 const TOOL_DIMENSIONS = [
@@ -286,6 +287,7 @@ function ToolCard({ tool }) {
 }
 
 export default function ToolsPage() {
+  useEffect(() => { setPageTitle('Tools'); }, []);
   const [category, setCategory] = useState('all');
   const { data: toolsData, isLoading: loading, error: queryError } = useTools();
   const { data: rankingsData } = useToolRankings();

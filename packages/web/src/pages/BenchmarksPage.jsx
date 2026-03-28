@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { setPageTitle } from '../lib/format.js';
 import {
   Loader2,
   BarChart3,
@@ -496,6 +497,7 @@ function TokenPricingTab() {
 
 // ── Main Page ──────────────────────────────────────────────────────────
 export default function BenchmarksPage() {
+  useEffect(() => { setPageTitle('Benchmarks'); }, []);
   const [category, setCategory] = useState('');
   const [selectedModel, setSelectedModel] = useState(null);
   const [activeTab, setActiveTab] = useState('benchmarks');

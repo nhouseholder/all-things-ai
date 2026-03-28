@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { setPageTitle } from '../lib/format.js';
 import { Link } from 'react-router-dom';
 import {
   Loader2, Search, Filter, ExternalLink, Star, ChevronDown, ChevronUp,
@@ -213,6 +214,7 @@ function ToolCard({ tool }) {
 }
 
 export default function CodingToolsPage() {
+  useEffect(() => { setPageTitle('Plugins & Tools'); }, []);
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [search, setSearch] = useState('');

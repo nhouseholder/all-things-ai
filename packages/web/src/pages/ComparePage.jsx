@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { setPageTitle } from '../lib/format.js';
 import {
   BarChart3,
   ChevronDown,
@@ -80,6 +81,7 @@ function steeringBadge(effort) {
 }
 
 export default function ComparePage() {
+  useEffect(() => { setPageTitle('Compare Models'); }, []);
   const { data: modelsData, isLoading: modelsLoading } = useModels();
   const { data: pricingData, isLoading: pricingLoading } = useModelPricing();
   const loading = modelsLoading || pricingLoading;

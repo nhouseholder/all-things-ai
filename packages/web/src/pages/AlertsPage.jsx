@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, Check, CheckCheck, X, ExternalLink, Zap, DollarSign, Box, Sparkles, Megaphone, Filter } from 'lucide-react';
+import { setPageTitle } from '../lib/format.js';
 import { useAlerts, useMarkAlertRead, useMarkAllAlertsRead, useDismissAlert } from '../lib/hooks.js';
 
 const EVENT_TYPE_CONFIG = {
@@ -29,6 +30,7 @@ function timeAgo(dateStr) {
 }
 
 export default function AlertsPage() {
+  useEffect(() => { setPageTitle('Industry Alerts'); }, []);
   const [filter, setFilter] = useState({});
   const { data, isLoading } = useAlerts(filter);
   const markRead = useMarkAlertRead();
