@@ -17,6 +17,7 @@ const CodingToolsPage = lazy(() => import('./pages/CodingToolsPage.jsx'));
 const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
 const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage.jsx'));
+const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 
 function PageLoader() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="success-rate" element={<Navigate to="/advisor" replace />} />
           <Route path="coding-tools" element={<CodingToolsPage />} />
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
+          <Route path="news" element={<NewsPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />

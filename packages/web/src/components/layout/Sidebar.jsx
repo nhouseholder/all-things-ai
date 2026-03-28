@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Bell } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Bell, Newspaper } from 'lucide-react';
 import { useUnreadAlertCount } from '../../lib/hooks.js';
 
 const links = [
@@ -11,6 +11,7 @@ const links = [
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },
   { to: '/cost', icon: DollarSign, label: 'Optimize' },
+  { to: '/news', icon: Newspaper, label: 'News' },
   { to: '/alerts', icon: Bell, label: 'Alerts', hasBadge: true },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/settings', icon: Settings, label: 'Settings' },
