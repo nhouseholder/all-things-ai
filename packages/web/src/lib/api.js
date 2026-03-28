@@ -23,6 +23,7 @@ export const api = {
   // Tools
   getTools: () => request('/api/tools'),
   getTool: (slug) => request(`/api/tools/${slug}`),
+  getToolPlans: () => request('/api/tools/plans'),
 
   // Models
   getModels: () => request('/api/models'),

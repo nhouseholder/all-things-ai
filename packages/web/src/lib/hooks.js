@@ -11,6 +11,10 @@ export function useTools() {
   return useQuery({ queryKey: ['tools'], queryFn: api.getTools });
 }
 
+export function useToolPlans() {
+  return useQuery({ queryKey: ['tools', 'plans'], queryFn: api.getToolPlans });
+}
+
 // Models
 export function useModels() {
   return useQuery({ queryKey: ['models'], queryFn: api.getModels });

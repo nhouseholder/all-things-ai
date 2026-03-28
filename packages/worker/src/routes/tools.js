@@ -8,7 +8,9 @@ toolsRoutes.get('/', async (c) => {
     SELECT t.*,
       (SELECT json_group_array(json_object(
         'id', pp.id, 'plan_name', pp.plan_name, 'price_monthly', pp.price_monthly,
-        'price_yearly', pp.price_yearly, 'features', pp.features, 'models_included', pp.models_included
+        'price_yearly', pp.price_yearly, 'features', pp.features, 'models_included', pp.models_included,
+        'included_requests', pp.included_requests, 'overage_model', pp.overage_model,
+        'overage_rate_description', pp.overage_rate_description, 'usage_notes', pp.usage_notes
       )) FROM pricing_plans pp WHERE pp.tool_id = t.id AND pp.is_current = 1) as plans,
       (SELECT json_group_array(json_object(
         'source', tr.source, 'sentiment_score', tr.sentiment_score, 'satisfaction', tr.satisfaction,
@@ -21,6 +23,34 @@ toolsRoutes.get('/', async (c) => {
     plans: JSON.parse(t.plans || '[]'),
     reviews: JSON.parse(t.reviews || '[]').filter(r => r.source),
   })));
+});
+
+// GET /api/tools/plans — all plans with full detail for comparison page
+toolsRoutes.get('/plans', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT pp.*, t.name as tool_name, t.slug as tool_slug, t.vendor, t.category,
+           t.description as tool_description, t.install_url, t.install_method,
+           (SELECT json_group_array(json_object(
+             'source', tr.source, 'satisfaction', tr.satisfaction, 'review_count', tr.review_count,
+             'common_praises', tr.common_praises, 'common_complaints', tr.common_complaints
+           )) FROM tool_reviews tr WHERE tr.tool_id = t.id) as reviews
+    FROM pricing_plans pp
+    JOIN tools t ON t.id = pp.tool_id
+    WHERE pp.is_current = 1
+    ORDER BY pp.price_monthly ASC NULLS LAST
+  `).all();
+
+  const plans = results.map(p => {
+    let features = p.features;
+    let models = p.models_included;
+    let reviews = p.reviews;
+    try { features = JSON.parse(features); } catch {}
+    try { models = JSON.parse(models); } catch {}
+    try { reviews = JSON.parse(reviews)?.filter(r => r.source) || []; } catch { reviews = []; }
+    return { ...p, features, models_included: models, reviews };
+  });
+
+  return c.json({ plans });
 });
 
 // GET /api/tools/rankings — tools ranked by composite score

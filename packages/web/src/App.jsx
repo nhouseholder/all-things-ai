@@ -18,6 +18,7 @@ const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
 const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage.jsx'));
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
+const PlansPage = lazy(() => import('./pages/PlansPage.jsx'));
 
 function PageLoader() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="coding-tools" element={<CodingToolsPage />} />
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
           <Route path="news" element={<NewsPage />} />
+          <Route path="plans" element={<PlansPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
