@@ -87,8 +87,12 @@ function ToolCard({ tool }) {
 
         {/* Meta row */}
         <div className="flex items-center gap-3 flex-wrap">
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${pricingCls}`}>
-            {tool.pricing === 'open-source' ? 'Open Source' : tool.pricing?.charAt(0).toUpperCase() + tool.pricing?.slice(1)}
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+            tool.pricing === 'free' && tool.requires?.includes('api-key') ? 'bg-purple-500/10 text-purple-400' : pricingCls
+          }`}>
+            {tool.pricing === 'free' && tool.requires?.includes('api-key')
+              ? 'BYOK'
+              : tool.pricing === 'open-source' ? 'Open Source' : tool.pricing?.charAt(0).toUpperCase() + tool.pricing?.slice(1)}
           </span>
           {tool.stars && (
             <div className="flex items-center gap-1 text-xs text-gray-500">

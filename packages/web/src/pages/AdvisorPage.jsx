@@ -264,9 +264,12 @@ function ComponentBreakdown({ model }) {
 
 // ── Pricing Dropdown (per-model) ─────────────────────────────────────────
 
-const TOOL_TIER = (price) => {
+const TOOL_TIER = (price, planName) => {
   if (price == null) return { label: 'BYOK', cls: 'bg-purple-500/10 border-purple-500/20 text-purple-400' };
-  if (price === 0) return { label: 'Free', cls: 'bg-green-500/10 border-green-500/20 text-green-400' };
+  if (price === 0) {
+    if (planName && /byok/i.test(planName)) return { label: 'BYOK', cls: 'bg-purple-500/10 border-purple-500/20 text-purple-400' };
+    return { label: 'Free', cls: 'bg-green-500/10 border-green-500/20 text-green-400' };
+  }
   if (price <= 10) return { label: `$${price}/mo`, cls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' };
   if (price <= 30) return { label: `$${price}/mo`, cls: 'bg-blue-500/10 border-blue-500/20 text-blue-400' };
   return { label: `$${price}/mo`, cls: 'bg-orange-500/10 border-orange-500/20 text-orange-400' };
@@ -347,7 +350,7 @@ function ModelPricingDropdown({ modelSlug, availability }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
         {unique.map((p, i) => {
-          const tier = TOOL_TIER(p.price_monthly);
+          const tier = TOOL_TIER(p.price_monthly, p.plan_name);
           const key = `${p.tool_slug}:${p.plan_name}`;
           const isExpanded = expandedPlan === key;
           const hasDetails = !!(p.overage_model || p.model_cost_notes);

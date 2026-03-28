@@ -41,8 +41,13 @@ const CATEGORY_COLORS = {
   platform: 'bg-cyan-500/10 text-cyan-400',
 };
 
-function formatPrice(price) {
-  if (price == null || price === 0) return 'Free';
+function formatPrice(price, planName) {
+  if (price == null) return '—';
+  if (price === 0) {
+    // BYOK tools have $0 subscription but you pay API costs
+    if (planName && /byok/i.test(planName)) return 'BYOK';
+    return 'Free';
+  }
   return `$${Number(price).toFixed(0)}/mo`;
 }
 
@@ -95,11 +100,12 @@ function ToolCard({ tool }) {
               <div className="text-xs text-gray-400">
                 {plans.map((p, i) => {
                   const price = p.price_monthly ?? p.monthly_price ?? 0;
+                  const pName = p.plan_name || p.name || '';
                   const isLowest = price === lowestPrice;
                   return (
-                    <span key={p.name || i} className={`${i > 0 ? 'ml-2' : ''}`}>
+                    <span key={pName || i} className={`${i > 0 ? 'ml-2' : ''}`}>
                       <span className={isLowest ? 'text-green-400 font-medium' : ''}>
-                        {formatPrice(price)}
+                        {formatPrice(price, pName)}
                       </span>
                       {plans.length > 1 && (
                         <span className="text-gray-500 ml-1 text-[10px]">{p.plan_name || p.name}</span>
@@ -238,7 +244,7 @@ function ToolCard({ tool }) {
                     <td className="py-2 text-white font-medium">{plan.plan_name || plan.name}</td>
                     <td className="py-2 text-right">
                       <span className={(plan.price_monthly || plan.monthly_price || 0) === lowestPrice ? 'text-green-400' : 'text-gray-400'}>
-                        {formatPrice(plan.price_monthly || plan.monthly_price)}
+                        {formatPrice(plan.price_monthly || plan.monthly_price, plan.plan_name || plan.name)}
                       </span>
                     </td>
                     <td className="py-2 text-right text-gray-400">
