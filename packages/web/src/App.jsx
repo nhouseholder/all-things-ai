@@ -16,7 +16,6 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const CodingToolsPage = lazy(() => import('./pages/CodingToolsPage.jsx'));
 const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
 const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
-const AlertsPage = lazy(() => import('./pages/AlertsPage.jsx'));
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const PlansPage = lazy(() => import('./pages/PlansPage.jsx'));
 
@@ -46,7 +45,7 @@ export default function App() {
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
           <Route path="news" element={<NewsPage />} />
           <Route path="plans" element={<PlansPage />} />
-          <Route path="alerts" element={<AlertsPage />} />
+          <Route path="alerts" element={<Navigate to="/news" replace />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

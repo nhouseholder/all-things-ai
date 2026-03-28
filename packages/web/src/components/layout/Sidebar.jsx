@@ -12,8 +12,7 @@ const links = [
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },
   { to: '/plans', icon: CreditCard, label: 'Plans' },
   { to: '/cost', icon: DollarSign, label: 'Optimize' },
-  { to: '/news', icon: Newspaper, label: 'News' },
-  { to: '/alerts', icon: Bell, label: 'Alerts', hasBadge: true },
+  { to: '/news', icon: Newspaper, label: 'News', hasBadge: true },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
