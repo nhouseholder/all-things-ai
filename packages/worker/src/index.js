@@ -44,13 +44,19 @@ app.use('/api/*', cors({
 // Rate limiting on public GET endpoints (60 req/min per IP)
 app.use('/api/*', rateLimit({ max: 60, windowSec: 60 }));
 
+// Global error handler — catch unhandled exceptions from all routes
+app.onError((err, c) => {
+  console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message);
+  return c.json({ error: 'Internal server error' }, 500);
+});
+
 // Health check with DB verification (S4)
 app.get('/', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').first();
-    return c.json({ name: 'All Things AI API', version: '0.2.0', status: 'ok', db: 'connected' });
+    return c.json({ name: 'All Things AI API', version: '0.7.0', status: 'ok', db: 'connected' });
   } catch {
-    return c.json({ name: 'All Things AI API', version: '0.2.0', status: 'degraded', db: 'error' }, 503);
+    return c.json({ name: 'All Things AI API', version: '0.7.0', status: 'degraded', db: 'error' }, 503);
   }
 });
 

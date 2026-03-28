@@ -30,8 +30,8 @@ import ChartContainer from '../components/ChartContainer.jsx';
 import { quartileColor } from '../lib/chart-utils.js';
 import { api } from '../lib/api.js';
 
-const VERSION = 'v0.6.0';
-const BUILD_DATE = 'Mar 24, 2026';
+const VERSION = 'v0.7.0';
+const BUILD_DATE = 'Mar 28, 2026';
 
 function compositeColor(score) {
   if (score >= 85) return 'text-green-400';

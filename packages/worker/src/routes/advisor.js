@@ -509,6 +509,22 @@ advisorRoutes.post('/chat', async (c) => {
     return c.json({ error: 'messages required (max 20)' }, 400);
   }
 
+  // Cap individual message length to prevent abuse (2000 chars each)
+  for (const msg of messages) {
+    if (typeof msg.content === 'string' && msg.content.length > 2000) {
+      msg.content = msg.content.slice(0, 2000);
+    }
+  }
+
+  // Stricter rate limit for AI compute endpoint (10 req/min per IP)
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  const chatKey = `ratelimit:chat:${ip}`;
+  const chatCount = parseInt(await c.env.RATE_LIMIT.get(chatKey) || '0', 10);
+  if (chatCount >= 10) {
+    return c.json({ error: 'Too many chat requests. Please wait a minute.' }, 429);
+  }
+  await c.env.RATE_LIMIT.put(chatKey, String(chatCount + 1), { expirationTtl: 60 });
+
   // 1. Gather context data for the system prompt
   const { results: tasks } = await c.env.DB.prepare(
     'SELECT name, slug, description, complexity FROM task_profiles ORDER BY sort_order'

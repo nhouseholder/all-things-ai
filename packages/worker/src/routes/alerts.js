@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireAdmin } from '../middleware/auth.js';
 
 export const alertsRoutes = new Hono();
 
@@ -48,21 +49,21 @@ alertsRoutes.get('/unread-count', async (c) => {
   return c.json({ count: row.count });
 });
 
-// POST /api/alerts/:id/read — mark as read
-alertsRoutes.post('/:id/read', async (c) => {
+// POST /api/alerts/:id/read — mark as read (auth required)
+alertsRoutes.post('/:id/read', requireAdmin(), async (c) => {
   const id = c.req.param('id');
   await c.env.DB.prepare('UPDATE industry_alerts SET is_read = 1 WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
 
-// POST /api/alerts/read-all — mark all as read
-alertsRoutes.post('/read-all', async (c) => {
+// POST /api/alerts/read-all — mark all as read (auth required)
+alertsRoutes.post('/read-all', requireAdmin(), async (c) => {
   await c.env.DB.prepare('UPDATE industry_alerts SET is_read = 1 WHERE is_read = 0').run();
   return c.json({ ok: true });
 });
 
-// POST /api/alerts/:id/dismiss — hide alert
-alertsRoutes.post('/:id/dismiss', async (c) => {
+// POST /api/alerts/:id/dismiss — hide alert (auth required)
+alertsRoutes.post('/:id/dismiss', requireAdmin(), async (c) => {
   const id = c.req.param('id');
   await c.env.DB.prepare('UPDATE industry_alerts SET is_dismissed = 1 WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
