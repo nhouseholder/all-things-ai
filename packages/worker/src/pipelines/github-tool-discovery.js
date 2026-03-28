@@ -12,8 +12,11 @@
  *   4. Insert as inactive (is_active = 0) for manual review via admin API
  */
 
+import { fetchWithTimeout } from '../utils/fetch.js';
+
 const USER_AGENT = 'AllThingsAI-ToolDiscovery/1.0 (+https://all-things-ai.pages.dev)';
-const FETCH_TIMEOUT = 15000;
+// fetchWithTimeout default is 10s; GitHub may need more time
+const GITHUB_TIMEOUT = 15000;
 
 // GitHub topics to search for new coding tools
 const DISCOVERY_TOPICS = [
@@ -73,9 +76,9 @@ async function searchTopic(env, topic, knownUrls) {
   const resp = await fetchWithTimeout(url, {
     headers: {
       'User-Agent': USER_AGENT,
-      'Accept': 'application/vnd.github.v3+json',
+      Accept: 'application/vnd.github.v3+json',
     },
-  });
+  }, GITHUB_TIMEOUT);
 
   if (!resp.ok) {
     // GitHub rate limit (403) is common without auth — skip gracefully
@@ -179,12 +182,4 @@ async function searchTopic(env, topic, knownUrls) {
   return { discovered, scanned: repos.length };
 }
 
-async function fetchWithTimeout(url, options = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+// fetchWithTimeout imported from ../utils/fetch.js

@@ -11,6 +11,7 @@
  */
 
 import { analyzeReview, aggregateReviews, loadAliases } from '../services/review-analysis-engine.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 const RATE_LIMIT_SECONDS = 14400; // 4 hours between scrapes per subreddit
 
@@ -63,7 +64,7 @@ async function fetchRedditJson(url, env, rateLimitKey) {
     }
   }
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: {
       'User-Agent': 'AllThingsAI-ReviewScraper/1.0 (community review aggregation)',
       Accept: 'application/json',

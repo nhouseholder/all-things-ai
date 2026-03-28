@@ -1,4 +1,5 @@
 import { HN_QUERIES } from '../config/sources.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 const ALGOLIA_BASE = 'https://hn.algolia.com/api/v1/search';
 const HN_ITEM_BASE = 'https://news.ycombinator.com/item?id=';
@@ -23,7 +24,7 @@ export async function scrapeHackerNews(env) {
         numericFilters: `points>${MIN_POINTS}`,
       });
 
-      const resp = await fetch(`${ALGOLIA_BASE}?${params.toString()}`, {
+      const resp = await fetchWithTimeout(`${ALGOLIA_BASE}?${params.toString()}`, {
         headers: { 'User-Agent': 'AllThingsAI/1.0' },
       });
 

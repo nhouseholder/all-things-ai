@@ -8,6 +8,8 @@
 
 import { analyzeReview, aggregateReviews, loadAliases } from '../services/review-analysis-engine.js';
 
+import { fetchWithTimeout } from '../utils/fetch.js';
+
 const ALGOLIA_SEARCH = 'https://hn.algolia.com/api/v1/search';
 const ALGOLIA_RECENT = 'https://hn.algolia.com/api/v1/search_by_date';
 const RATE_LIMIT_SECONDS = 14400; // 4 hours
@@ -50,7 +52,7 @@ async function fetchHNJson(url, env, rateLimitKey) {
     }
   }
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: { 'User-Agent': 'AllThingsAI-ReviewScraper/1.0' },
   });
 

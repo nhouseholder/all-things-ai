@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { RSS_FEEDS } from '../config/sources.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -98,7 +99,7 @@ export async function fetchAllRSS(env) {
           headers['If-None-Match'] = cachedEtag;
         }
 
-        const resp = await fetch(feed.url, { headers });
+        const resp = await fetchWithTimeout(feed.url, { headers });
 
         // 304 Not Modified — feed hasn't changed
         if (resp.status === 304) {

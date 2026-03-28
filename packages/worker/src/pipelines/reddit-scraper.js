@@ -1,4 +1,5 @@
 import { REDDIT_SOURCES } from '../config/sources.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 const RATE_LIMIT_SECONDS = 7200; // 2 hours
 const MIN_SCORE = 10;
@@ -28,7 +29,7 @@ export async function scrapeReddit(env) {
           }
         }
 
-        const resp = await fetch(source.url, {
+        const resp = await fetchWithTimeout(source.url, {
           headers: {
             'User-Agent': 'AllThingsAI/1.0',
             Accept: 'application/json',

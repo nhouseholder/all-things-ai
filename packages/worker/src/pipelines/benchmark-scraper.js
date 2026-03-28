@@ -5,8 +5,9 @@
  * Runs weekly on Mondays via cron.
  */
 
+import { fetchWithTimeout } from '../utils/fetch.js';
+
 const USER_AGENT = 'AllThingsAI-BenchmarkScraper/1.0 (+https://all-things-ai.pages.dev)';
-const FETCH_TIMEOUT = 10000; // 10 seconds
 
 export async function scrapeBenchmarks(env) {
   const results = {};
@@ -372,12 +373,4 @@ async function processGenericBenchmark(env, data, slugMap, benchmarkName, catego
   return { matched, unmatched: unmatched.length, source: benchmarkName };
 }
 
-async function fetchWithTimeout(url, options = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+// fetchWithTimeout imported from ../utils/fetch.js

@@ -1,4 +1,5 @@
 import { MONITOR_SOURCES } from '../config/sources.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -39,14 +40,14 @@ async function checkSource(source, env) {
 
   if (source.type === 'hn-api') {
     // HN Algolia API returns JSON — extract titles
-    const resp = await fetch(source.url, { headers: { 'User-Agent': UA } });
+    const resp = await fetchWithTimeout(source.url, { headers: { 'User-Agent': UA } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     const titles = (data.hits || []).map(h => `${h.title} | ${h.url || ''}`);
     content = titles.join('\n');
   } else {
     // HTML pages — fetch and extract text content
-    const resp = await fetch(source.url, {
+    const resp = await fetchWithTimeout(source.url, {
       headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
       redirect: 'follow',
     });

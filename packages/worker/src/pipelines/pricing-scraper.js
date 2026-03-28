@@ -1,4 +1,5 @@
 import { PRICING_TARGETS } from '../config/sources.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 /**
  * Regex patterns to extract monthly prices from HTML.
@@ -50,7 +51,7 @@ export async function scrapePricing(env) {
   for (const target of PRICING_TARGETS) {
     try {
       // Fetch pricing page HTML
-      const resp = await fetch(target.url, {
+      const resp = await fetchWithTimeout(target.url, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

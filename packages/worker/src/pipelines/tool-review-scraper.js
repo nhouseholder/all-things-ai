@@ -15,6 +15,7 @@ import {
   extractCodingSatisfaction,
   extractTopThemes,
 } from '../services/review-analysis-engine.js';
+import { fetchWithTimeout } from '../utils/fetch.js';
 
 const RATE_LIMIT_SECONDS = 14400; // 4 hours between scrapes per source
 
@@ -61,7 +62,7 @@ async function fetchRedditJson(url, env, rateLimitKey) {
     if (elapsed < RATE_LIMIT_SECONDS) return null;
   }
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: {
       'User-Agent': 'AllThingsAI-ToolReviewScraper/1.0 (community review aggregation)',
       Accept: 'application/json',
@@ -133,7 +134,7 @@ async function scrapeHNToolReviews(env) {
 
     try {
       const url = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&numericFilters=points>5&hitsPerPage=15`;
-      const resp = await fetch(url, {
+      const resp = await fetchWithTimeout(url, {
         headers: { 'User-Agent': 'AllThingsAI-ToolReviewScraper/1.0' },
       });
 
