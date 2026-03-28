@@ -13,6 +13,31 @@ const QUICK_REPLIES = [
   'I do a mix of coding, writing, and analysis',
 ];
 
+// Contextual follow-up suggestions based on conversation stage
+const FOLLOW_UP_SETS = [
+  // After first assistant message (usually asks "what matters most?")
+  [
+    'Code quality is #1 priority for me',
+    'I want the best bang for my buck',
+    'Speed — I need fast responses',
+    'I need it all: quality, cost, and speed',
+  ],
+  // After second assistant message (usually asks about specific tasks)
+  [
+    'Mostly building new features from scratch',
+    'Debugging and fixing bugs in large codebases',
+    'Refactoring and code reviews',
+    'Full-stack: frontend, backend, and DevOps',
+  ],
+  // After third+ (may ask about team size or budget)
+  [
+    'Solo developer, side projects',
+    'Small team, 2-5 devs',
+    'I have a $20-50/month budget',
+    'Budget is flexible if the tool is worth it',
+  ],
+];
+
 function MessageBubble({ message }) {
   const isUser = message.role === 'user';
   return (
@@ -190,6 +215,12 @@ export default function AdvisorChatPage() {
 
   const showQuickReplies = messages.length === 0 && !loading;
 
+  // Determine follow-up suggestions based on conversation stage
+  const assistantCount = messages.filter(m => m.role === 'assistant').length;
+  const lastMsg = messages[messages.length - 1];
+  const showFollowUps = !loading && !recommendations && lastMsg?.role === 'assistant' && assistantCount <= 3;
+  const followUpSet = FOLLOW_UP_SETS[Math.min(assistantCount - 1, FOLLOW_UP_SETS.length - 1)] || [];
+
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] animate-fade-in">
       {/* Header */}
@@ -271,7 +302,7 @@ export default function AdvisorChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick replies */}
+      {/* Quick replies — initial */}
       {showQuickReplies && (
         <div className="shrink-0 pt-3 pb-1">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Quick start</p>
@@ -281,6 +312,23 @@ export default function AdvisorChatPage() {
                 key={i}
                 onClick={() => sendMessage(reply)}
                 className="text-xs px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-700/50 text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up suggestions — after each assistant reply */}
+      {showFollowUps && followUpSet.length > 0 && (
+        <div className="shrink-0 pt-2 pb-1">
+          <div className="flex flex-wrap gap-2">
+            {followUpSet.map((reply, i) => (
+              <button
+                key={i}
+                onClick={() => sendMessage(reply)}
+                className="text-xs px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-700/50 text-gray-300 hover:text-white hover:border-purple-500/40 hover:bg-purple-500/5 transition-colors"
               >
                 {reply}
               </button>
