@@ -229,42 +229,51 @@ function ModelToolsModal({ model, onClose }) {
   );
 }
 
-// ── Nuance Highlight Card ──────────────────────────────────────────────
-function NuanceHighlight({ models, benchmarkNames }) {
-  const nuanceBenchmarks = benchmarkNames.filter(
-    (n) => n.toLowerCase().includes('nuance') || n.toLowerCase().includes('chatbot arena')
-  );
-  if (nuanceBenchmarks.length === 0) return null;
+// ── Category colors ──────────────────────────────────────────────────
+const CATEGORY_THEME = {
+  '':          { color: 'text-blue-400', accent: 'border-blue-500/40 bg-blue-500/5', badge: 'text-blue-400 bg-blue-500/10', label: 'Overall' },
+  'coding':    { color: 'text-green-400', accent: 'border-green-500/40 bg-green-500/5', badge: 'text-green-400 bg-green-500/10', label: 'Coding' },
+  'debugging': { color: 'text-orange-400', accent: 'border-orange-500/40 bg-orange-500/5', badge: 'text-orange-400 bg-orange-500/10', label: 'Debugging' },
+  'reasoning': { color: 'text-cyan-400', accent: 'border-cyan-500/40 bg-cyan-500/5', badge: 'text-cyan-400 bg-cyan-500/10', label: 'Reasoning' },
+  'nuance':    { color: 'text-purple-400', accent: 'border-purple-500/40 bg-purple-500/5', badge: 'text-purple-400 bg-purple-500/10', label: 'Nuance' },
+};
+
+// ── Top Model Tiles ──────────────────────────────────────────────────
+function TopModelTiles({ models, benchmarkNames, category }) {
+  const theme = CATEGORY_THEME[category] || CATEGORY_THEME[''];
 
   // Normalize ELO to 0-100 scale for fair averaging
-  const normalizeNuance = (bn, score) => {
+  const normalizeScore = (bn, score) => {
     if (bn.toLowerCase().includes('arena elo')) {
       return Math.max(0, Math.min(100, ((score - 1100) / (1520 - 1100)) * 100));
     }
     return score;
   };
 
-  // Rank models by average nuance score (normalized)
+  // Rank models by average normalized score across all benchmarks in this category
   const ranked = models
     .map((m) => {
-      const scores = nuanceBenchmarks
-        .map((bn) => (m.scores?.[bn] != null ? normalizeNuance(bn, m.scores[bn]) : null))
+      const entries = benchmarkNames
+        .map((bn) => (m.scores?.[bn] != null ? normalizeScore(bn, m.scores[bn]) : null))
         .filter((v) => v != null);
-      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-      return { ...m, nuanceAvg: avg };
+      const avg = entries.length > 0 ? entries.reduce((a, b) => a + b, 0) / entries.length : null;
+      return { ...m, avg };
     })
-    .filter((m) => m.nuanceAvg != null)
-    .sort((a, b) => b.nuanceAvg - a.nuanceAvg)
+    .filter((m) => m.avg != null)
+    .sort((a, b) => b.avg - a.avg)
     .slice(0, 5);
 
   if (ranked.length === 0) return null;
 
+  // Show top 2-3 benchmarks as detail rows in each tile
+  const topBenchmarks = benchmarkNames.slice(0, 2);
+
   return (
     <section className="mb-8">
       <div className="flex items-center gap-2 mb-3">
-        <Zap className="w-4 h-4 text-purple-400" />
-        <h2 className="text-sm font-semibold text-purple-400 uppercase tracking-wider">
-          Human Nuance Understanding — Top Models
+        <Zap className={`w-4 h-4 ${theme.color}`} />
+        <h2 className={`text-sm font-semibold ${theme.color} uppercase tracking-wider`}>
+          {theme.label} — Top Models
         </h2>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -272,15 +281,13 @@ function NuanceHighlight({ models, benchmarkNames }) {
           <div
             key={m.slug}
             className={`rounded-xl border p-4 ${
-              i === 0
-                ? 'border-purple-500/40 bg-purple-500/5'
-                : 'border-gray-800 bg-gray-900/50'
+              i === 0 ? theme.accent : 'border-gray-800 bg-gray-900/50'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-500 font-medium">#{i + 1}</span>
               {i === 0 && (
-                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${theme.badge}`}>
                   Best
                 </span>
               )}
@@ -288,13 +295,13 @@ function NuanceHighlight({ models, benchmarkNames }) {
             <p className="text-sm font-semibold text-white truncate">{m.name}</p>
             <p className="text-xs text-gray-500 mb-2">{m.vendor}</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-purple-400">
-                {m.nuanceAvg.toFixed(1)}
+              <span className={`text-2xl font-bold ${theme.color}`}>
+                {m.avg.toFixed(1)}
               </span>
               <span className="text-xs text-gray-500">avg</span>
             </div>
             <div className="mt-2 space-y-1">
-              {nuanceBenchmarks.map((bn) => (
+              {topBenchmarks.map((bn) => (
                 <div key={bn} className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-500 truncate mr-2">{bn}</span>
                   <span className="text-gray-300 font-medium">
@@ -632,10 +639,8 @@ export default function BenchmarksPage() {
         </div>
       ) : (
         <>
-          {/* Nuance Highlight — show when nuance filter is active */}
-          {category === 'nuance' && (
-            <NuanceHighlight models={models} benchmarkNames={derivedBenchmarkNames} />
-          )}
+          {/* Top Model Tiles — shown for every category */}
+          <TopModelTiles models={models} benchmarkNames={derivedBenchmarkNames} category={category} />
 
           {/* Bar Chart - top models */}
           <section className="mb-8">
