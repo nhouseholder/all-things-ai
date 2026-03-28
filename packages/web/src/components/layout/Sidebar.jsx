@@ -54,7 +54,7 @@ export default function Sidebar() {
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-1">Your AI Intelligence Hub</p>
-        <p className="text-[10px] text-gray-500 mt-0.5">v0.6.0 &middot; Mar 24, 2026</p>
+        <p className="text-[10px] text-gray-500 mt-0.5">v0.7.0 &middot; Mar 27, 2026</p>
       </div>
       <nav className="flex-1 p-3 space-y-1" aria-label="Main navigation">
         {links.map(({ to, icon: Icon, label, hasBadge }) => (
