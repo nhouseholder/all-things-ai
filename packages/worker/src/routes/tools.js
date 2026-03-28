@@ -9,10 +9,18 @@ toolsRoutes.get('/', async (c) => {
       (SELECT json_group_array(json_object(
         'id', pp.id, 'plan_name', pp.plan_name, 'price_monthly', pp.price_monthly,
         'price_yearly', pp.price_yearly, 'features', pp.features, 'models_included', pp.models_included
-      )) FROM pricing_plans pp WHERE pp.tool_id = t.id AND pp.is_current = 1) as plans
+      )) FROM pricing_plans pp WHERE pp.tool_id = t.id AND pp.is_current = 1) as plans,
+      (SELECT json_group_array(json_object(
+        'source', tr.source, 'sentiment_score', tr.sentiment_score, 'satisfaction', tr.satisfaction,
+        'review_count', tr.review_count, 'common_praises', tr.common_praises, 'common_complaints', tr.common_complaints
+      )) FROM tool_reviews tr WHERE tr.tool_id = t.id) as reviews
     FROM tools t ORDER BY t.name
   `).all();
-  return c.json(results.map(t => ({ ...t, plans: JSON.parse(t.plans || '[]') })));
+  return c.json(results.map(t => ({
+    ...t,
+    plans: JSON.parse(t.plans || '[]'),
+    reviews: JSON.parse(t.reviews || '[]').filter(r => r.source),
+  })));
 });
 
 // GET /api/tools/rankings — tools ranked by composite score

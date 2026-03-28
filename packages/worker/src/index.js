@@ -12,6 +12,7 @@ import { adminRoutes } from './routes/admin.js';
 import { codingToolsRoutes } from './routes/coding-tools.js';
 import { alertsRoutes } from './routes/alerts.js';
 import { monitorAIIndustry } from './pipelines/industry-monitor.js';
+import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
 import { handleScheduled } from './scheduled.js';
 import { requireAdmin } from './middleware/auth.js';
 import { rateLimit } from './middleware/rate-limit.js';
@@ -101,6 +102,11 @@ app.post('/api/ingest/reviews', requireAdmin(), async (c) => {
     const hn = await scrapeHNReviews(c.env);
     results.hn = { status: 'ok', ...hn };
   } catch (e) { results.hn = { status: 'error', message: e.message }; }
+  // Tool/plugin reviews
+  try {
+    const toolReviews = await scrapeToolReviews(c.env);
+    results.toolReviews = { status: 'ok', ...toolReviews };
+  } catch (e) { results.toolReviews = { status: 'error', message: e.message }; }
   // Recompute composite scores after review update
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
   return c.json(results);

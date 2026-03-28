@@ -9,6 +9,9 @@ import {
   Check,
   ExternalLink,
   Download,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import { useTools, useToolRankings } from '../lib/hooks.js';
 import RankingChart from '../components/RankingChart.jsx';
@@ -152,20 +155,70 @@ function ToolCard({ tool }) {
               </a>
             )}
           </div>
-          {plans.length > 0 && (
+          {(plans.length > 0 || tool.reviews?.length > 0) && (
             <button
               onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
             >
               {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {expanded ? 'Hide plans' : `${plans.length} plan${plans.length !== 1 ? 's' : ''}`}
+              {expanded ? 'Less' : 'More details'}
             </button>
           )}
         </div>
       </div>
 
-      {expanded && plans.length > 0 && (
-        <div className="border-t border-gray-800 px-4 py-3 bg-gray-900/80">
+      {expanded && (
+        <div className="border-t border-gray-800 px-4 py-3 bg-gray-900/80 space-y-4">
+          {/* Community Reviews */}
+          {(tool.reviews?.length > 0) && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
+                <MessageSquare className="w-3 h-3" /> Community Reviews
+              </h4>
+              <div className="space-y-2">
+                {tool.reviews.filter(r => r.source).map((r, i) => {
+                  const sentimentPct = Math.round(((r.sentiment_score || 0) + 1) * 50);
+                  return (
+                    <div key={i} className="bg-gray-800/50 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase">{r.source}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-medium ${sentimentPct >= 60 ? 'text-green-400' : sentimentPct >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                            {r.satisfaction || 0}% satisfaction
+                          </span>
+                          <span className="text-[10px] text-gray-500">{r.review_count || 0} reviews</span>
+                        </div>
+                      </div>
+                      {/* Sentiment bar */}
+                      <div className="w-full bg-gray-700 rounded-full h-1.5 mb-1.5">
+                        <div
+                          className={`h-1.5 rounded-full ${sentimentPct >= 60 ? 'bg-green-500' : sentimentPct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                          style={{ width: `${sentimentPct}%` }}
+                        />
+                      </div>
+                      <div className="flex gap-3 text-[10px]">
+                        {r.common_praises && (
+                          <div className="flex items-start gap-1 text-green-400/80 flex-1">
+                            <ThumbsUp className="w-2.5 h-2.5 mt-0.5 shrink-0" />
+                            <span className="line-clamp-2">{r.common_praises}</span>
+                          </div>
+                        )}
+                        {r.common_complaints && (
+                          <div className="flex items-start gap-1 text-red-400/80 flex-1">
+                            <ThumbsDown className="w-2.5 h-2.5 mt-0.5 shrink-0" />
+                            <span className="line-clamp-2">{r.common_complaints}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Plans table */}
+          {plans.length > 0 && (
           <table className="w-full text-xs">
             <thead>
               <tr className="text-gray-500 border-b border-gray-800">
@@ -219,6 +272,7 @@ function ToolCard({ tool }) {
               })}
             </tbody>
           </table>
+          )}
         </div>
       )}
     </div>

@@ -14,6 +14,7 @@ import { discoverNewModels } from './pipelines/model-discovery.js';
 import { scrapeBenchmarks } from './pipelines/benchmark-scraper.js';
 import { discoverGitHubTools } from './pipelines/github-tool-discovery.js';
 import { monitorAIIndustry } from './pipelines/industry-monitor.js';
+import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
 
 export async function handleScheduled(event, env) {
   const cron = event.cron;
@@ -72,6 +73,8 @@ export async function handleScheduled(event, env) {
       await runSafe('computeCompositeScores', () => computeCompositeScores(env));
       await runSafe('computeToolScores', () => computeToolScores(env));
       await runSafe('computePluginScores', () => computePluginScores(env));
+      // Tool/plugin review scrape (same cadence as model reviews)
+      await runSafe('scrapeToolReviews', () => scrapeToolReviews(env));
       // Invalidate caches so next request gets fresh data
       await runSafe('invalidateCaches', async () => {
         await env.CACHE.delete('rankings:v1');

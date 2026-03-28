@@ -96,6 +96,16 @@ function ToolCard({ tool }) {
               <span>{tool.stars >= 1000 ? `${(tool.stars / 1000).toFixed(1)}k` : tool.stars}</span>
             </div>
           )}
+          {tool.community_rating > 0 && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <span className={`font-medium ${tool.community_rating >= 4 ? 'text-green-400' : tool.community_rating >= 3 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {tool.community_rating.toFixed(1)}/5
+              </span>
+              {tool.review_count > 0 && (
+                <span className="text-gray-600">({tool.review_count})</span>
+              )}
+            </div>
+          )}
           <span className={`text-[10px] ${complexity.color}`}>{complexity.label}</span>
           {tool.is_featured ? <span className="text-[10px] text-yellow-400">Featured</span> : null}
         </div>

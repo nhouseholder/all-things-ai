@@ -41,6 +41,77 @@ const MODEL_ALIASES = {
   'gemma-3':            ['gemma 3','gemma-3','google gemma'],
 };
 
+// ── Tool name → slug mapping for detection in text ───────────────────────
+// Covers IDE tools (tools table) and plugins (coding_tools table)
+const TOOL_ALIASES = {
+  // IDE tools (tools table)
+  'cursor':         { type: 'tool', aliases: ['cursor','cursor ai','cursor editor','cursor ide','cursor pro','anysphere'] },
+  'claude-code':    { type: 'tool', aliases: ['claude code','claude-code','claude cli','anthropic cli','claude agent'] },
+  'windsurf':       { type: 'tool', aliases: ['windsurf','codeium','windsurf ide','windsurf ai','cascade agent'] },
+  'github-copilot': { type: 'tool', aliases: ['copilot','github copilot','gh copilot','copilot chat','copilot workspace'] },
+  'codex':          { type: 'tool', aliases: ['openai codex','codex cli','codex agent'] },
+  'roo-code':       { type: 'tool', aliases: ['roo code','roo-code','roo cline','roo vet'] },
+  'aider':          { type: 'tool', aliases: ['aider','aider chat','aider cli','paul-gauthier/aider'] },
+  'amazon-q':       { type: 'tool', aliases: ['amazon q','amazon q developer','aws q'] },
+  'tabnine':        { type: 'tool', aliases: ['tabnine','tab nine'] },
+  // Plugins (coding_tools table)
+  'cline':          { type: 'plugin', aliases: ['cline','cline ai','cline vscode','cline extension'] },
+  'continue-dev':   { type: 'plugin', aliases: ['continue dev','continue.dev','continue extension','continue ai'] },
+  'desktop-commander': { type: 'plugin', aliases: ['desktop commander','desktopcommander'] },
+  'perplexity-mcp': { type: 'plugin', aliases: ['perplexity mcp','perplexity server'] },
+  'github-mcp':     { type: 'plugin', aliases: ['github mcp','mcp github server'] },
+  'langchain':      { type: 'plugin', aliases: ['langchain','lang chain'] },
+  'crewai':         { type: 'plugin', aliases: ['crewai','crew ai','crew-ai'] },
+  'autogen':        { type: 'plugin', aliases: ['autogen','auto gen','microsoft autogen'] },
+  'claude-agent-sdk': { type: 'plugin', aliases: ['claude agent sdk','agent sdk','anthropic agent sdk'] },
+  'repomix':        { type: 'plugin', aliases: ['repomix','repo mix'] },
+  'v0-vercel':      { type: 'plugin', aliases: ['v0','v0.dev','v zero','vercel v0'] },
+  'bolt-new':       { type: 'plugin', aliases: ['bolt.new','bolt new','stackblitz bolt'] },
+  'lovable':        { type: 'plugin', aliases: ['lovable','lovable.dev','lovable ai'] },
+  'open-interpreter': { type: 'plugin', aliases: ['open interpreter','openinterpreter'] },
+  'gpt-engineer':   { type: 'plugin', aliases: ['gpt engineer','gpt-engineer','gpte'] },
+};
+
+/**
+ * Detect which tools/plugins are mentioned in text.
+ * @returns {{ slug: string, type: 'tool'|'plugin' }[]}
+ */
+export function detectTools(text) {
+  const lower = text.toLowerCase();
+  const found = [];
+  const seen = new Set();
+
+  for (const [slug, config] of Object.entries(TOOL_ALIASES)) {
+    for (const alias of config.aliases) {
+      if (lower.includes(alias) && !seen.has(slug)) {
+        found.push({ slug, type: config.type });
+        seen.add(slug);
+        break;
+      }
+    }
+  }
+
+  return found;
+}
+
+/**
+ * Analyze a review for tool/plugin mentions + sentiment
+ */
+export function analyzeToolReview(text, postScore = 0) {
+  const tools = detectTools(text);
+  const userType = classifyUserType(text);
+  const sentiment = extractSentiment(text);
+  const codingSatisfaction = extractCodingSatisfaction(text);
+
+  return {
+    tools,
+    userType,
+    sentiment,
+    codingSatisfaction,
+    postScore,
+  };
+}
+
 // ── User type classification keywords ────────────────────────────────────
 const HEAVY_CODER_SIGNALS = [
   // Technical depth
