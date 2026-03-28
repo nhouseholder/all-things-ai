@@ -225,7 +225,7 @@ codingToolsRoutes.get('/:slug', async (c) => {
 
 // Helper: parse JSON string fields
 function parseJsonFields(tool) {
-  const jsonFields = ['languages', 'frameworks', 'use_cases', 'requires'];
+  const jsonFields = ['languages', 'frameworks', 'use_cases', 'requires', 'compatible_models'];
   const parsed = { ...tool };
   for (const field of jsonFields) {
     if (parsed[field] && typeof parsed[field] === 'string') {

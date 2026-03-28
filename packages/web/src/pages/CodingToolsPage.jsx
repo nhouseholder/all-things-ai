@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Loader2, Search, Filter, ExternalLink, Star, ChevronDown, ChevronUp,
-  Puzzle, Github, Terminal, Cpu, Plug, Wand2, Sparkles, ArrowRight,
+  Puzzle, Github, Terminal, Cpu, Plug, Wand2, Sparkles, ArrowRight, Download,
 } from 'lucide-react';
 import { useCodingTools, useCodingToolCategories, usePluginRankings } from '../lib/hooks.js';
 import RankingChart from '../components/RankingChart.jsx';
@@ -159,7 +159,26 @@ function ToolCard({ tool }) {
             </div>
           )}
 
+          {tool.compatible_models?.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Compatible Models</h4>
+              <div className="flex flex-wrap gap-1">
+                {tool.compatible_models.map(m => (
+                  <span key={m} className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    {m === 'any' || m === 'any-via-api' ? 'Any (BYOK)' : m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-3 pt-1">
+            {tool.install_url && (
+              <a href={tool.install_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300">
+                <Download className="w-3 h-3" /> Install
+              </a>
+            )}
             {tool.url && (
               <a href={tool.url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">

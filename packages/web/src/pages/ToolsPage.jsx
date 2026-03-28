@@ -7,6 +7,8 @@ import {
   Filter,
   Package,
   Check,
+  ExternalLink,
+  Download,
 } from 'lucide-react';
 import { useTools, useToolRankings } from '../lib/hooks.js';
 import RankingChart from '../components/RankingChart.jsx';
@@ -41,14 +43,29 @@ function formatPrice(price) {
   return `$${Number(price).toFixed(0)}/mo`;
 }
 
+const INSTALL_METHOD_LABELS = {
+  download: 'Download',
+  npm: 'npm install',
+  pip: 'pip install',
+  brew: 'Homebrew',
+  marketplace: 'VS Code Marketplace',
+  web: 'Web App',
+};
+
 function ToolCard({ tool }) {
   const [expanded, setExpanded] = useState(false);
 
   const plans = tool.plans ?? [];
   const prices = plans.map((p) => p.price_monthly ?? p.monthly_price ?? 0).filter((p) => p != null);
   const lowestPrice = prices.length > 0 ? Math.min(...prices) : null;
-  const modelsCount = tool.models_count ?? tool.models?.length ?? 0;
   const categoryColor = CATEGORY_COLORS[tool.category] || 'bg-gray-500/10 text-gray-400';
+
+  // Collect unique models across all plans
+  const allModels = [...new Set(plans.flatMap(p => {
+    if (!p.models_included) return [];
+    const parsed = typeof p.models_included === 'string' ? JSON.parse(p.models_included) : p.models_included;
+    return parsed || [];
+  }))];
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden hover:border-gray-700 transition-colors">
@@ -63,7 +80,13 @@ function ToolCard({ tool }) {
           </span>
         </div>
 
-        <div className="flex items-center justify-between mt-3">
+        {/* Description */}
+        {tool.description && (
+          <p className="text-xs text-gray-400 leading-relaxed mb-3 line-clamp-2">{tool.description}</p>
+        )}
+
+        {/* Pricing row */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             {plans.length > 0 && (
               <div className="text-xs text-gray-400">
@@ -76,7 +99,7 @@ function ToolCard({ tool }) {
                         {formatPrice(price)}
                       </span>
                       {plans.length > 1 && (
-                        <span className="text-gray-500 ml-1 text-[10px]">{p.name}</span>
+                        <span className="text-gray-500 ml-1 text-[10px]">{p.plan_name || p.name}</span>
                       )}
                     </span>
                   );
@@ -84,23 +107,61 @@ function ToolCard({ tool }) {
               </div>
             )}
           </div>
-          {modelsCount > 0 && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Cpu className="w-3 h-3" />
-              <span>{modelsCount} models</span>
-            </div>
-          )}
         </div>
 
-        {plans.length > 0 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3 transition-colors"
-          >
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {expanded ? 'Hide plans' : `View ${plans.length} plan${plans.length !== 1 ? 's' : ''}`}
-          </button>
+        {/* Compatible models */}
+        {allModels.length > 0 && (
+          <div className="mt-2">
+            <div className="flex flex-wrap gap-1">
+              {allModels.filter(m => m !== 'any-via-api').slice(0, 6).map(m => (
+                <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">
+                  {m}
+                </span>
+              ))}
+              {allModels.length > 6 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">
+                  +{allModels.length - 6} more
+                </span>
+              )}
+            </div>
+          </div>
         )}
+
+        {/* Install + expand row */}
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center gap-3">
+            {tool.install_url && (
+              <a
+                href={tool.install_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <Download className="w-3 h-3" />
+                {INSTALL_METHOD_LABELS[tool.install_method] || 'Install'}
+              </a>
+            )}
+            {tool.website_url && (
+              <a
+                href={tool.website_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" /> Website
+              </a>
+            )}
+          </div>
+          {plans.length > 0 && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {expanded ? 'Hide plans' : `${plans.length} plan${plans.length !== 1 ? 's' : ''}`}
+            </button>
+          )}
+        </div>
       </div>
 
       {expanded && plans.length > 0 && (
@@ -115,42 +176,47 @@ function ToolCard({ tool }) {
               </tr>
             </thead>
             <tbody>
-              {plans.map((plan, i) => (
-                <tr key={(plan.plan_name || plan.name || i)} className="border-b border-gray-800/50 last:border-0">
-                  <td className="py-2 text-white font-medium">{plan.plan_name || plan.name}</td>
-                  <td className="py-2 text-right">
-                    <span className={(plan.price_monthly || plan.monthly_price || 0) === lowestPrice ? 'text-green-400' : 'text-gray-400'}>
-                      {formatPrice(plan.price_monthly || plan.monthly_price)}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right text-gray-400">
-                    {(plan.price_yearly || plan.yearly_price) != null ? `$${Number(plan.price_yearly || plan.yearly_price).toFixed(0)}/yr` : '--'}
-                  </td>
-                  <td className="py-2 pl-4">
-                    {plan.features?.length > 0 ? (
-                      <ul className="space-y-0.5">
-                        {plan.features.map((f, fi) => (
-                          <li key={fi} className="flex items-start gap-1 text-gray-400">
-                            <Check className="w-3 h-3 text-green-500 mt-0.5 shrink-0" />
-                            <span>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span className="text-gray-500">--</span>
-                    )}
-                    {plan.models?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {plan.models.map((m) => (
-                          <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">
-                            {m}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {plans.map((plan, i) => {
+                const planModels = plan.models_included
+                  ? (typeof plan.models_included === 'string' ? JSON.parse(plan.models_included) : plan.models_included)
+                  : [];
+                return (
+                  <tr key={(plan.plan_name || plan.name || i)} className="border-b border-gray-800/50 last:border-0">
+                    <td className="py-2 text-white font-medium">{plan.plan_name || plan.name}</td>
+                    <td className="py-2 text-right">
+                      <span className={(plan.price_monthly || plan.monthly_price || 0) === lowestPrice ? 'text-green-400' : 'text-gray-400'}>
+                        {formatPrice(plan.price_monthly || plan.monthly_price)}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right text-gray-400">
+                      {(plan.price_yearly || plan.yearly_price) != null ? `$${Number(plan.price_yearly || plan.yearly_price).toFixed(0)}/yr` : '--'}
+                    </td>
+                    <td className="py-2 pl-4">
+                      {plan.features?.length > 0 ? (
+                        <ul className="space-y-0.5">
+                          {plan.features.map((f, fi) => (
+                            <li key={fi} className="flex items-start gap-1 text-gray-400">
+                              <Check className="w-3 h-3 text-green-500 mt-0.5 shrink-0" />
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-gray-500">--</span>
+                      )}
+                      {planModels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {planModels.map((m) => (
+                            <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
