@@ -505,8 +505,8 @@ function RadarComparisonChart({ models }) {
     const point = { dimension: dim.label };
     for (const m of models) {
       const val = m.score_components?.[dim.key];
-      // Normalize component scores to 0-100 scale (they're weighted portions, scale up)
-      point[m.slug] = val != null ? Math.min(100, Math.round(val * 5)) : 0;
+      // Values are already 0-100 scale (benchmark percentages)
+      point[m.slug] = val != null ? Math.round(val) : 0;
     }
     return point;
   });
@@ -597,7 +597,7 @@ function ScoreBreakdown({ models }) {
                   <td className="py-2 px-2 text-gray-500 font-medium">{dim.label}</td>
                   {models.map((m, i) => {
                     const val = m.score_components?.[dim.key];
-                    const normalized = val != null ? Math.min(100, val * 5) : 0;
+                    const normalized = val != null ? Math.round(val) : 0;
                     const isWinner = val != null && val === max && max > 0;
                     return (
                       <td key={m.slug} className="py-2 px-2">
