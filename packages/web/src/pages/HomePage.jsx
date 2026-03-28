@@ -9,6 +9,8 @@ import {
   Coins,
   Loader2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Sparkles,
   Target,
   BarChart3,
@@ -438,7 +440,40 @@ function CommunityBadge({ reviews, sources }) {
   );
 }
 
+const SCORE_COMPONENTS = [
+  { key: 'swe_bench_component', label: 'SWE-bench', icon: '🔧' },
+  { key: 'livecodebench_component', label: 'LiveCode', icon: '⚡' },
+  { key: 'nuance_component', label: 'Nuance', icon: '🎭' },
+  { key: 'arena_component', label: 'Arena ELO', icon: '🏟️' },
+  { key: 'tau_component', label: 'TAU-bench', icon: '🤖' },
+  { key: 'gpqa_component', label: 'GPQA', icon: '🧠' },
+  { key: 'success_rate_component', label: 'Success Rate', icon: '✅' },
+];
+
+function ScoreBreakdownRow({ label, value, icon }) {
+  if (value == null) return null;
+  const rounded = Number(value).toFixed(1);
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className="text-[10px] text-gray-500">{icon} {label}</span>
+      <div className="flex items-center gap-2">
+        <div className="w-16 h-1 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full ${compositeBarBg(value)}`}
+            style={{ width: `${Math.min(100, value)}%` }}
+          />
+        </div>
+        <span className={`text-[10px] font-semibold tabular-nums w-8 text-right ${compositeColor(value)}`}>
+          {rounded}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, headerBorder, models, valueKey, valueLabel, formatValue }) {
+  const [expandedSlug, setExpandedSlug] = useState(null);
+
   return (
     <div className="rounded-xl border border-gray-800 overflow-hidden">
       <div className={`${headerBg} border-b ${headerBorder} px-4 py-3`}>
@@ -453,29 +488,66 @@ function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, hea
       <div className="divide-y divide-gray-800">
         {models.map((m, i) => {
           const score = m.composite_score ?? 0;
+          const isExpanded = expandedSlug === m.model_slug;
           return (
-            <div key={m.model_slug} className="flex items-center gap-3 px-4 py-2.5">
-              <span className={`text-xs font-bold w-5 text-center ${i === 0 ? iconColor : 'text-gray-500'}`}>
-                {i + 1}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs text-white font-medium truncate">{m.model_name}</p>
-                  <CommunityBadge reviews={m.community_reviews} sources={m.community_sources} />
-                </div>
-                <p className="text-[10px] text-gray-500">{m.vendor}{m.community_adjustment ? ` · community ${m.community_adjustment > 0 ? '+' : ''}${m.community_adjustment.toFixed(1)}` : ''}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${compositeBarBg(score)}`}
-                    style={{ width: `${Math.min(100, score)}%` }}
-                  />
-                </div>
-                <span className={`text-xs font-bold tabular-nums ${compositeColor(score)}`}>
-                  {formatValue(m[valueKey])}
+            <div key={m.model_slug}>
+              <button
+                onClick={() => setExpandedSlug(isExpanded ? null : m.model_slug)}
+                className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-gray-800/30 transition-colors"
+              >
+                <span className={`text-xs font-bold w-5 text-center ${i === 0 ? iconColor : 'text-gray-500'}`}>
+                  {i + 1}
                 </span>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs text-white font-medium truncate">{m.model_name}</p>
+                    <CommunityBadge reviews={m.community_reviews} sources={m.community_sources} />
+                  </div>
+                  <p className="text-[10px] text-gray-500">{m.vendor}{m.community_adjustment ? ` · community ${m.community_adjustment > 0 ? '+' : ''}${m.community_adjustment.toFixed(1)}` : ''}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${compositeBarBg(score)}`}
+                      style={{ width: `${Math.min(100, score)}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-bold tabular-nums ${compositeColor(score)}`}>
+                    {formatValue(m[valueKey])}
+                  </span>
+                  {isExpanded
+                    ? <ChevronUp className="w-3 h-3 text-gray-500 shrink-0" />
+                    : <ChevronDown className="w-3 h-3 text-gray-500 shrink-0" />
+                  }
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-3 pt-1 bg-gray-900/60 border-t border-gray-800/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0">
+                    {SCORE_COMPONENTS.map(sc => (
+                      <ScoreBreakdownRow
+                        key={sc.key}
+                        label={sc.label}
+                        value={m[sc.key]}
+                        icon={sc.icon}
+                      />
+                    ))}
+                  </div>
+                  {/* Pricing + Community summary */}
+                  <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-800/50">
+                    {m.input_price_per_mtok != null && (
+                      <span className="text-[10px] text-gray-500">
+                        💰 ${m.input_price_per_mtok}/${m.output_price_per_mtok} per MTok
+                      </span>
+                    )}
+                    {m.community_satisfaction > 0 && (
+                      <span className="text-[10px] text-gray-500">
+                        👥 {m.community_satisfaction}% satisfaction ({m.community_reviews} reviews)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
