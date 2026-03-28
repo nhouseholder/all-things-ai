@@ -92,4 +92,14 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+
+  // Industry Alerts
+  getAlerts: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/alerts${qs ? '?' + qs : ''}`);
+  },
+  getUnreadAlertCount: () => request('/api/alerts/unread-count'),
+  markAlertRead: (id) => request(`/api/alerts/${id}/read`, { method: 'POST' }),
+  markAllAlertsRead: () => request('/api/alerts/read-all', { method: 'POST' }),
+  dismissAlert: (id) => request(`/api/alerts/${id}/dismiss`, { method: 'POST' }),
 };

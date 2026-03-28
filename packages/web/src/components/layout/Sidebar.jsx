@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Bell } from 'lucide-react';
+import { useUnreadAlertCount } from '../../lib/hooks.js';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
@@ -10,6 +11,7 @@ const links = [
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },
   { to: '/cost', icon: DollarSign, label: 'Optimize' },
+  { to: '/alerts', icon: Bell, label: 'Alerts', hasBadge: true },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
@@ -17,6 +19,8 @@ const links = [
 export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { data: alertData } = useUnreadAlertCount();
+  const unreadCount = alertData?.count || 0;
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -53,7 +57,7 @@ export default function Sidebar() {
         <p className="text-[10px] text-gray-500 mt-0.5">v0.6.0 &middot; Mar 24, 2026</p>
       </div>
       <nav className="flex-1 p-3 space-y-1" aria-label="Main navigation">
-        {links.map(({ to, icon: Icon, label }) => (
+        {links.map(({ to, icon: Icon, label, hasBadge }) => (
           <NavLink
             key={to}
             to={to}
@@ -68,6 +72,11 @@ export default function Sidebar() {
           >
             <Icon className="w-4 h-4" aria-hidden="true" />
             {label}
+            {hasBadge && unreadCount > 0 && (
+              <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white min-w-[18px] text-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

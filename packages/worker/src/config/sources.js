@@ -38,6 +38,27 @@ export const PRICING_TARGETS = [
   { tool_slug: 'zed-ai', url: 'https://zed.dev/pricing' },
 ];
 
+// AI Industry Monitor: sources checked daily for new products, plans, models, pricing changes
+export const MONITOR_SOURCES = [
+  // Official AI company blogs — highest signal
+  { key: 'openai-blog', name: 'OpenAI Blog', url: 'https://openai.com/blog/', type: 'blog' },
+  { key: 'anthropic-blog', name: 'Anthropic Blog', url: 'https://www.anthropic.com/news', type: 'blog' },
+  { key: 'google-ai-blog', name: 'Google AI Blog', url: 'https://blog.google/technology/ai/', type: 'blog' },
+  { key: 'mistral-blog', name: 'Mistral Blog', url: 'https://mistral.ai/news/', type: 'blog' },
+  { key: 'deepseek-blog', name: 'DeepSeek Blog', url: 'https://api-docs.deepseek.com/news', type: 'blog' },
+  { key: 'xai-blog', name: 'xAI Blog', url: 'https://x.ai/blog', type: 'blog' },
+  { key: 'meta-ai-blog', name: 'Meta AI Blog', url: 'https://ai.meta.com/blog/', type: 'blog' },
+  // Pricing pages — detect plan/pricing changes
+  { key: 'openai-pricing', name: 'OpenAI Pricing', url: 'https://openai.com/api/pricing/', type: 'pricing' },
+  { key: 'anthropic-pricing', name: 'Anthropic Pricing', url: 'https://www.anthropic.com/pricing', type: 'pricing' },
+  { key: 'google-pricing', name: 'Google AI Pricing', url: 'https://ai.google.dev/pricing', type: 'pricing' },
+  { key: 'mistral-pricing', name: 'Mistral Pricing', url: 'https://mistral.ai/products/', type: 'pricing' },
+  // Aggregators — broader coverage
+  { key: 'hn-ai', name: 'Hacker News AI', url: 'https://hn.algolia.com/api/v1/search?query=AI+LLM+model+launch&tags=story&hitsPerPage=10', type: 'hn-api' },
+  { key: 'producthunt-ai', name: 'Product Hunt AI', url: 'https://www.producthunt.com/topics/artificial-intelligence', type: 'aggregator' },
+  { key: 'github-trending-ai', name: 'GitHub Trending AI', url: 'https://github.com/trending?since=daily&spoken_language_code=en', type: 'aggregator' },
+];
+
 // Known AI vendors and their model naming patterns for auto-discovery
 export const KNOWN_VENDORS = {
   'Anthropic': { family: 'Claude', prefixes: ['claude', 'opus', 'sonnet', 'haiku'] },

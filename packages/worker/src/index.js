@@ -10,6 +10,8 @@ import { preferencesRoutes } from './routes/preferences.js';
 import { advisorRoutes } from './routes/advisor.js';
 import { adminRoutes } from './routes/admin.js';
 import { codingToolsRoutes } from './routes/coding-tools.js';
+import { alertsRoutes } from './routes/alerts.js';
+import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 import { handleScheduled } from './scheduled.js';
 import { requireAdmin } from './middleware/auth.js';
 import { rateLimit } from './middleware/rate-limit.js';
@@ -61,6 +63,7 @@ app.route('/api/preferences', preferencesRoutes);
 app.route('/api/advisor', advisorRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/coding-tools', codingToolsRoutes);
+app.route('/api/alerts', alertsRoutes);
 
 // Manual trigger for data ingestion (dev/admin use) — C1: require auth
 app.post('/api/ingest', requireAdmin(), async (c) => {
@@ -75,6 +78,16 @@ app.post('/api/ingest', requireAdmin(), async (c) => {
   try { await scrapeHNReviews(c.env); results.hnReviews = 'ok'; } catch (e) { results.hnReviews = e.message; }
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
   return c.json(results);
+});
+
+// Manual trigger for industry monitor only — C1: require auth
+app.post('/api/ingest/monitor', requireAdmin(), async (c) => {
+  try {
+    const result = await monitorAIIndustry(c.env);
+    return c.json({ status: 'ok', ...result });
+  } catch (e) {
+    return c.json({ status: 'error', message: e.message }, 500);
+  }
 });
 
 // Manual trigger for community review scraping only — C1: require auth

@@ -13,6 +13,7 @@ import { computePluginScores } from './services/plugin-score-engine.js';
 import { discoverNewModels } from './pipelines/model-discovery.js';
 import { scrapeBenchmarks } from './pipelines/benchmark-scraper.js';
 import { discoverGitHubTools } from './pipelines/github-tool-discovery.js';
+import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 
 export async function handleScheduled(event, env) {
   const cron = event.cron;
@@ -76,6 +77,10 @@ export async function handleScheduled(event, env) {
         await env.CACHE.delete('rankings:v1');
         await env.CACHE.delete('model-aliases:merged');
       });
+      break;
+    // Daily 9am: AI Industry Monitor — check vendor blogs, pricing pages, aggregators
+    case '0 9 * * *':
+      await runSafe('monitorAIIndustry', () => monitorAIIndustry(env));
       break;
     default:
       console.log(`[CRON] Unknown schedule: ${cron}`);

@@ -120,3 +120,46 @@ export function useCodingToolCategories() {
 export function useCodingToolTags() {
   return useQuery({ queryKey: ['coding-tools', 'tags'], queryFn: api.getCodingToolTags });
 }
+
+// Industry Alerts
+export function useAlerts(params) {
+  return useQuery({ queryKey: ['alerts', params], queryFn: () => api.getAlerts(params) });
+}
+
+export function useUnreadAlertCount() {
+  return useQuery({
+    queryKey: ['alerts', 'unread-count'],
+    queryFn: api.getUnreadAlertCount,
+    refetchInterval: 5 * 60 * 1000, // poll every 5 min
+  });
+}
+
+export function useMarkAlertRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.markAlertRead(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+}
+
+export function useMarkAllAlertsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.markAllAlertsRead(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+}
+
+export function useDismissAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.dismissAlert(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+}
