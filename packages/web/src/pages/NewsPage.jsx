@@ -37,6 +37,49 @@ function relevanceBar(score) {
   return { width: '25%', color: 'bg-gray-600', label: 'FYI' };
 }
 
+/** Decode HTML entities that RSS feeds leave in titles/summaries */
+function decodeHtml(text) {
+  if (!text) return text;
+  return text
+    .replace(/&#8217;/g, '\u2019').replace(/&#8216;/g, '\u2018')
+    .replace(/&#8220;/g, '\u201C').replace(/&#8221;/g, '\u201D')
+    .replace(/&#8211;/g, '\u2013').replace(/&#8212;/g, '\u2014')
+    .replace(/&#038;/g, '&').replace(/&#8230;/g, '\u2026')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, m => String.fromCharCode(parseInt(m.slice(2, -1))));
+}
+
+/** Parse relevance_tags — handles both JSON arrays and comma-separated strings */
+function parseTags(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(t => t.replace(/[[\]"]/g, '').trim()).filter(Boolean);
+  } catch {}
+  return raw.replace(/[[\]"]/g, '').split(',').map(t => t.trim()).filter(Boolean);
+}
+
+const TAG_LABELS = {
+  'model-release': 'New Model',
+  'new-model': 'New Model',
+  'pricing-change': 'Pricing',
+  'pricing': 'Pricing',
+  'coding-tool': 'Tool Update',
+  'benchmark': 'Benchmark',
+  'vibe-coding': 'Vibe Coding',
+  'new-feature': 'Feature',
+};
+
+const TAG_COLORS = {
+  'New Model': 'bg-purple-500/10 text-purple-400',
+  'Pricing': 'bg-yellow-500/10 text-yellow-400',
+  'Tool Update': 'bg-blue-500/10 text-blue-400',
+  'Benchmark': 'bg-cyan-500/10 text-cyan-400',
+  'Vibe Coding': 'bg-green-500/10 text-green-400',
+  'Feature': 'bg-emerald-500/10 text-emerald-400',
+};
+
 function HeadlineCard({ item, featured }) {
   const src = SOURCE_CONFIG[item.source] || { label: item.source, icon: Rss, color: 'text-gray-400', bg: 'bg-gray-500/10', border: 'border-gray-500/30' };
   const SrcIcon = src.icon;
@@ -71,7 +114,7 @@ function HeadlineCard({ item, featured }) {
       <h3 className={`font-semibold text-white leading-snug group-hover:text-blue-300 transition-colors ${
         featured ? 'text-lg' : 'text-sm'
       }`}>
-        {item.title}
+        {decodeHtml(item.title)}
         <ExternalLink className="inline w-3 h-3 ml-1.5 opacity-0 group-hover:opacity-60 transition-opacity" />
       </h3>
 
@@ -80,18 +123,22 @@ function HeadlineCard({ item, featured }) {
         <p className={`text-gray-400 leading-relaxed mt-2 ${
           featured ? 'text-sm line-clamp-3' : 'text-xs line-clamp-2'
         }`}>
-          {item.summary}
+          {decodeHtml(item.summary)}
         </p>
       )}
 
       {/* Tags + relevance */}
       <div className="flex items-center justify-between mt-3">
-        <div className="flex items-center gap-2">
-          {item.relevance_tags && item.relevance_tags.split(',').slice(0, 3).map(tag => (
-            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 uppercase tracking-wider">
-              {tag.trim()}
-            </span>
-          ))}
+        <div className="flex items-center gap-1.5">
+          {parseTags(item.relevance_tags).slice(0, 3).map(tag => {
+            const label = TAG_LABELS[tag] || tag.replace(/-/g, ' ');
+            const cls = TAG_COLORS[label] || 'bg-gray-800 text-gray-500';
+            return (
+              <span key={tag} className={`text-[9px] px-1.5 py-0.5 rounded capitalize ${cls}`}>
+                {label}
+              </span>
+            );
+          })}
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-12 h-1 bg-gray-800 rounded-full overflow-hidden">
@@ -128,7 +175,7 @@ function AlertBanner({ alerts }) {
           >
             <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />
             <span className="text-sm text-gray-200 group-hover:text-yellow-300 transition-colors flex-1 truncate">
-              {a.title}
+              {decodeHtml(a.title)}
             </span>
             <span className="text-[10px] text-gray-500 shrink-0">{timeAgo(a.detected_at)}</span>
           </a>
