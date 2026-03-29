@@ -30,8 +30,8 @@ import { quartileColor } from '../lib/chart-utils.js';
 import { useRankings, useTaskProfiles } from '../lib/hooks.js';
 import { compositeColor, compositeBarBg, setPageTitle, timeAgo } from '../lib/format.js';
 
-const VERSION = 'v0.7.0';
-const BUILD_DATE = 'Mar 28, 2026';
+const VERSION = 'v0.8.0';
+const BUILD_DATE = 'Mar 29, 2026';
 
 const TASK_ICONS = {
   'complex-debugging': Bug,
