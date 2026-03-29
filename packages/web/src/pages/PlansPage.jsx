@@ -5,7 +5,7 @@ import {
   ArrowUpDown, MessageSquare, Info,
 } from 'lucide-react';
 import { useToolPlans } from '../lib/hooks.js';
-import { setPageTitle, formatSubPrice } from '../lib/format.js';
+import { setPageTitle, formatSubPrice, timeAgo } from '../lib/format.js';
 
 const TIER_COLORS = {
   free:    { bg: 'bg-gray-500/5', border: 'border-gray-500/30', badge: 'bg-gray-500/20 text-gray-400', label: 'Free Tier' },
@@ -282,6 +282,7 @@ export default function PlansPage() {
         </h1>
         <p className="text-sm text-gray-400 mt-1">
           Compare every AI coding subscription — pricing, models, usage limits, overage costs, and real developer reviews
+          <span className="text-gray-600 text-xs ml-1">· Pricing verified daily</span>
         </p>
       </div>
 

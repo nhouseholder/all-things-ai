@@ -28,7 +28,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import ChartContainer from '../components/ChartContainer.jsx';
 import { quartileColor } from '../lib/chart-utils.js';
 import { useRankings, useTaskProfiles } from '../lib/hooks.js';
-import { compositeColor, compositeBarBg, setPageTitle } from '../lib/format.js';
+import { compositeColor, compositeBarBg, setPageTitle, timeAgo } from '../lib/format.js';
 
 const VERSION = 'v0.7.0';
 const BUILD_DATE = 'Mar 28, 2026';
@@ -134,7 +134,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Best Overall Models</h2>
-              <p className="text-xs text-gray-500">AllThingsAI composite score — benchmarks + community + pricing</p>
+              <p className="text-xs text-gray-500">
+                AllThingsAI composite score — benchmarks + community + pricing
+                {topOverall[0]?.updated_at && <span className="ml-2 text-gray-600">· Updated {timeAgo(topOverall[0].updated_at)}</span>}
+              </p>
             </div>
             <Link
               to="/advisor"
@@ -284,6 +287,7 @@ export default function HomePage() {
               valueKey="composite_score"
               valueLabel="score"
               formatValue={(v) => Number(v).toFixed(1)}
+              updatedAt={topOverall[0]?.updated_at}
             />
 
             <MiniLeaderboard
@@ -297,6 +301,7 @@ export default function HomePage() {
               valueKey="value_score"
               valueLabel="value"
               formatValue={(v) => Number(v).toFixed(1)}
+              updatedAt={topValue[0]?.updated_at}
             />
           </div>
 
@@ -464,7 +469,7 @@ function ScoreBreakdownRow({ label, value, icon }) {
   );
 }
 
-function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, headerBorder, models, valueKey, valueLabel, formatValue }) {
+function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, headerBorder, models, valueKey, valueLabel, formatValue, updatedAt }) {
   const [expandedSlug, setExpandedSlug] = useState(null);
 
   return (
@@ -474,7 +479,7 @@ function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, hea
           <Icon className={`w-4 h-4 ${iconColor}`} />
           <div>
             <h3 className="text-sm font-semibold text-white">{title}</h3>
-            <p className="text-[10px] text-gray-500">{subtitle}</p>
+            <p className="text-[10px] text-gray-500">{subtitle}{updatedAt && <span className="text-gray-600"> · {timeAgo(updatedAt)}</span>}</p>
           </div>
         </div>
       </div>

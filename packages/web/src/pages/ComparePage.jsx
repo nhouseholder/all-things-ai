@@ -182,7 +182,10 @@ export default function ComparePage() {
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-white mb-1">Model Compare</h1>
-        <p className="text-sm text-gray-400">Deep comparison with benchmarks, task performance, and availability.</p>
+        <p className="text-sm text-gray-400">
+          Deep comparison with benchmarks, task performance, and availability.
+          <span className="text-gray-600 text-xs ml-1">· Scores updated daily</span>
+        </p>
       </div>
 
       {/* Tab bar */}

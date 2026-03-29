@@ -26,7 +26,7 @@ export default function ModelsPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-1">Models</h1>
-        <p className="text-sm text-gray-500">Rankings, benchmarks, and real-world success rates</p>
+        <p className="text-sm text-gray-500">Rankings, benchmarks, and real-world success rates <span className="text-gray-600 text-xs">· Updated daily</span></p>
       </div>
 
       {/* Tab Bar */}
