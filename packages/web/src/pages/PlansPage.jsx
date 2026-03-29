@@ -8,7 +8,7 @@ import { useToolPlans } from '../lib/hooks.js';
 import { setPageTitle, formatSubPrice } from '../lib/format.js';
 
 const TIER_COLORS = {
-  free:    { bg: 'bg-green-500/5', border: 'border-green-500/30', badge: 'bg-green-500/20 text-green-400', label: 'Free' },
+  free:    { bg: 'bg-gray-500/5', border: 'border-gray-500/30', badge: 'bg-gray-500/20 text-gray-400', label: 'Free Tier' },
   budget:  { bg: 'bg-emerald-500/5', border: 'border-emerald-500/30', badge: 'bg-emerald-500/20 text-emerald-400', label: 'Budget' },
   mid:     { bg: 'bg-blue-500/5', border: 'border-blue-500/30', badge: 'bg-blue-500/20 text-blue-400', label: 'Mid-Range' },
   premium: { bg: 'bg-violet-500/5', border: 'border-violet-500/30', badge: 'bg-violet-500/20 text-violet-400', label: 'Premium' },
@@ -61,8 +61,14 @@ function PlanCard({ plan, expanded, onToggle }) {
                 {tc.label}
               </span>
               {plan.overage_model && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
-                  {plan.overage_model === 'pay-per-use' ? 'Pay-as-you-go overage' : plan.overage_model}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  plan.overage_model === 'stopped' ? 'bg-red-500/10 text-red-400' :
+                  plan.overage_model === 'pay-per-use' ? 'bg-yellow-500/10 text-yellow-400' :
+                  'bg-gray-800 text-gray-400'
+                }`}>
+                  {plan.overage_model === 'pay-per-use' ? 'Pay-as-you-go overage' :
+                   plan.overage_model === 'stopped' ? 'Hard limit — upgrade required' :
+                   plan.overage_model}
                 </span>
               )}
             </div>
@@ -70,10 +76,13 @@ function PlanCard({ plan, expanded, onToggle }) {
             <p className="text-xs text-gray-500">{plan.plan_name} &middot; {plan.vendor}</p>
           </div>
           <div className="text-right shrink-0 ml-3">
-            <p className={`text-2xl font-extrabold ${price === 0 ? 'text-green-400' : 'text-white'}`}>
-              {formatSubPrice(price, plan.plan_name)}
+            <p className={`text-2xl font-extrabold ${price === 0 ? 'text-gray-400' : 'text-white'}`}>
+              {price === 0 ? '$0' : `$${price}`}<span className="text-sm font-normal text-gray-500">/mo</span>
             </p>
-            {plan.price_yearly && (
+            {price === 0 && (
+              <p className="text-[10px] text-yellow-500">Limited models &amp; usage</p>
+            )}
+            {plan.price_yearly && price > 0 && (
               <p className="text-[10px] text-gray-500">${plan.price_yearly}/yr ({Math.round((1 - plan.price_yearly / (price * 12)) * 100)}% off)</p>
             )}
           </div>
@@ -282,9 +291,10 @@ export default function PlansPage() {
           <p className="text-lg font-bold text-white">{allPlans.length}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total Plans</p>
         </div>
-        <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 text-center">
-          <p className="text-lg font-bold text-green-400">{freePlans}</p>
+        <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-3 text-center">
+          <p className="text-lg font-bold text-gray-400">{freePlans}</p>
           <p className="text-[10px] text-gray-500 uppercase">Free Tier</p>
+          <p className="text-[8px] text-yellow-500/70">Limited</p>
         </div>
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3 text-center">
           <p className="text-lg font-bold text-blue-400">${avgPrice}</p>
