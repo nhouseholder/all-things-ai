@@ -14,10 +14,19 @@ import {
   Sparkles,
   ArrowUpCircle,
   RefreshCw,
+  Brain,
+  Scale,
+  Bot,
+  TrendingUp,
+  TrendingDown,
+  Puzzle,
+  Bell,
+  Target,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { useRecommendations, useFeed, useDismissRecommendation } from '../lib/hooks.js';
-import { setPageTitle } from '../lib/format.js';
+import { useRecommendations, useFeed, useDismissRecommendation, useDashboardSummary } from '../lib/hooks.js';
+import { setPageTitle, timeAgo } from '../lib/format.js';
 import { SkeletonDashboard } from '../components/Skeleton.jsx';
 
 const TYPE_STYLES = {
@@ -191,6 +200,7 @@ export default function DashboardPage() {
   useEffect(() => { setPageTitle('Dashboard'); }, []);
   const recsQuery = useRecommendations();
   const feedQuery = useFeed();
+  const summaryQuery = useDashboardSummary();
   const dismissMutation = useDismissRecommendation();
   const [localFeed, setLocalFeed] = useState(null);
 
@@ -200,6 +210,11 @@ export default function DashboardPage() {
   const feedData = feedQuery.data;
   const rawFeed = feedData?.items ?? feedData?.data ?? feedData ?? [];
   const feed = localFeed ?? [...rawFeed].sort((a, b) => (b.relevance_score ?? 0) - (a.relevance_score ?? 0));
+
+  const summary = summaryQuery.data;
+  const stats = summary?.stats || {};
+  const movers = summary?.ranking_movers || [];
+  const scoring = summary?.scoring || {};
 
   const loading = recsQuery.isLoading || feedQuery.isLoading;
   const error = recsQuery.error || feedQuery.error;
@@ -228,8 +243,6 @@ export default function DashboardPage() {
     } catch {}
   }
 
-  const totalSpend = feed.length > 0 ? '$--' : '$0';
-  const toolsCount = '--';
   const unreadCount = feed.filter((i) => !i.is_read).length;
   const recCount = recommendations.length;
 
@@ -257,9 +270,73 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-in">
-      <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        {scoring.last_score_update && (
+          <span className="text-[10px] text-gray-500">Last scored: {timeAgo(scoring.last_score_update)}</span>
+        )}
+      </div>
 
-      {/* Recommendations - full width */}
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+        <StatCard icon={Brain} label="Models" value={stats.model_count || '--'} color="bg-purple-500/10 text-purple-400" />
+        <StatCard icon={Wrench} label="Tools" value={stats.tool_count || '--'} color="bg-blue-500/10 text-blue-400" />
+        <StatCard icon={Puzzle} label="Plugins" value={stats.coding_tool_count || '--'} color="bg-cyan-500/10 text-cyan-400" />
+        <StatCard icon={DollarSign} label="Spend/mo" value={stats.monthly_spend > 0 ? `$${stats.monthly_spend}` : '$0'} color="bg-green-500/10 text-green-400" />
+        <StatCard icon={Bell} label="Alerts" value={stats.unread_alerts || 0} color="bg-orange-500/10 text-orange-400" />
+        <StatCard icon={Lightbulb} label="Tips" value={recCount} color="bg-yellow-500/10 text-yellow-400" />
+      </div>
+
+      {/* Quick Actions */}
+      <section className="mb-8">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { to: '/compare', icon: Scale, label: 'Compare Models', color: 'text-purple-400', bg: 'bg-purple-500/5', border: 'border-purple-500/15' },
+            { to: '/advisor/chat', icon: Bot, label: 'Ask AI Advisor', color: 'text-blue-400', bg: 'bg-blue-500/5', border: 'border-blue-500/15' },
+            { to: '/cost', icon: DollarSign, label: 'Optimize Costs', color: 'text-green-400', bg: 'bg-green-500/5', border: 'border-green-500/15' },
+            { to: '/news', icon: Newspaper, label: 'View News', color: 'text-orange-400', bg: 'bg-orange-500/5', border: 'border-orange-500/15' },
+          ].map(({ to, icon: Icon, label, color, bg, border }) => (
+            <Link key={to} to={to} className={`rounded-xl ${bg} border ${border} p-4 hover:brightness-125 transition-all group`}>
+              <Icon className={`w-5 h-5 ${color} mb-2`} />
+              <p className="text-xs font-medium text-white group-hover:text-blue-400 transition-colors">{label}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Ranking Movers */}
+      {movers.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Ranking Movers
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {movers.map((m) => {
+              const up = m.score_change > 0;
+              return (
+                <Link
+                  key={m.slug}
+                  to={`/models/${m.slug}`}
+                  className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 hover:border-gray-700 transition-colors group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-white group-hover:text-blue-400 transition-colors">{m.name}</span>
+                    <span className={`text-xs font-bold flex items-center gap-0.5 ${up ? 'text-green-400' : 'text-red-400'}`}>
+                      {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {up ? '+' : ''}{Number(m.score_change).toFixed(1)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500">{m.vendor} · Score: {Number(m.composite_score).toFixed(1)}</p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Recommendations */}
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Lightbulb className="w-4 h-4" />
@@ -271,7 +348,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {recommendations.map((rec, i) => (
+            {recommendations.map((rec) => (
               <div key={rec.id} className="stagger-item">
                 <RecommendationCard rec={rec} onDismiss={handleDismiss} />
               </div>
@@ -280,7 +357,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Feed (2/3) + Stats (1/3) */}
+      {/* Feed + Additional Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <section className="lg:col-span-2">
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -293,7 +370,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {feed.map((item) => (
+              {feed.slice(0, 10).map((item) => (
                 <NewsItem
                   key={item.id}
                   item={item}
@@ -301,40 +378,25 @@ export default function DashboardPage() {
                   onMarkRead={handleMarkRead}
                 />
               ))}
+              {feed.length > 10 && (
+                <Link to="/news" className="block text-center py-2 text-xs text-blue-400 hover:text-blue-300">
+                  View all {feed.length} news items →
+                </Link>
+              )}
             </div>
           )}
         </section>
 
         <section>
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Star className="w-4 h-4" />
-            Quick Stats
+            <Target className="w-4 h-4" />
+            Tracking
           </h2>
           <div className="space-y-3">
-            <StatCard
-              icon={DollarSign}
-              label="Monthly Spend"
-              value={totalSpend}
-              color="bg-green-500/10 text-green-400"
-            />
-            <StatCard
-              icon={Wrench}
-              label="Tools Tracked"
-              value={toolsCount}
-              color="bg-blue-500/10 text-blue-400"
-            />
-            <StatCard
-              icon={Newspaper}
-              label="Unread News"
-              value={unreadCount}
-              color="bg-orange-500/10 text-orange-400"
-            />
-            <StatCard
-              icon={Lightbulb}
-              label="Recommendations"
-              value={recCount}
-              color="bg-purple-500/10 text-purple-400"
-            />
+            <StatCard icon={DollarSign} label="Monthly Spend" value={stats.monthly_spend > 0 ? `$${stats.monthly_spend}` : '$0'} color="bg-green-500/10 text-green-400" />
+            <StatCard icon={Star} label="Subscriptions" value={stats.subscription_count || 0} color="bg-yellow-500/10 text-yellow-400" />
+            <StatCard icon={Newspaper} label="Unread News" value={unreadCount} color="bg-orange-500/10 text-orange-400" />
+            <StatCard icon={Brain} label="Models Scored (7d)" value={scoring.models_scored_7d || '--'} color="bg-purple-500/10 text-purple-400" />
           </div>
         </section>
       </div>

@@ -53,6 +53,9 @@ export const api = {
   },
   dismissRecommendation: (id) => request(`/api/recommendations/${id}/dismiss`, { method: 'POST' }),
 
+  // Dashboard
+  getDashboardSummary: () => request('/api/dashboard/summary'),
+
   // Preferences
   getPreferences: () => request('/api/preferences'),
   updatePreferences: (data) => request('/api/preferences', { method: 'PUT', body: JSON.stringify(data) }),

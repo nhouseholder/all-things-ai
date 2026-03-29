@@ -33,6 +33,11 @@ export function useBenchmarks(category) {
   return useQuery({ queryKey: ['benchmarks', category], queryFn: () => api.getBenchmarks(category) });
 }
 
+// Dashboard
+export function useDashboardSummary() {
+  return useQuery({ queryKey: ['dashboard', 'summary'], queryFn: api.getDashboardSummary });
+}
+
 // Cost
 export function useCostSummary() {
   return useQuery({ queryKey: ['cost', 'summary'], queryFn: api.getCostSummary });

@@ -11,6 +11,7 @@ import { advisorRoutes } from './routes/advisor.js';
 import { adminRoutes } from './routes/admin.js';
 import { codingToolsRoutes } from './routes/coding-tools.js';
 import { alertsRoutes } from './routes/alerts.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
 import { handleScheduled } from './scheduled.js';
@@ -71,6 +72,7 @@ app.route('/api/advisor', advisorRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/coding-tools', codingToolsRoutes);
 app.route('/api/alerts', alertsRoutes);
+app.route('/api/dashboard', dashboardRoutes);
 
 // Manual trigger for data ingestion (dev/admin use) — C1: require auth
 app.post('/api/ingest', requireAdmin(), async (c) => {
