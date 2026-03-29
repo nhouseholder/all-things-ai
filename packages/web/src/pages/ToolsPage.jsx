@@ -226,7 +226,7 @@ function ToolCard({ tool }) {
 
           {/* Plans table */}
           {plans.length > 0 && (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto"><table className="w-full text-xs min-w-[400px]">
             <thead>
               <tr className="text-gray-500 border-b border-gray-800">
                 <th className="text-left pb-2 font-medium">Plan</th>
@@ -278,7 +278,7 @@ function ToolCard({ tool }) {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
           )}
         </div>
       )}

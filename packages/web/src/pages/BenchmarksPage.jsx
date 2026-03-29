@@ -396,7 +396,7 @@ function TokenPricingTab() {
                 <YAxis
                   dataKey="name"
                   type="category"
-                  width={160}
+                  width={120}
                   tick={{ fill: '#d1d5db', fontSize: 11 }}
                 />
                 <Tooltip content={<BangForBuckTooltip />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
@@ -657,7 +657,7 @@ export default function BenchmarksPage() {
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={140}
+                    width={120}
                     tick={{ fill: '#d1d5db', fontSize: 11 }}
                   />
                   <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />

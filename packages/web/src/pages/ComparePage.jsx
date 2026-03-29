@@ -731,7 +731,7 @@ function TaskPerformanceTab({ models, taskProfiles, selectedTask, setSelectedTas
                 type="category"
                 dataKey="name"
                 tick={{ fill: '#e2e8f0', fontSize: 12, fontWeight: 500 }}
-                width={140}
+                width={100}
                 axisLine={false}
                 tickLine={false}
               />

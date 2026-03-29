@@ -110,8 +110,8 @@ function PlanCard({ plan, expanded, onToggle }) {
 
         {/* Per-model token costs */}
         {(plan.model_pricing?.length > 0) && (
-          <div className="mb-3 rounded-lg border border-gray-800/50 overflow-hidden">
-            <table className="w-full text-[10px]">
+          <div className="mb-3 rounded-lg border border-gray-800/50 overflow-hidden overflow-x-auto">
+            <table className="w-full text-[10px] min-w-[280px]">
               <thead>
                 <tr className="bg-gray-800/30 text-gray-500">
                   <th className="text-left py-1.5 px-2 font-medium">Model</th>
@@ -287,7 +287,7 @@ export default function PlansPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3 text-center">
           <p className="text-lg font-bold text-white">{allPlans.length}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total Plans</p>

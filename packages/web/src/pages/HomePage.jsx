@@ -160,7 +160,7 @@ export default function HomePage() {
                 margin={{ top: 5, right: 40, left: 0, bottom: 5 }}
               >
                 <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#374151' }} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={160} tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', fontSize: '12px' }}
                   labelStyle={{ color: '#e5e7eb' }}
