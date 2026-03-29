@@ -19,6 +19,7 @@ crons = [
 binding = "DB"
 database_name = "all-things-ai-db"
 database_id = "f3f12b72-ab5a-4808-a749-f683f19dd9ea"
+migrations_dir = "src/db/migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
