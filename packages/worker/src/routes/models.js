@@ -176,7 +176,9 @@ modelsRoutes.get('/compare', async (c) => {
 
     c.env.DB.prepare(`
       SELECT ma.model_id, t.name as tool_name, t.slug as tool_slug,
-        pp.plan_name, pp.price_monthly, ma.access_level
+        pp.plan_name, pp.price_monthly, ma.access_level,
+        ma.cost_notes, ma.credits_per_request,
+        pp.usage_notes, pp.overage_rate_description, pp.overage_model
       FROM model_availability ma
       JOIN tools t ON t.id = ma.tool_id
       LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id

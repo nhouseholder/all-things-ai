@@ -921,13 +921,30 @@ function AvailabilityMatrix({ models }) {
                     const cheapest = plans.reduce((min, p) => (p.price_monthly || 0) < (min.price_monthly || Infinity) ? p : min, plans[0]);
                     const isCheapestOverall = cheapest.price_monthly != null && cheapest.price_monthly === cheapestPerModel[m.slug];
                     return (
-                      <td key={m.slug} className="py-2.5 px-3 text-center">
-                        <div className="space-y-0.5">
-                          {plans.slice(0, 2).map((p, j) => (
-                            <div key={j} className={`text-[10px] ${p === cheapest && isCheapestOverall ? 'text-green-400 font-semibold' : 'text-gray-400'}`}>
-                              {p.plan_name || 'Default'}{p.price_monthly != null ? ` $${p.price_monthly}/mo` : ' BYOK'}
-                            </div>
-                          ))}
+                      <td key={m.slug} className="py-2.5 px-3">
+                        <div className="space-y-1">
+                          {plans.slice(0, 2).map((p, j) => {
+                            const isTop = p === cheapest && isCheapestOverall;
+                            // Build cost detail string
+                            let costDetail = '';
+                            if (p.credits_per_request) {
+                              costDetail = `${p.credits_per_request} credits/req`;
+                            } else if (p.cost_notes) {
+                              costDetail = p.cost_notes;
+                            } else if (p.access_level === 'byok') {
+                              costDetail = `$${m.input_price_per_mtok || '?'}/$${m.output_price_per_mtok || '?'} per MTok`;
+                            }
+                            return (
+                              <div key={j}>
+                                <div className={`text-[10px] ${isTop ? 'text-green-400 font-semibold' : 'text-gray-400'}`}>
+                                  {p.plan_name || 'Default'}{p.price_monthly != null ? ` $${p.price_monthly}/mo` : ' BYOK'}
+                                </div>
+                                {costDetail && (
+                                  <div className="text-[9px] text-gray-500 leading-tight">{costDetail}</div>
+                                )}
+                              </div>
+                            );
+                          })}
                           {plans.length > 2 && (
                             <div className="text-[9px] text-gray-600">+{plans.length - 2} more</div>
                           )}
@@ -1049,13 +1066,22 @@ function ComparisonTable({ models }) {
               {models.map(m => (
                 <td key={m.slug} className="py-3 px-3 text-center align-top">
                   {m.availability?.length > 0 ? (
-                    <div className="space-y-1">
-                      {m.availability.slice(0, 4).map((a, i) => (
-                        <div key={i} className="text-[10px] text-gray-400">
-                          {a.tool_name}{a.plan_name ? ` (${a.plan_name})` : ''}
-                          {a.price_monthly ? <span className="text-green-400"> ${a.price_monthly}/mo</span> : null}
-                        </div>
-                      ))}
+                    <div className="space-y-1.5">
+                      {m.availability.slice(0, 4).map((a, i) => {
+                        let cost = '';
+                        if (a.credits_per_request) cost = `${a.credits_per_request} credits/req`;
+                        else if (a.cost_notes) cost = a.cost_notes;
+                        else if (a.access_level === 'byok') cost = `$${m.input_price_per_mtok || '?'}/$${m.output_price_per_mtok || '?'}/MTok`;
+                        return (
+                          <div key={i}>
+                            <div className="text-[10px] text-gray-400">
+                              {a.tool_name}{a.plan_name ? ` (${a.plan_name})` : ''}
+                              {a.price_monthly ? <span className="text-green-400"> ${a.price_monthly}/mo</span> : null}
+                            </div>
+                            {cost && <div className="text-[9px] text-gray-500">{cost}</div>}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <span className="text-[10px] text-gray-500">API only</span>
