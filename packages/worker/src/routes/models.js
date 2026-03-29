@@ -274,23 +274,110 @@ modelsRoutes.get('/compare', async (c) => {
   return c.json({ models: comparison, task_profiles: taskProfileRes.results });
 });
 
-// GET /api/models/:slug
+// GET /api/models/:slug — enriched model detail
 modelsRoutes.get('/:slug', async (c) => {
   const slug = c.req.param('slug');
-  const model = await c.env.DB.prepare('SELECT * FROM models WHERE slug = ?').bind(slug).first();
+  const model = await c.env.DB.prepare(`
+    SELECT m.*,
+      mcs.composite_score, mcs.swe_bench_component, mcs.livecodebench_component,
+      mcs.nuance_component, mcs.arena_component, mcs.tau_component,
+      mcs.gpqa_component, mcs.success_rate_component, mcs.community_adjustment,
+      mcs.updated_at as score_updated_at
+    FROM models m
+    LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
+    WHERE m.slug = ?
+  `).bind(slug).first();
   if (!model) return c.json({ error: 'Not found' }, 404);
 
-  const { results: benchmarkScores } = await c.env.DB.prepare(
-    'SELECT * FROM benchmarks WHERE model_id = ?'
-  ).bind(model.id).all();
+  // Parallel queries for all detail data
+  const [benchRes, availRes, reviewRes, taskRes, altRes] = await Promise.all([
+    c.env.DB.prepare(
+      'SELECT benchmark_name, category, score, max_score FROM benchmarks WHERE model_id = ?'
+    ).bind(model.id).all(),
 
-  const { results: availability } = await c.env.DB.prepare(`
-    SELECT t.name as tool_name, t.slug as tool_slug, pp.plan_name, pp.price_monthly, ma.access_level
-    FROM model_availability ma
-    JOIN tools t ON t.id = ma.tool_id
-    LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
-    WHERE ma.model_id = ?
-  `).bind(model.id).all();
+    c.env.DB.prepare(`
+      SELECT t.name as tool_name, t.slug as tool_slug,
+        pp.plan_name, pp.price_monthly, ma.access_level,
+        ma.cost_notes, ma.credits_per_request,
+        pp.usage_notes, pp.overage_rate_description, pp.overage_model
+      FROM model_availability ma
+      JOIN tools t ON t.id = ma.tool_id
+      LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
+      WHERE ma.model_id = ?
+      ORDER BY pp.price_monthly ASC
+    `).bind(model.id).all(),
 
-  return c.json({ ...model, benchmarks: benchmarkScores, availability });
+    c.env.DB.prepare(`
+      SELECT source,
+        SUM(review_count) as review_count,
+        ROUND(AVG(coding_satisfaction), 1) as satisfaction,
+        ROUND(AVG(sentiment_score), 2) as sentiment,
+        SUM(COALESCE(heavy_coder_count, 0)) as heavy_count,
+        SUM(COALESCE(vibe_coder_count, 0)) as vibe_count,
+        SUM(COALESCE(casual_count, 0)) as casual_count,
+        MAX(last_updated_at) as last_updated_at
+      FROM community_reviews
+      WHERE model_id = ?
+      GROUP BY source
+    `).bind(model.id).all(),
+
+    c.env.DB.prepare(`
+      SELECT tp.name as task_name, tp.slug as task_slug, tp.complexity,
+        mte.first_attempt_success_rate, mte.avg_messages_to_complete,
+        mte.avg_minutes_to_complete, mte.steering_effort,
+        mte.autonomy_score, mte.cost_per_task_estimate, mte.time_value_per_task
+      FROM model_task_estimates mte
+      JOIN task_profiles tp ON tp.id = mte.task_profile_id
+      WHERE mte.model_id = ?
+      ORDER BY tp.sort_order
+    `).bind(model.id).all(),
+
+    c.env.DB.prepare(`
+      SELECT m.name, m.slug, m.vendor, m.family,
+        m.input_price_per_mtok, m.output_price_per_mtok,
+        ma.similarity_score, ma.cost_savings_pct, ma.trade_off_notes,
+        mcs.composite_score
+      FROM model_alternatives ma
+      JOIN models m ON m.id = ma.alternative_model_id
+      LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
+      WHERE ma.model_id = ? AND m.is_active = 1
+      ORDER BY ma.similarity_score DESC
+    `).bind(model.id).all(),
+  ]);
+
+  // Compute blended cost + bang_for_buck
+  const blendedCost = model.input_price_per_mtok != null && model.output_price_per_mtok != null
+    ? (model.input_price_per_mtok * 0.3 + model.output_price_per_mtok * 0.7)
+    : null;
+
+  // Community totals
+  const communityTotal = reviewRes.results.reduce((acc, r) => ({
+    total_reviews: acc.total_reviews + (r.review_count || 0),
+    sources: acc.sources + 1,
+    heavy: acc.heavy + (r.heavy_count || 0),
+    vibe: acc.vibe + (r.vibe_count || 0),
+    casual: acc.casual + (r.casual_count || 0),
+  }), { total_reviews: 0, sources: 0, heavy: 0, vibe: 0, casual: 0 });
+
+  const avgSatisfaction = reviewRes.results.length > 0
+    ? reviewRes.results.reduce((sum, r) => sum + (r.satisfaction || 0), 0) / reviewRes.results.length
+    : null;
+
+  return c.json({
+    ...model,
+    blended_cost_per_mtok: blendedCost ? Number(blendedCost.toFixed(4)) : null,
+    benchmarks: benchRes.results,
+    availability: availRes.results,
+    community: {
+      total_reviews: communityTotal.total_reviews,
+      source_count: communityTotal.sources,
+      satisfaction: avgSatisfaction ? Number(avgSatisfaction.toFixed(1)) : null,
+      heavy_coder_count: communityTotal.heavy,
+      vibe_coder_count: communityTotal.vibe,
+      casual_count: communityTotal.casual,
+      by_source: reviewRes.results,
+    },
+    task_estimates: taskRes.results,
+    alternatives: altRes.results,
+  });
 });

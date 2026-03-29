@@ -20,6 +20,14 @@ export function useModels() {
   return useQuery({ queryKey: ['models'], queryFn: api.getModels });
 }
 
+export function useModelDetail(slug) {
+  return useQuery({
+    queryKey: ['model', slug],
+    queryFn: () => api.getModel(slug),
+    enabled: !!slug,
+  });
+}
+
 // Benchmarks
 export function useBenchmarks(category) {
   return useQuery({ queryKey: ['benchmarks', category], queryFn: () => api.getBenchmarks(category) });

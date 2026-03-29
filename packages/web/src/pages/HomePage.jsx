@@ -493,7 +493,7 @@ function MiniLeaderboard({ title, subtitle, icon: Icon, iconColor, headerBg, hea
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-xs text-white font-medium truncate">{m.model_name}</p>
+                    <Link to={`/models/${m.model_slug}`} className="text-xs text-white font-medium truncate hover:text-blue-400 transition-colors">{m.model_name}</Link>
                     <CommunityBadge reviews={m.community_reviews} sources={m.community_sources} />
                   </div>
                   <p className="text-[10px] text-gray-500">{m.vendor}{m.community_adjustment ? ` · community ${m.community_adjustment > 0 ? '+' : ''}${m.community_adjustment.toFixed(1)}` : ''}</p>
