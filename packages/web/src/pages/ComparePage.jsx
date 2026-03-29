@@ -833,7 +833,15 @@ function TaskRow({ label, data, accessor, format, best, higher = false }) {
 }
 
 // ── Availability Matrix Tab ──────────────────────────────────────
-function AvailabilityMatrix({ models }) {
+function AvailabilityMatrix({ models: rawModels }) {
+  // Filter out BYOK entries from availability — only show subscription plans
+  const models = useMemo(() =>
+    rawModels.map(m => ({
+      ...m,
+      availability: (m.availability || []).filter(a => a.access_level !== 'byok' && !/byok/i.test(a.plan_name || '')),
+    })),
+  [rawModels]);
+
   // Collect all unique tools across all models
   const allTools = useMemo(() => {
     const toolMap = new Map();
@@ -878,13 +886,13 @@ function AvailabilityMatrix({ models }) {
               </div>
               {cheapest != null ? (
                 <>
-                  <p className="text-lg font-bold text-green-400">${cheapest}<span className="text-[10px] text-gray-500">/mo</span></p>
+                  <p className="text-lg font-bold text-green-400">{cheapest === 0 ? 'Free' : `$${cheapest}`}<span className="text-[10px] text-gray-500">/mo</span></p>
                   <p className="text-[10px] text-gray-500 truncate">{cheapestPlan?.tool_name} {cheapestPlan?.plan_name ? `· ${cheapestPlan.plan_name}` : ''}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-lg font-bold text-cyan-400">BYOK</p>
-                  <p className="text-[10px] text-gray-500">API access only</p>
+                  <p className="text-lg font-bold text-gray-500">—</p>
+                  <p className="text-[10px] text-gray-500">No subscription plans</p>
                 </>
               )}
             </div>
@@ -931,13 +939,11 @@ function AvailabilityMatrix({ models }) {
                               costDetail = `${p.credits_per_request} credits/req`;
                             } else if (p.cost_notes) {
                               costDetail = p.cost_notes;
-                            } else if (p.access_level === 'byok') {
-                              costDetail = `$${m.input_price_per_mtok || '?'}/$${m.output_price_per_mtok || '?'} per MTok`;
                             }
                             return (
                               <div key={j}>
                                 <div className={`text-[10px] ${isTop ? 'text-green-400 font-semibold' : 'text-gray-400'}`}>
-                                  {p.plan_name || 'Default'}{p.price_monthly != null ? ` $${p.price_monthly}/mo` : ' BYOK'}
+                                  {p.plan_name || 'Default'}{p.price_monthly != null ? ` $${p.price_monthly}/mo` : ''}
                                 </div>
                                 {costDetail && (
                                   <div className="text-[9px] text-gray-500 leading-tight">{costDetail}</div>
@@ -1071,7 +1077,6 @@ function ComparisonTable({ models }) {
                         let cost = '';
                         if (a.credits_per_request) cost = `${a.credits_per_request} credits/req`;
                         else if (a.cost_notes) cost = a.cost_notes;
-                        else if (a.access_level === 'byok') cost = `$${m.input_price_per_mtok || '?'}/$${m.output_price_per_mtok || '?'}/MTok`;
                         return (
                           <div key={i}>
                             <div className="text-[10px] text-gray-400">

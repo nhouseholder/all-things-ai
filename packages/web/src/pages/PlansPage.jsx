@@ -9,17 +9,14 @@ import { setPageTitle, formatSubPrice } from '../lib/format.js';
 
 const TIER_COLORS = {
   free:    { bg: 'bg-green-500/5', border: 'border-green-500/30', badge: 'bg-green-500/20 text-green-400', label: 'Free' },
-  byok:    { bg: 'bg-purple-500/5', border: 'border-purple-500/30', badge: 'bg-purple-500/20 text-purple-400', label: 'BYOK' },
   budget:  { bg: 'bg-emerald-500/5', border: 'border-emerald-500/30', badge: 'bg-emerald-500/20 text-emerald-400', label: 'Budget' },
   mid:     { bg: 'bg-blue-500/5', border: 'border-blue-500/30', badge: 'bg-blue-500/20 text-blue-400', label: 'Mid-Range' },
   premium: { bg: 'bg-violet-500/5', border: 'border-violet-500/30', badge: 'bg-violet-500/20 text-violet-400', label: 'Premium' },
   ultra:   { bg: 'bg-orange-500/5', border: 'border-orange-500/30', badge: 'bg-orange-500/20 text-orange-400', label: 'Ultra' },
 };
 
-function getTier(price, planName) {
-  if (price == null || price === 0) {
-    return planName && /byok/i.test(planName) ? 'byok' : 'free';
-  }
+function getTier(price) {
+  if (price == null || price === 0) return 'free';
   if (price <= 20) return 'budget';
   if (price <= 50) return 'mid';
   if (price <= 150) return 'premium';
@@ -36,7 +33,6 @@ const SORT_OPTIONS = [
 const TIER_FILTERS = [
   { value: '', label: 'All Tiers' },
   { value: 'free', label: 'Free' },
-  { value: 'byok', label: 'BYOK' },
   { value: 'budget', label: 'Budget ($1-20)' },
   { value: 'mid', label: 'Mid ($20-50)' },
   { value: 'premium', label: 'Premium ($50-150)' },
@@ -45,7 +41,7 @@ const TIER_FILTERS = [
 
 function PlanCard({ plan, expanded, onToggle }) {
   const price = plan.price_monthly ?? 0;
-  const tier = getTier(price, plan.plan_name);
+  const tier = getTier(price);
   const tc = TIER_COLORS[tier];
   const models = Array.isArray(plan.models_included) ? plan.models_included : [];
   const feats = plan.features;
@@ -213,11 +209,11 @@ export default function PlansPage() {
   const [expandedId, setExpandedId] = useState(null);
 
   const plans = useMemo(() => {
-    let items = data?.plans || [];
+    let items = (data?.plans || []).filter(p => !/byok/i.test(p.plan_name));
 
     // Filter by tier
     if (tierFilter) {
-      items = items.filter(p => getTier(p.price_monthly ?? 0, p.plan_name) === tierFilter);
+      items = items.filter(p => getTier(p.price_monthly ?? 0) === tierFilter);
     }
 
     // Sort
@@ -239,12 +235,12 @@ export default function PlansPage() {
     return items;
   }, [data, sort, tierFilter]);
 
-  // Summary stats
-  const allPlans = data?.plans || [];
-  const freePlans = allPlans.filter(p => (p.price_monthly ?? 0) === 0 && !/byok/i.test(p.plan_name)).length;
-  const byokPlans = allPlans.filter(p => /byok/i.test(p.plan_name)).length;
-  const avgPrice = allPlans.length
-    ? Math.round(allPlans.filter(p => p.price_monthly > 0).reduce((s, p) => s + p.price_monthly, 0) / allPlans.filter(p => p.price_monthly > 0).length)
+  // Summary stats (exclude BYOK)
+  const allPlans = (data?.plans || []).filter(p => !/byok/i.test(p.plan_name));
+  const freePlans = allPlans.filter(p => (p.price_monthly ?? 0) === 0).length;
+  const paidPlans = allPlans.filter(p => p.price_monthly > 0);
+  const avgPrice = paidPlans.length
+    ? Math.round(paidPlans.reduce((s, p) => s + p.price_monthly, 0) / paidPlans.length)
     : 0;
 
   return (
@@ -260,18 +256,14 @@ export default function PlansPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3 text-center">
           <p className="text-lg font-bold text-white">{allPlans.length}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total Plans</p>
         </div>
         <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 text-center">
           <p className="text-lg font-bold text-green-400">{freePlans}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Free</p>
-        </div>
-        <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 text-center">
-          <p className="text-lg font-bold text-purple-400">{byokPlans}</p>
-          <p className="text-[10px] text-gray-500 uppercase">BYOK</p>
+          <p className="text-[10px] text-gray-500 uppercase">Free Tier</p>
         </div>
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3 text-center">
           <p className="text-lg font-bold text-blue-400">${avgPrice}</p>
@@ -279,7 +271,7 @@ export default function PlansPage() {
         </div>
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3 text-center">
           <p className="text-lg font-bold text-purple-400">{new Set(allPlans.map(p => p.tool_slug)).size}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Tools</p>
+          <p className="text-[10px] text-gray-500 uppercase">Platforms</p>
         </div>
       </div>
 
