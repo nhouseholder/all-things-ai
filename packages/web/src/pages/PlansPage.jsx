@@ -99,17 +99,38 @@ function PlanCard({ plan, expanded, onToggle }) {
           )}
         </div>
 
-        {/* Models */}
-        <div className="flex flex-wrap gap-1 mb-3">
-          {models.slice(0, 8).map(m => (
-            <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              {m === 'any-via-api' ? 'Any (BYOK)' : m}
-            </span>
-          ))}
-          {models.length > 8 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">+{models.length - 8}</span>
-          )}
-        </div>
+        {/* Per-model token costs */}
+        {(plan.model_pricing?.length > 0) && (
+          <div className="mb-3 rounded-lg border border-gray-800/50 overflow-hidden">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="bg-gray-800/30 text-gray-500">
+                  <th className="text-left py-1.5 px-2 font-medium">Model</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Input/MTok</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Output/MTok</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/30">
+                {plan.model_pricing.slice(0, expanded ? 20 : 4).map(mp => (
+                  <tr key={mp.slug}>
+                    <td className="py-1 px-2 text-gray-300 font-medium">{mp.name || mp.slug}</td>
+                    <td className="py-1 px-2 text-right text-emerald-400 font-mono">
+                      {mp.input_per_mtok != null ? `$${mp.input_per_mtok}` : '—'}
+                    </td>
+                    <td className="py-1 px-2 text-right text-emerald-400 font-mono">
+                      {mp.output_per_mtok != null ? `$${mp.output_per_mtok}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!expanded && plan.model_pricing.length > 4 && (
+              <div className="text-center py-1 text-[9px] text-gray-500 bg-gray-800/20">
+                +{plan.model_pricing.length - 4} more models
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Features */}
         {featureList.length > 0 && (

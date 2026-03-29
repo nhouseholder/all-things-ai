@@ -40,14 +40,36 @@ toolsRoutes.get('/plans', async (c) => {
     ORDER BY pp.price_monthly ASC NULLS LAST
   `).all();
 
+  // Load all model pricing in one query for per-model cost enrichment
+  const { results: allModels } = await c.env.DB.prepare(
+    'SELECT slug, name, vendor, input_price_per_mtok, output_price_per_mtok FROM models WHERE is_active = 1'
+  ).all();
+  const modelPricing = {};
+  for (const m of allModels) modelPricing[m.slug] = m;
+
   const plans = results.map(p => {
     let features = p.features;
-    let models = p.models_included;
+    let modelSlugs = p.models_included;
     let reviews = p.reviews;
     try { features = JSON.parse(features); } catch {}
-    try { models = JSON.parse(models); } catch {}
+    try { modelSlugs = JSON.parse(modelSlugs); } catch {}
     try { reviews = JSON.parse(reviews)?.filter(r => r.source) || []; } catch { reviews = []; }
-    return { ...p, features, models_included: models, reviews };
+
+    // Enrich each included model with token pricing
+    const model_pricing = (Array.isArray(modelSlugs) ? modelSlugs : [])
+      .filter(slug => slug && slug !== 'any-via-api')
+      .map(slug => {
+        const m = modelPricing[slug];
+        return m ? {
+          slug,
+          name: m.name,
+          vendor: m.vendor,
+          input_per_mtok: m.input_price_per_mtok,
+          output_per_mtok: m.output_price_per_mtok,
+        } : { slug, name: slug, vendor: null, input_per_mtok: null, output_per_mtok: null };
+      });
+
+    return { ...p, features, models_included: modelSlugs, model_pricing, reviews };
   });
 
   return c.json({ plans });
