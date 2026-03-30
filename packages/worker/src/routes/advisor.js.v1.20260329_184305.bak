@@ -112,14 +112,13 @@ advisorRoutes.get('/matrix', async (c) => {
 });
 
 // GET /api/advisor/rankings — dual leaderboard (best overall + best bang for buck)
-// NOTE: Cache temporarily disabled to ensure fake models are purged. Re-enable after validation.
+// Cached in KV for 6 hours (refreshed by cron after computeCompositeScores)
 advisorRoutes.get('/rankings', async (c) => {
   const cache = c.env.CACHE;
-  // Cache disabled: fetch fresh from DB to show deleted fake models are gone
-  // if (cache) {
-  //   const cached = await cache.get('rankings:v1', 'json');
-  //   if (cached) return c.json(cached);
-  // }
+  if (cache) {
+    const cached = await cache.get('rankings:v1', 'json');
+    if (cached) return c.json(cached);
+  }
 
   const { results } = await c.env.DB.prepare(`
     SELECT
