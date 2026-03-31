@@ -111,6 +111,13 @@ export function useSuccessRateRankings() {
   return useQuery({ queryKey: ['advisor', 'success-rate-rankings'], queryFn: api.getSuccessRateRankings });
 }
 
+export function usePlanBurn(params) {
+  return useQuery({
+    queryKey: ['advisor', 'plan-burn', params],
+    queryFn: () => api.getPlanBurn(params),
+  });
+}
+
 // Tool & Plugin Rankings
 export function useToolRankings() {
   return useQuery({ queryKey: ['tools', 'rankings'], queryFn: api.getToolRankings });

@@ -221,6 +221,28 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Plan Burn CTA ──────────────────────────────────────────── */}
+      <section className="mb-12">
+        <div className="rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-950/20 via-gray-900 to-gray-900 p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-5 h-5 text-orange-400" />
+            <h2 className="text-lg font-bold text-white">How fast will your plan burn?</h2>
+          </div>
+          <p className="text-sm text-gray-400 mb-4 max-w-lg">
+            Premium models eat 3-5x more credits per request. See exactly when your plan runs out
+            and what overage costs &mdash; before you commit.
+          </p>
+          <Link
+            to="/plan-burn"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/20 text-orange-300 hover:text-orange-200 font-medium text-sm transition-colors"
+          >
+            <Zap className="w-4 h-4" />
+            Simulate My Usage
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* ── Quick Task Picker ─────────────────────────────────────── */}
       {tasks && tasks.length > 0 && (
         <section className="mb-12">

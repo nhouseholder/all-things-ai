@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { computeVibeCoderFit } from '../services/vibe-fit-engine.js';
+import { simulatePlanBurn, rankPlansForPersona, PERSONAS } from '../services/plan-burn-engine.js';
 
 export const advisorRoutes = new Hono();
 
@@ -874,5 +875,84 @@ RULES:
     reply: cleanReply,
     recommendations,
     done: recommendations != null,
+  });
+});
+
+// GET /api/advisor/plan-burn — simulate plan consumption for a persona
+// Query params: persona (preset key or "custom"), requests, premium_pct, heavy_pct
+advisorRoutes.get('/plan-burn', async (c) => {
+  const personaKey = c.req.query('persona') || 'solo-founder';
+  const customRequests = c.req.query('requests');
+  const customPremium = c.req.query('premium_pct');
+  const customHeavy = c.req.query('heavy_pct');
+
+  let persona;
+  if (personaKey === 'custom') {
+    const totalReq = parseInt(customRequests || '400', 10);
+    const premPct = parseFloat(customPremium || '0.25');
+    const heavyPct = parseFloat(customHeavy || '0.10');
+    persona = {
+      ...PERSONAS.custom,
+      monthly_requests: Math.min(Math.max(totalReq, 10), 5000),
+      premium_pct: Math.min(Math.max(premPct, 0), 1),
+      heavy_pct: Math.min(Math.max(heavyPct, 0), 1),
+      standard_pct: Math.max(0, 1 - premPct - heavyPct),
+    };
+  } else {
+    persona = PERSONAS[personaKey] || PERSONAS['solo-founder'];
+  }
+
+  // 1. Get all current plans (exclude BYOK)
+  const { results: plans } = await c.env.DB.prepare(`
+    SELECT pp.*, t.name as tool_name, t.slug as tool_slug, t.vendor
+    FROM pricing_plans pp
+    JOIN tools t ON t.id = pp.tool_id
+    WHERE pp.is_current = 1 AND pp.plan_name NOT LIKE '%BYOK%'
+    ORDER BY pp.price_monthly ASC NULLS LAST
+  `).all();
+
+  // 2. Get model availability per plan
+  const { results: availability } = await c.env.DB.prepare(`
+    SELECT
+      ma.plan_id,
+      m.slug, m.name,
+      ma.access_level, ma.credits_per_request, ma.cost_notes
+    FROM model_availability ma
+    JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
+    JOIN models m ON m.id = ma.model_id
+    WHERE m.is_active = 1 AND ma.plan_id IS NOT NULL
+  `).all();
+
+  const modelsByPlan = {};
+  for (const row of availability) {
+    if (!modelsByPlan[row.plan_id]) modelsByPlan[row.plan_id] = [];
+    modelsByPlan[row.plan_id].push(row);
+  }
+
+  // 3. Simulate burn for each plan
+  const burnResults = plans.map(plan =>
+    simulatePlanBurn(plan, persona, modelsByPlan[plan.id] || [])
+  );
+
+  // 4. Rank plans
+  const ranked = rankPlansForPersona(burnResults);
+
+  return c.json({
+    persona: {
+      key: personaKey,
+      label: persona.label,
+      description: persona.description,
+      monthly_requests: persona.monthly_requests,
+      model_mix: {
+        standard: persona.standard_pct,
+        premium: persona.premium_pct,
+        heavy: persona.heavy_pct,
+      },
+    },
+    personas: Object.entries(PERSONAS)
+      .filter(([k]) => k !== 'custom')
+      .map(([key, p]) => ({ key, label: p.label, description: p.description, monthly_requests: p.monthly_requests })),
+    recommended: ranked[0] || null,
+    all_plans: ranked,
   });
 });

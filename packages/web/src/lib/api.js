@@ -84,6 +84,10 @@ export const api = {
   getModelAvailability: () => request('/api/advisor/model-availability'),
   getTaskRankings: (task) => request(`/api/advisor/task-rankings?task=${task}`),
   getSuccessRateRankings: () => request('/api/advisor/success-rate-rankings'),
+  getPlanBurn: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/advisor/plan-burn${qs ? '?' + qs : ''}`);
+  },
 
   // Tool Rankings
   getToolRankings: () => request('/api/tools/rankings'),

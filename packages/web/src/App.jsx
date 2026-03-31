@@ -18,6 +18,7 @@ const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
 const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const PlansPage = lazy(() => import('./pages/PlansPage.jsx'));
+const PlanBurnPage = lazy(() => import('./pages/PlanBurnPage.jsx'));
 const ModelDetailPage = lazy(() => import('./pages/ModelDetailPage.jsx'));
 
 function PageLoader() {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
           <Route path="news" element={<NewsPage />} />
           <Route path="plans" element={<PlansPage />} />
+          <Route path="plan-burn" element={<PlanBurnPage />} />
           <Route path="models/:slug" element={<ModelDetailPage />} />
           <Route path="alerts" element={<Navigate to="/news" replace />} />
           <Route path="settings" element={<SettingsPage />} />
