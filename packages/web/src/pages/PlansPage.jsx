@@ -39,11 +39,56 @@ const TIER_FILTERS = [
   { value: 'ultra', label: 'Ultra ($150+)' },
 ];
 
+function formatNumericRate(value) {
+  if (value == null) return null;
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+}
+
+function getModelUsage(plan, model) {
+  if (model.credits_per_request != null) {
+    const rate = formatNumericRate(model.credits_per_request);
+    if (plan.tool_slug === 'github-copilot') {
+      const uses = plan.included_requests
+        ? Math.floor(plan.included_requests / model.credits_per_request)
+        : null;
+      return {
+        label: `${rate}x req`,
+        detail: uses ? `~${uses}/mo included` : null,
+      };
+    }
+
+    return {
+      label: `${rate} credits`,
+      detail: null,
+    };
+  }
+
+  if (model.access_level === 'byok') {
+    return { label: 'BYOK', detail: null };
+  }
+
+  if (model.access_level === 'credits') {
+    return {
+      label: plan.overage_rate_unit === 'per-million-tokens' ? 'API rate' : 'Credit pool',
+      detail: null,
+    };
+  }
+
+  if (model.access_level === 'full') {
+    if (plan.included_requests) {
+      return { label: 'Included', detail: `${plan.included_requests}/mo pool` };
+    }
+    return { label: 'Included', detail: null };
+  }
+
+  return { label: '—', detail: null };
+}
+
 function PlanCard({ plan, expanded, onToggle }) {
   const price = plan.price_monthly ?? 0;
   const tier = getTier(price);
   const tc = TIER_COLORS[tier];
-  const models = Array.isArray(plan.models_included) ? plan.models_included : [];
+  const models = Array.isArray(plan.model_pricing) ? plan.model_pricing : [];
   const feats = plan.features;
   const featureList = feats?.features || feats?.feature_list || [];
   const requests = feats?.requests || plan.included_requests;
@@ -109,33 +154,47 @@ function PlanCard({ plan, expanded, onToggle }) {
         </div>
 
         {/* Per-model token costs */}
-        {(plan.model_pricing?.length > 0) && (
+        {(models.length > 0) && (
           <div className="mb-3 rounded-lg border border-gray-800/50 overflow-hidden overflow-x-auto">
-            <table className="w-full text-[10px] min-w-[280px]">
+            <table className="w-full text-[10px] min-w-[420px]">
               <thead>
                 <tr className="bg-gray-800/30 text-gray-500">
                   <th className="text-left py-1.5 px-2 font-medium">Model</th>
+                  <th className="text-left py-1.5 px-2 font-medium">Usage Rate</th>
                   <th className="text-right py-1.5 px-2 font-medium">Input/MTok</th>
                   <th className="text-right py-1.5 px-2 font-medium">Output/MTok</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/30">
-                {plan.model_pricing.slice(0, expanded ? 20 : 4).map(mp => (
+                {models.slice(0, expanded ? 20 : 4).map(mp => {
+                  const usage = getModelUsage(plan, mp);
+                  return (
                   <tr key={mp.slug}>
-                    <td className="py-1 px-2 text-gray-300 font-medium">{mp.name || mp.slug}</td>
-                    <td className="py-1 px-2 text-right text-emerald-400 font-mono">
+                    <td className="py-1.5 px-2">
+                      <div className="text-gray-300 font-medium">{mp.name || mp.slug}</div>
+                      {expanded && mp.cost_notes && (
+                        <div className="text-[9px] text-gray-500 mt-0.5 leading-relaxed">{mp.cost_notes}</div>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-2">
+                      <div className="text-cyan-400 font-mono">{usage.label}</div>
+                      {usage.detail && (
+                        <div className="text-[9px] text-gray-500 mt-0.5">{usage.detail}</div>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-2 text-right text-emerald-400 font-mono">
                       {mp.input_per_mtok != null ? `$${mp.input_per_mtok}` : '—'}
                     </td>
-                    <td className="py-1 px-2 text-right text-emerald-400 font-mono">
+                    <td className="py-1.5 px-2 text-right text-emerald-400 font-mono">
                       {mp.output_per_mtok != null ? `$${mp.output_per_mtok}` : '—'}
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
-            {!expanded && plan.model_pricing.length > 4 && (
+            {!expanded && models.length > 4 && (
               <div className="text-center py-1 text-[9px] text-gray-500 bg-gray-800/20">
-                +{plan.model_pricing.length - 4} more models
+                +{models.length - 4} more models
               </div>
             )}
           </div>
@@ -175,10 +234,10 @@ function PlanCard({ plan, expanded, onToggle }) {
                 <DollarSign className="w-3 h-3" /> Usage & Overage
               </h4>
               {plan.overage_rate_description && (
-                <p className="text-xs text-yellow-400/80 mb-1">{plan.overage_rate_description}</p>
+                <p className="text-xs text-yellow-400/80 mb-1 break-words leading-relaxed">{plan.overage_rate_description}</p>
               )}
               {plan.usage_notes && (
-                <p className="text-xs text-gray-400 leading-relaxed">{plan.usage_notes}</p>
+                <p className="text-xs text-gray-400 leading-relaxed break-words">{plan.usage_notes}</p>
               )}
             </div>
           )}
@@ -187,7 +246,7 @@ function PlanCard({ plan, expanded, onToggle }) {
           {plan.tool_description && (
             <div>
               <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-1">About</h4>
-              <p className="text-xs text-gray-400">{plan.tool_description}</p>
+              <p className="text-xs text-gray-400 leading-relaxed break-words">{plan.tool_description}</p>
             </div>
           )}
 
@@ -198,15 +257,17 @@ function PlanCard({ plan, expanded, onToggle }) {
                 <MessageSquare className="w-3 h-3" /> Community Reviews
               </h4>
               {reviews.map((r, i) => (
-                <div key={i} className="flex gap-3 text-[11px] mb-1">
-                  <span className="text-gray-500 uppercase w-16 shrink-0">{r.source}</span>
-                  <div className="flex-1">
-                    <span className={`font-medium ${r.satisfaction >= 70 ? 'text-green-400' : r.satisfaction >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                <div key={i} className="grid grid-cols-[88px_1fr] gap-3 text-[11px] mb-2 items-start">
+                  <span className="text-gray-500 uppercase break-words leading-relaxed">{r.source}</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className={`font-medium ${r.satisfaction >= 70 ? 'text-green-400' : r.satisfaction >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
                       {r.satisfaction}%
-                    </span>
-                    <span className="text-gray-600 ml-1">({r.review_count} reviews)</span>
+                      </span>
+                      <span className="text-gray-600">({r.review_count} reviews)</span>
+                    </div>
                     {r.common_praises && (
-                      <span className="text-green-400/60 ml-2">{r.common_praises}</span>
+                      <p className="text-green-400/60 leading-relaxed break-words mt-1">{r.common_praises}</p>
                     )}
                   </div>
                 </div>
@@ -250,8 +311,8 @@ export default function PlansPage() {
     items = [...items].sort((a, b) => {
       const pa = a.price_monthly ?? 0;
       const pb = b.price_monthly ?? 0;
-      const ma = Array.isArray(a.models_included) ? a.models_included.length : 0;
-      const mb = Array.isArray(b.models_included) ? b.models_included.length : 0;
+      const ma = Array.isArray(a.model_pricing) ? a.model_pricing.length : 0;
+      const mb = Array.isArray(b.model_pricing) ? b.model_pricing.length : 0;
 
       switch (sort) {
         case 'price-asc': return pa - pb;

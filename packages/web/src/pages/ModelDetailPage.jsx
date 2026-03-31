@@ -70,6 +70,14 @@ function formatPrice(val) {
   return `$${Number(val).toFixed(2)}`;
 }
 
+function formatCompact(val) {
+  if (val == null) return '—';
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(val);
+}
+
 export default function ModelDetailPage() {
   const { slug } = useParams();
   const { data: model, isLoading, error } = useQuery({
@@ -114,6 +122,8 @@ export default function ModelDetailPage() {
   const taskEstimates = model.task_estimates || [];
   const alternatives = model.alternatives || [];
   const compositeScore = model.composite_score;
+  const openrouter = model.openrouter;
+  const vibeProfile = model.vibe_coder_profile;
 
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
@@ -188,6 +198,12 @@ export default function ModelDetailPage() {
             <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-300">
               <Zap className="w-3 h-3 text-yellow-400" />
               Available on {availability.length} plans
+            </span>
+          )}
+          {vibeProfile?.score != null && (
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-300">
+              <Sparkles className="w-3 h-3 text-purple-400" />
+              Vibe fit {vibeProfile.score.toFixed(1)}
             </span>
           )}
         </div>
@@ -335,6 +351,51 @@ export default function ModelDetailPage() {
         {/* ── Right Column (1/3) ─────────────────────────────── */}
         <div className="space-y-6">
 
+          {/* Vibe Coder Fit */}
+          {vibeProfile?.score != null && (
+            <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Vibe Coder Fit
+              </h2>
+              <div className="flex items-end justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-2xl font-bold text-white">{vibeProfile.score.toFixed(1)}</p>
+                  <p className="text-xs text-purple-400">{vibeProfile.label}</p>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                  vibeProfile.price_tier === 'budget'
+                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                    : vibeProfile.price_tier === 'balanced'
+                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                }`}>
+                  {vibeProfile.price_tier}
+                </span>
+              </div>
+              <p className="text-xs text-gray-300 leading-relaxed">{vibeProfile.summary}</p>
+              {vibeProfile.badges?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {vibeProfile.badges.map((badge) => (
+                    <span key={badge} className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/15">
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {vibeProfile.cautions?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-800">
+                  <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Watch-outs</p>
+                  <div className="space-y-1">
+                    {vibeProfile.cautions.map((item) => (
+                      <p key={item} className="text-[11px] text-gray-400">{item}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Pricing */}
           <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -364,6 +425,68 @@ export default function ModelDetailPage() {
               )}
             </div>
           </section>
+
+          {/* OpenRouter Signals */}
+          {openrouter && (
+            <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                OpenRouter Signals
+              </h2>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-500">Daily activity</span>
+                  <span className="text-white font-medium">{formatCompact(openrouter.total_activity_tokens_daily)} tokens</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-500">Prompt / completion</span>
+                  <span className="text-white font-medium">
+                    {formatCompact(openrouter.prompt_tokens_daily)} / {formatCompact(openrouter.completion_tokens_daily)}
+                  </span>
+                </div>
+                {openrouter.reasoning_tokens_daily != null && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-500">Reasoning tokens</span>
+                    <span className="text-white font-medium">{formatCompact(openrouter.reasoning_tokens_daily)}</span>
+                  </div>
+                )}
+                {openrouter.max_completion_tokens != null && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-500">Max completion</span>
+                    <span className="text-white font-medium">{formatCompact(openrouter.max_completion_tokens)}</span>
+                  </div>
+                )}
+                {openrouter.knowledge_cutoff && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-500">Knowledge cutoff</span>
+                    <span className="text-white font-medium">{openrouter.knowledge_cutoff}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {(openrouter.input_modalities || []).map((modality) => (
+                  <span key={modality} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700">
+                    {modality} input
+                  </span>
+                ))}
+                {openrouter.supports_tools ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    tools
+                  </span>
+                ) : null}
+                {openrouter.supports_structured_outputs ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    structured outputs
+                  </span>
+                ) : null}
+                {openrouter.supports_reasoning ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    reasoning
+                  </span>
+                ) : null}
+              </div>
+            </section>
+          )}
 
           {/* Where to Use */}
           {availability.length > 0 && (

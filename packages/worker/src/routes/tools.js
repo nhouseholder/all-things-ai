@@ -47,6 +47,34 @@ toolsRoutes.get('/plans', async (c) => {
   const modelPricing = {};
   for (const m of allModels) modelPricing[m.slug] = m;
 
+  const { results: availabilityRows } = await c.env.DB.prepare(`
+    SELECT
+      ma.plan_id,
+      m.slug, m.name, m.vendor,
+      m.input_price_per_mtok, m.output_price_per_mtok,
+      ma.access_level, ma.credits_per_request, ma.cost_notes
+    FROM model_availability ma
+    JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
+    JOIN models m ON m.id = ma.model_id
+    WHERE m.is_active = 1
+      AND ma.plan_id IS NOT NULL
+  `).all();
+
+  const modelsByPlanId = {};
+  for (const row of availabilityRows) {
+    if (!modelsByPlanId[row.plan_id]) modelsByPlanId[row.plan_id] = [];
+    modelsByPlanId[row.plan_id].push({
+      slug: row.slug,
+      name: row.name,
+      vendor: row.vendor,
+      input_per_mtok: row.input_price_per_mtok,
+      output_per_mtok: row.output_price_per_mtok,
+      access_level: row.access_level,
+      credits_per_request: row.credits_per_request,
+      cost_notes: row.cost_notes,
+    });
+  }
+
   const plans = results.map(p => {
     let features = p.features;
     let modelSlugs = p.models_included;
@@ -55,8 +83,8 @@ toolsRoutes.get('/plans', async (c) => {
     try { modelSlugs = JSON.parse(modelSlugs); } catch {}
     try { reviews = JSON.parse(reviews)?.filter(r => r.source) || []; } catch { reviews = []; }
 
-    // Enrich each included model with token pricing
-    const model_pricing = (Array.isArray(modelSlugs) ? modelSlugs : [])
+    // Fallback for plans that do not have per-model availability rows yet.
+    const fallbackModelPricing = (Array.isArray(modelSlugs) ? modelSlugs : [])
       .filter(slug => slug && slug !== 'any-via-api')
       .map(slug => {
         const m = modelPricing[slug];
@@ -66,10 +94,35 @@ toolsRoutes.get('/plans', async (c) => {
           vendor: m.vendor,
           input_per_mtok: m.input_price_per_mtok,
           output_per_mtok: m.output_price_per_mtok,
-        } : { slug, name: slug, vendor: null, input_per_mtok: null, output_per_mtok: null };
+          access_level: null,
+          credits_per_request: null,
+          cost_notes: null,
+        } : {
+          slug,
+          name: slug,
+          vendor: null,
+          input_per_mtok: null,
+          output_per_mtok: null,
+          access_level: null,
+          credits_per_request: null,
+          cost_notes: null,
+        };
       });
 
-    return { ...p, features, models_included: modelSlugs, model_pricing, reviews };
+    const planModels = [...(modelsByPlanId[p.id] || fallbackModelPricing)].sort((a, b) => {
+      const rateA = a.credits_per_request ?? Number.POSITIVE_INFINITY;
+      const rateB = b.credits_per_request ?? Number.POSITIVE_INFINITY;
+      if (rateA !== rateB) return rateA - rateB;
+      return a.name.localeCompare(b.name);
+    });
+
+    return {
+      ...p,
+      features,
+      models_included: planModels.map((model) => model.slug),
+      model_pricing: planModels,
+      reviews,
+    };
   });
 
   return c.json({ plans });

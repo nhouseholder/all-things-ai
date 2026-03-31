@@ -244,7 +244,14 @@ adminRoutes.post('/trigger/enrichment', async (c) => {
     results.taskCosts = 'ok';
   } catch (e) { results.taskCosts = e.message; }
 
+  try {
+    const { syncOpenRouterStats } = await import('../pipelines/openrouter-sync.js');
+    await syncOpenRouterStats(c.env);
+    results.openrouter = 'ok';
+  } catch (e) { results.openrouter = e.message; }
+
   await c.env.CACHE.delete('rankings:v1');
+  await c.env.CACHE.delete('rankings:v2-vibe');
   await c.env.CACHE.delete('model-aliases:merged');
   results.cachesCleared = true;
 

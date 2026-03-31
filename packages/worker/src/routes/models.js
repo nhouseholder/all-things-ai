@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { computeVibeCoderFit, summarizeTaskSignals } from '../services/vibe-fit-engine.js';
 
 export const modelsRoutes = new Hono();
 
@@ -290,7 +291,7 @@ modelsRoutes.get('/:slug', async (c) => {
   if (!model) return c.json({ error: 'Not found' }, 404);
 
   // Parallel queries for all detail data
-  const [benchRes, availRes, reviewRes, taskRes, altRes] = await Promise.all([
+  const [benchRes, availRes, reviewRes, taskRes, altRes, openrouter] = await Promise.all([
     c.env.DB.prepare(
       'SELECT benchmark_name, category, score, max_score FROM benchmarks WHERE model_id = ?'
     ).bind(model.id).all(),
@@ -312,10 +313,15 @@ modelsRoutes.get('/:slug', async (c) => {
         SUM(review_count) as review_count,
         ROUND(AVG(coding_satisfaction), 1) as satisfaction,
         ROUND(AVG(sentiment_score), 2) as sentiment,
+        ROUND(
+          SUM(COALESCE(vibe_coder_satisfaction, 0) * COALESCE(vibe_coder_count, 0))
+          / NULLIF(SUM(COALESCE(vibe_coder_count, 0)), 0),
+          1
+        ) as vibe_satisfaction,
         SUM(COALESCE(heavy_coder_count, 0)) as heavy_count,
         SUM(COALESCE(vibe_coder_count, 0)) as vibe_count,
         SUM(COALESCE(casual_count, 0)) as casual_count,
-        MAX(last_updated_at) as last_updated_at
+        MAX(last_scraped) as last_updated_at
       FROM community_reviews
       WHERE model_id = ?
       GROUP BY source
@@ -343,6 +349,12 @@ modelsRoutes.get('/:slug', async (c) => {
       WHERE ma.model_id = ? AND m.is_active = 1
       ORDER BY ma.similarity_score DESC
     `).bind(model.id).all(),
+
+    c.env.DB.prepare(`
+      SELECT *
+      FROM model_openrouter_stats
+      WHERE model_id = ?
+    `).bind(model.id).first(),
   ]);
 
   // Compute blended cost + bang_for_buck
@@ -359,9 +371,22 @@ modelsRoutes.get('/:slug', async (c) => {
     casual: acc.casual + (r.casual_count || 0),
   }), { total_reviews: 0, sources: 0, heavy: 0, vibe: 0, casual: 0 });
 
-  const avgSatisfaction = reviewRes.results.length > 0
-    ? reviewRes.results.reduce((sum, r) => sum + (r.satisfaction || 0), 0) / reviewRes.results.length
+  const avgSatisfaction = communityTotal.total_reviews > 0
+    ? reviewRes.results.reduce((sum, r) => sum + ((r.satisfaction || 0) * (r.review_count || 0)), 0) / communityTotal.total_reviews
     : null;
+  const vibeSatisfaction = communityTotal.vibe > 0
+    ? reviewRes.results.reduce((sum, r) => sum + ((r.vibe_satisfaction || 0) * (r.vibe_count || 0)), 0) / communityTotal.vibe
+    : null;
+  const taskSignals = summarizeTaskSignals(taskRes.results);
+  const vibeProfile = computeVibeCoderFit({
+    model,
+    openrouter,
+    taskSignals,
+    community: {
+      satisfaction: avgSatisfaction,
+      vibe_satisfaction: vibeSatisfaction,
+    },
+  });
 
   return c.json({
     ...model,
@@ -372,6 +397,7 @@ modelsRoutes.get('/:slug', async (c) => {
       total_reviews: communityTotal.total_reviews,
       source_count: communityTotal.sources,
       satisfaction: avgSatisfaction ? Number(avgSatisfaction.toFixed(1)) : null,
+      vibe_satisfaction: vibeSatisfaction ? Number(vibeSatisfaction.toFixed(1)) : null,
       heavy_coder_count: communityTotal.heavy,
       vibe_coder_count: communityTotal.vibe,
       casual_count: communityTotal.casual,
@@ -379,5 +405,14 @@ modelsRoutes.get('/:slug', async (c) => {
     },
     task_estimates: taskRes.results,
     alternatives: altRes.results,
+    openrouter: openrouter ? {
+      ...openrouter,
+      input_modalities: JSON.parse(openrouter.input_modalities || '[]'),
+      output_modalities: JSON.parse(openrouter.output_modalities || '[]'),
+      total_activity_tokens_daily: Number(openrouter.prompt_tokens_daily || 0)
+        + Number(openrouter.reasoning_tokens_daily || 0)
+        + Number(openrouter.completion_tokens_daily || 0),
+    } : null,
+    vibe_coder_profile: vibeProfile,
   });
 });

@@ -1,11 +1,12 @@
 {
   "name": "all-things-ai-worker",
-  "version": "0.1.1",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "sync:openrouter:remote": "node ./scripts/sync-openrouter-remote.mjs",
     "db:migrate": "wrangler d1 execute all-things-ai-db --local --file=src/db/schema.sql",
     "db:seed": "wrangler d1 execute all-things-ai-db --local --file=src/db/seed.sql",
     "db:migrate:remote": "wrangler d1 execute all-things-ai-db --remote --file=src/db/schema.sql",

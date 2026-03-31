@@ -1,6 +1,75 @@
 import { Hono } from 'hono';
+import { computeVibeCoderFit } from '../services/vibe-fit-engine.js';
 
 export const advisorRoutes = new Hono();
+
+const PREMIUM_INPUT_PRICE_THRESHOLD = 2;
+const PREMIUM_OUTPUT_PRICE_THRESHOLD = 10;
+
+function isPremiumModel(model) {
+  const inputPrice = Number(model.input_price_per_mtok ?? model.input_price ?? 0);
+  const outputPrice = Number(model.output_price_per_mtok ?? model.output_price ?? 0);
+  return inputPrice >= PREMIUM_INPUT_PRICE_THRESHOLD || outputPrice >= PREMIUM_OUTPUT_PRICE_THRESHOLD;
+}
+
+function isByokAvailability(plan) {
+  return plan.access_level === 'byok' || /byok/i.test(plan.plan_name || '');
+}
+
+function availabilityFitScore(model, plan) {
+  let score = 0;
+
+  if (isByokAvailability(plan)) score -= 80;
+  else score += 20;
+
+  if (plan.access_level === 'full') score += 18;
+  else if (plan.access_level === 'credits') score += 12;
+  else if (plan.access_level === 'api') score += 6;
+
+  const price = Number(plan.price_monthly);
+  if (plan.price_monthly == null) score -= 10;
+  else if (price === 0) score += 18;
+  else if (price <= 20) score += 22;
+  else if (price <= 40) score += 18;
+  else if (price <= 100) score += 10;
+  else score += 4;
+
+  const included = Number(plan.included_requests || 0);
+  if (included > 0) score += 18;
+
+  if (plan.overage_model === 'throttled') score += 10;
+  if (plan.overage_model === 'pay-per-use') score += 8;
+  if (plan.overage_model === 'auto-topup') score += 4;
+  if (plan.overage_model === 'stopped') score -= 8;
+
+  const perRequest = Number(plan.credits_per_request);
+  if (Number.isFinite(perRequest) && perRequest > 0) {
+    if (perRequest <= 1) score += 12;
+    else if (perRequest <= 3) score += 7;
+    else score += 2;
+  }
+
+  if (isPremiumModel(model) && price === 0 && !included && !Number.isFinite(perRequest)) {
+    score -= 20;
+  }
+
+  return score;
+}
+
+function getAdvisorAvailability(model, plans) {
+  if (!plans?.length) return [];
+  const filtered = isPremiumModel(model)
+    ? plans.filter((plan) => !isByokAvailability(plan))
+    : [...plans];
+
+  return filtered.sort((a, b) => {
+    const diff = availabilityFitScore(model, b) - availabilityFitScore(model, a);
+    if (diff !== 0) return diff;
+    const priceA = a.price_monthly == null ? Infinity : Number(a.price_monthly);
+    const priceB = b.price_monthly == null ? Infinity : Number(b.price_monthly);
+    return priceA - priceB;
+  });
+}
 
 // GET /api/advisor/tasks — all task profiles
 advisorRoutes.get('/tasks', async (c) => {
@@ -115,20 +184,30 @@ advisorRoutes.get('/matrix', async (c) => {
 // NOTE: Cache temporarily disabled to ensure fake models are purged. Re-enable after validation.
 advisorRoutes.get('/rankings', async (c) => {
   const cache = c.env.CACHE;
-  // Cache disabled: fetch fresh from DB to show deleted fake models are gone
-  // if (cache) {
-  //   const cached = await cache.get('rankings:v1', 'json');
-  //   if (cached) return c.json(cached);
-  // }
+  if (cache) {
+    const cached = await cache.get('rankings:v2-vibe', 'json');
+    if (cached) return c.json(cached);
+  }
 
   const { results } = await c.env.DB.prepare(`
     SELECT
       mcs.*,
       m.name as model_name, m.slug as model_slug,
       m.vendor, m.family,
-      m.input_price_per_mtok, m.output_price_per_mtok
+      m.input_price_per_mtok, m.output_price_per_mtok,
+      ors.context_length as openrouter_context_length,
+      ors.max_completion_tokens,
+      ors.supports_reasoning,
+      ors.supports_tools,
+      ors.supports_files,
+      ors.supports_images,
+      ors.supports_structured_outputs,
+      ors.prompt_tokens_daily,
+      ors.reasoning_tokens_daily,
+      ors.completion_tokens_daily
     FROM model_composite_scores mcs
     JOIN models m ON m.id = mcs.model_id
+    LEFT JOIN model_openrouter_stats ors ON ors.model_id = mcs.model_id
     WHERE m.is_active = 1
     ORDER BY mcs.composite_score DESC
   `).all();
@@ -140,6 +219,11 @@ advisorRoutes.get('/rankings', async (c) => {
       SUM(review_count) as total_reviews,
       COUNT(DISTINCT source) as source_count,
       ROUND(AVG(coding_satisfaction), 1) as avg_satisfaction,
+      ROUND(
+        SUM(COALESCE(vibe_coder_satisfaction, 0) * COALESCE(vibe_coder_count, 0))
+        / NULLIF(SUM(COALESCE(vibe_coder_count, 0)), 0),
+        1
+      ) as vibe_satisfaction,
       SUM(COALESCE(heavy_coder_count, 0)) as heavy_count,
       SUM(COALESCE(vibe_coder_count, 0)) as vibe_count,
       SUM(COALESCE(casual_count, 0)) as casual_count
@@ -149,16 +233,70 @@ advisorRoutes.get('/rankings', async (c) => {
 
   const reviewMap = new Map(reviewSummary.map(r => [r.model_id, r]));
 
+  const { results: taskSignals } = await c.env.DB.prepare(`
+    SELECT
+      mte.model_id,
+      ROUND(AVG(mte.first_attempt_success_rate), 4) as avg_success,
+      ROUND(AVG(
+        CASE
+          WHEN tp.slug IN ('complex-debugging', 'feature-implementation', 'boilerplate-scaffolding', 'quick-fixes', 'multi-file-refactor', 'code-review', 'learning-exploring')
+          THEN mte.first_attempt_success_rate
+        END
+      ), 4) as vibe_success,
+      ROUND(AVG(COALESCE(mte.autonomy_score, 55)), 1) as avg_autonomy,
+      ROUND(AVG(
+        CASE mte.steering_effort
+          WHEN 'low' THEN 100
+          WHEN 'medium' THEN 65
+          ELSE 30
+        END
+      ), 1) as steering_score,
+      ROUND(AVG(mte.avg_minutes_to_complete), 1) as avg_minutes
+    FROM model_task_estimates mte
+    JOIN task_profiles tp ON tp.id = mte.task_profile_id
+    GROUP BY mte.model_id
+  `).all();
+
+  const taskSignalMap = new Map(taskSignals.map(r => [r.model_id, r]));
+
   const bestOverall = results.map(m => {
     const rev = reviewMap.get(m.model_id);
+    const vibeProfile = computeVibeCoderFit({
+      model: m,
+      openrouter: {
+        context_length: m.openrouter_context_length,
+        max_completion_tokens: m.max_completion_tokens,
+        supports_reasoning: m.supports_reasoning,
+        supports_tools: m.supports_tools,
+        supports_files: m.supports_files,
+        supports_images: m.supports_images,
+        supports_structured_outputs: m.supports_structured_outputs,
+        prompt_tokens_daily: m.prompt_tokens_daily,
+        reasoning_tokens_daily: m.reasoning_tokens_daily,
+        completion_tokens_daily: m.completion_tokens_daily,
+      },
+      taskSignals: taskSignalMap.get(m.model_id),
+      community: {
+        satisfaction: rev?.avg_satisfaction || null,
+        vibe_satisfaction: rev?.vibe_satisfaction || null,
+      },
+    });
+
     return {
       ...m,
       community_reviews: rev?.total_reviews || 0,
       community_sources: rev?.source_count || 0,
       community_satisfaction: rev?.avg_satisfaction || null,
+      community_vibe_satisfaction: rev?.vibe_satisfaction || null,
       community_heavy: rev?.heavy_count || 0,
       community_vibe: rev?.vibe_count || 0,
       community_casual: rev?.casual_count || 0,
+      vibe_coder_fit: vibeProfile.score,
+      vibe_coder_label: vibeProfile.label,
+      vibe_summary: vibeProfile.summary,
+      vibe_badges: vibeProfile.badges,
+      vibe_cautions: vibeProfile.cautions,
+      openrouter_activity_tokens: vibeProfile.activity_tokens_daily,
     };
   });
 
@@ -188,11 +326,18 @@ advisorRoutes.get('/rankings', async (c) => {
     .filter(m => m.value_score != null)
     .sort((a, b) => b.value_score - a.value_score);
 
-  const response = { best_overall: bestOverall, bang_for_buck: bangForBuck };
+  const bestForVibeCoders = [...bestOverall]
+    .sort((a, b) => (b.vibe_coder_fit || 0) - (a.vibe_coder_fit || 0) || (b.composite_score || 0) - (a.composite_score || 0));
+
+  const response = {
+    best_overall: bestOverall,
+    bang_for_buck: bangForBuck,
+    best_for_vibe_coders: bestForVibeCoders,
+  };
 
   // Cache for 6 hours (21600 seconds)
   if (cache) {
-    await cache.put('rankings:v1', JSON.stringify(response), { expirationTtl: 21600 });
+    await cache.put('rankings:v2-vibe', JSON.stringify(response), { expirationTtl: 21600 });
   }
 
   return c.json(response);
@@ -335,6 +480,7 @@ advisorRoutes.get('/recommend', async (c) => {
       mte.*,
       m.id as mid, m.name as model_name, m.slug as model_slug,
       m.vendor, m.family,
+      m.input_price_per_mtok, m.output_price_per_mtok,
       mcs.composite_score
     FROM model_task_estimates mte
     JOIN models m ON m.id = mte.model_id
@@ -364,7 +510,9 @@ advisorRoutes.get('/recommend', async (c) => {
   // Index tools by model availability for matching
   const { results: availability } = await c.env.DB.prepare(`
     SELECT ma.model_id, t.name as tool_name, t.slug as tool_slug,
-      pp.plan_name, pp.price_monthly
+      pp.plan_name, pp.price_monthly, ma.access_level,
+      pp.included_requests, pp.overage_model, pp.usage_notes,
+      ma.credits_per_request
     FROM model_availability ma
     JOIN tools t ON t.id = ma.tool_id
     LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id
@@ -402,14 +550,16 @@ advisorRoutes.get('/recommend', async (c) => {
 
   // Budget Pick: lowest cost_per_task regardless of quality
   const budgetPick = candidates.reduce((best, c) =>
-    (c.cost_per_task_estimate || Infinity) < (best.cost_per_task_estimate || Infinity) ? c : best
+    (c.cost_per_task_estimate ?? Infinity) < (best.cost_per_task_estimate ?? Infinity) ? c : best
   );
 
   // 5. Build recommendations
-  function findTool(modelId) {
+  function findTool(model) {
+    const modelId = model.model_id;
+    const modelTools = getAdvisorAvailability(model, toolsByModel[modelId] || []);
+
     // Prefer task-specific tool recommendation, fallback to model availability
     if (toolRecs.length) {
-      const modelTools = toolsByModel[modelId] || [];
       for (const rec of toolRecs) {
         const match = modelTools.find(t => t.tool_slug === rec.tool_slug);
         if (match) {
@@ -422,7 +572,7 @@ advisorRoutes.get('/recommend', async (c) => {
         }
       }
     }
-    const fallback = (toolsByModel[modelId] || [])[0];
+    const fallback = modelTools[0];
     if (fallback) {
       return {
         name: fallback.tool_name,
@@ -464,7 +614,7 @@ advisorRoutes.get('/recommend', async (c) => {
     recommendations.push({
       tier: 'best_overall',
       model: buildModel(bestOverall),
-      tool: findTool(bestOverall.model_id),
+      tool: findTool(bestOverall),
       metrics,
       reasoning: `Highest quality (score ${bestOverall.composite_score}) with ${successPct}% first-attempt success. ${bestOverall.steering_effort || 'Low'} steering needed.`,
     });
@@ -477,7 +627,7 @@ advisorRoutes.get('/recommend', async (c) => {
     recommendations.push({
       tier: 'best_value',
       model: buildModel(bestValue),
-      tool: findTool(bestValue.model_id),
+      tool: findTool(bestValue),
       metrics,
       reasoning: `Best real-world value at $${metrics.total_effective_cost.toFixed(2)} total cost (including $${(metrics.time_value || 0).toFixed(2)} developer time).${savedMinutes > 0 ? ` Saves ${savedMinutes} minutes vs frontier.` : ''}`,
     });
@@ -489,7 +639,7 @@ advisorRoutes.get('/recommend', async (c) => {
     recommendations.push({
       tier: 'budget_pick',
       model: buildModel(budgetPick),
-      tool: findTool(budgetPick.model_id),
+      tool: findTool(budgetPick),
       metrics,
       reasoning: `Cheapest at $${(metrics.cost_per_task || 0).toFixed(2)}/task. Requires more steering but fits tight budgets.`,
     });
@@ -542,7 +692,7 @@ advisorRoutes.post('/chat', async (c) => {
   `).all();
 
   const { results: availability } = await c.env.DB.prepare(`
-    SELECT m.slug as model_slug, t.name as tool_name, pp.plan_name, pp.price_monthly
+    SELECT m.slug as model_slug, t.name as tool_name, pp.plan_name, pp.price_monthly, ma.access_level
     FROM model_availability ma
     JOIN models m ON m.id = ma.model_id
     JOIN tools t ON t.id = ma.tool_id
@@ -558,10 +708,15 @@ advisorRoutes.post('/chat', async (c) => {
   ).join('\n');
 
   // Group availability by model
+  const modelInfoBySlug = new Map(topModels.map(m => [m.slug, m]));
   const availMap = {};
   for (const a of availability) {
+    const model = modelInfoBySlug.get(a.model_slug);
+    if (!model) continue;
+    if (!getAdvisorAvailability(model, [a]).length) continue;
     if (!availMap[a.model_slug]) availMap[a.model_slug] = [];
-    availMap[a.model_slug].push(`${a.tool_name} ${a.plan_name || ''} ($${a.price_monthly || 'BYOK'}/mo)`);
+    const monthlyPrice = a.price_monthly != null ? `$${a.price_monthly}/mo` : 'BYOK';
+    availMap[a.model_slug].push(`${a.tool_name} ${a.plan_name || ''} (${monthlyPrice})`);
   }
   const availList = Object.entries(availMap).map(([slug, tools]) =>
     `- ${slug}: ${tools.slice(0, 3).join(', ')}`
@@ -655,7 +810,8 @@ RULES:
         const topIds = candidates.slice(0, 10).map(c => c.model_id);
         const placeholders = topIds.map(() => '?').join(',');
         const { results: avail } = topIds.length ? await c.env.DB.prepare(`
-          SELECT ma.model_id, t.name as tool_name, pp.plan_name, pp.price_monthly
+          SELECT ma.model_id, t.name as tool_name, pp.plan_name, pp.price_monthly, ma.access_level,
+            pp.included_requests, pp.overage_model, pp.usage_notes, ma.credits_per_request
           FROM model_availability ma
           JOIN tools t ON t.id = ma.tool_id
           LEFT JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
@@ -665,6 +821,9 @@ RULES:
 
         const availByModel = {};
         for (const a of (avail.results || avail || [])) {
+          const model = candidates.find((candidate) => candidate.model_id === a.model_id);
+          if (!model) continue;
+          if (!getAdvisorAvailability(model, [a]).length) continue;
           if (!availByModel[a.model_id]) availByModel[a.model_id] = [];
           availByModel[a.model_id].push(a);
         }
@@ -673,7 +832,7 @@ RULES:
         const priority = params.priority || 'quality';
         let sorted;
         if (priority === 'budget') {
-          sorted = [...candidates].sort((a, b) => (a.cost_per_task_estimate || 999) - (b.cost_per_task_estimate || 999));
+          sorted = [...candidates].sort((a, b) => (a.cost_per_task_estimate ?? 999) - (b.cost_per_task_estimate ?? 999));
         } else if (priority === 'value') {
           sorted = [...candidates]
             .filter(c => (c.composite_score || 0) >= 60)

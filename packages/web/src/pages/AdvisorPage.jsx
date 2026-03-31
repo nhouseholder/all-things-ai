@@ -115,13 +115,21 @@ function ComplexityDots({ level }) {
 function CompositeTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  const metricLabel = payload[0].dataKey === 'value_score'
+    ? 'Value Score'
+    : payload[0].dataKey === 'vibe_coder_fit'
+      ? 'Vibe Fit'
+      : 'Composite Score';
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs shadow-lg">
       <p className="text-white font-medium">{d.model_name}</p>
       <p className="text-gray-400">
-        Composite Score: <span className="text-white font-bold">{Number(d.composite_score).toFixed(1)}</span>
+        {metricLabel}: <span className="text-white font-bold">{Number(payload[0].value).toFixed(1)}</span>
       </p>
       {d.vendor && <p className="text-gray-500">{d.vendor}</p>}
+      {payload[0].dataKey === 'vibe_coder_fit' && d.vibe_summary && (
+        <p className="text-gray-500 mt-1 max-w-[240px]">{d.vibe_summary}</p>
+      )}
     </div>
   );
 }
@@ -398,10 +406,19 @@ function DualLeaderboard({ rankings, availability }) {
 
   const bestOverall = rankings?.best_overall || [];
   const bangForBuck = rankings?.bang_for_buck || [];
+  const bestForVibeCoders = rankings?.best_for_vibe_coders || [];
 
-  const data = activeTab === 'overall' ? bestOverall : bangForBuck;
+  const data = activeTab === 'overall'
+    ? bestOverall
+    : activeTab === 'value'
+      ? bangForBuck
+      : bestForVibeCoders;
   const chartData = useMemo(() => data.slice(0, 15), [data]);
-  const chartKey = activeTab === 'overall' ? 'composite_score' : 'value_score';
+  const chartKey = activeTab === 'overall'
+    ? 'composite_score'
+    : activeTab === 'value'
+      ? 'value_score'
+      : 'vibe_coder_fit';
 
   // Build availability lookup by slug
   const availMap = useMemo(() => {
@@ -418,7 +435,7 @@ function DualLeaderboard({ rankings, availability }) {
         <h2 className="text-lg font-semibold text-white">Model Rankings</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Click any model row to see where it's available and at what price.
+        Click any model row to see where it's available and at what price. The vibe-coder view blends real task success, steering effort, community signal, and OpenRouter activity.
       </p>
 
       {/* Tab Switcher */}
@@ -445,6 +462,17 @@ function DualLeaderboard({ rankings, availability }) {
           <Coins className="w-3 h-3 inline mr-1.5" />
           Best Bang for Buck
         </button>
+        <button
+          onClick={() => { setActiveTab('vibe'); setExpandedModel(null); }}
+          className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            activeTab === 'vibe'
+              ? 'bg-purple-500/20 text-purple-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          <Sparkles className="w-3 h-3 inline mr-1.5" />
+          Best for Vibe Coders
+        </button>
       </div>
 
       {/* Bar Chart */}
@@ -454,7 +482,7 @@ function DualLeaderboard({ rankings, availability }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
             <XAxis
               type="number"
-              domain={activeTab === 'overall' ? [0, 100] : [0, 'auto']}
+              domain={activeTab === 'value' ? [0, 'auto'] : [0, 100]}
               tick={{ fill: '#6b7280', fontSize: 11 }}
             />
             <YAxis
@@ -481,7 +509,7 @@ function DualLeaderboard({ rankings, availability }) {
               <th className="text-left px-4 py-3 font-medium w-8">#</th>
               <th className="text-left px-4 py-3 font-medium">Model</th>
               <th className="text-left px-4 py-3 font-medium">Vendor</th>
-              <th className="text-right px-4 py-3 font-medium">Score</th>
+              <th className="text-right px-4 py-3 font-medium">{activeTab === 'vibe' ? 'Vibe Fit' : 'Score'}</th>
               {activeTab === 'value' && (
                 <>
                   <th className="text-right px-4 py-3 font-medium">Avg Cost/Task</th>
@@ -507,13 +535,18 @@ function DualLeaderboard({ rankings, availability }) {
                         ) : (
                           <ChevronDown className="w-3 h-3 text-gray-500 flex-shrink-0" />
                         )}
-                        <span className="text-white font-medium">{m.model_name}</span>
+                        <div className="min-w-0">
+                          <span className="text-white font-medium">{m.model_name}</span>
+                          {activeTab === 'vibe' && m.vibe_summary && (
+                            <p className="text-[10px] text-gray-500 mt-0.5 ml-0 line-clamp-1">{m.vibe_summary}</p>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-gray-400">{m.vendor}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${compositeBadgeBg(m.composite_score)}`}>
-                        {Number(m.composite_score).toFixed(1)}
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${compositeBadgeBg(activeTab === 'vibe' ? m.vibe_coder_fit : m.composite_score)}`}>
+                        {Number(activeTab === 'vibe' ? m.vibe_coder_fit : m.composite_score).toFixed(1)}
                       </span>
                     </td>
                     {activeTab === 'value' && (

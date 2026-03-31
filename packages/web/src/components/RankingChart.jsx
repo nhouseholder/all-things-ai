@@ -4,6 +4,18 @@ import { ChevronDown, ChevronUp, Info } from 'lucide-react';
 import ChartContainer from './ChartContainer.jsx';
 import { quartileColor, quartileClass } from '../lib/chart-utils.js';
 
+const CATEGORY_LABELS = {
+  skill: 'Skill',
+  agent: 'Agent',
+  'mcp-server': 'MCP Server',
+  'github-repo': 'GitHub Repo',
+  'cli-tool': 'CLI Tool',
+  'ide-extension': 'IDE Extension',
+  framework: 'Framework',
+  hook: 'Hook',
+  command: 'Command',
+};
+
 function ScoreBar({ value, color = 'bg-blue-500' }) {
   const pct = value != null ? Math.min(100, Math.max(0, value)) : null;
   return (
@@ -124,6 +136,31 @@ export default function RankingChart({ rankings, nameKey = 'name', dimensions, t
               {/* Expanded dimension breakdown */}
               {isExpanded && (
                 <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
+                  {(item.short_description || item.description || item.category || item.platform || item.vendor) && (
+                    <div className="rounded-lg border border-gray-800 bg-gray-950/60 p-3 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {item.category && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            {CATEGORY_LABELS[item.category] || item.category}
+                          </span>
+                        )}
+                        {item.platform && item.platform !== 'universal' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
+                            {item.platform}
+                          </span>
+                        )}
+                        {item.vendor && (
+                          <span className="text-[10px] text-gray-500">{item.vendor}</span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">What It Is</p>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {item.short_description || item.description}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {dimensions.map(d => (
                     <div key={d.key}>
                       <div className="flex items-center justify-between mb-0.5">

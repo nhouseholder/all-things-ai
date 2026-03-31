@@ -26,19 +26,31 @@ import { computeCompositeScores } from './services/composite-score-engine.js';
 import { computeTaskCosts } from './services/task-cost-calculator.js';
 import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
 import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
+import { syncOpenRouterStats } from './pipelines/openrouter-sync.js';
 
 const app = new Hono();
 
-// C2: Restrict CORS to actual frontend origins
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS = new Set([
   'https://all-things-ai.pages.dev',
   'https://allthingsai.dev',
   'http://localhost:5173',
   'http://localhost:4173',
-];
+]);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'https:' && url.hostname.endsWith('.all-things-ai.pages.dev');
+  } catch {
+    return false;
+  }
+}
 
 app.use('/api/*', cors({
-  origin: (origin) => ALLOWED_ORIGINS.includes(origin) ? origin : null,
+  origin: (origin) => isAllowedOrigin(origin) ? origin : null,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 
@@ -55,9 +67,9 @@ app.onError((err, c) => {
 app.get('/', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').first();
-    return c.json({ name: 'All Things AI API', version: '0.8.0', status: 'ok', db: 'connected' });
+    return c.json({ name: 'All Things AI API', version: '0.9.0', status: 'ok', db: 'connected' });
   } catch {
-    return c.json({ name: 'All Things AI API', version: '0.8.0', status: 'degraded', db: 'error' }, 503);
+    return c.json({ name: 'All Things AI API', version: '0.9.0', status: 'degraded', db: 'error' }, 503);
   }
 });
 
@@ -86,6 +98,7 @@ app.post('/api/ingest', requireAdmin(), async (c) => {
   try { await scrapeRedditReviews(c.env); results.redditReviews = 'ok'; } catch (e) { results.redditReviews = e.message; }
   try { await scrapeHNReviews(c.env); results.hnReviews = 'ok'; } catch (e) { results.hnReviews = e.message; }
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
+  try { await syncOpenRouterStats(c.env); results.openrouter = 'ok'; } catch (e) { results.openrouter = e.message; }
   return c.json(results);
 });
 
@@ -118,6 +131,16 @@ app.post('/api/ingest/reviews', requireAdmin(), async (c) => {
   // Recompute composite scores after review update
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
   return c.json(results);
+});
+
+// Manual trigger for OpenRouter sync only
+app.post('/api/ingest/openrouter', requireAdmin(), async (c) => {
+  try {
+    const result = await syncOpenRouterStats(c.env);
+    return c.json({ status: 'ok', ...result });
+  } catch (e) {
+    return c.json({ status: 'error', message: e.message }, 500);
+  }
 });
 
 // Community review data API

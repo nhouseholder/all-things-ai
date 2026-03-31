@@ -15,6 +15,7 @@ import { scrapeBenchmarks } from './pipelines/benchmark-scraper.js';
 import { discoverGitHubTools } from './pipelines/github-tool-discovery.js';
 import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
+import { syncOpenRouterStats } from './pipelines/openrouter-sync.js';
 
 export async function handleScheduled(event, env) {
   const cron = event.cron;
@@ -41,6 +42,7 @@ export async function handleScheduled(event, env) {
       break;
     case '0 6 * * *':
       await runSafe('scrapePricing', () => scrapePricing(env));
+      await runSafe('syncOpenRouterStats', () => syncOpenRouterStats(env));
       break;
     case '0 7 * * *':
       await runSafe('scoreUnscored', () => scoreUnscored(env));
@@ -78,6 +80,7 @@ export async function handleScheduled(event, env) {
       // Invalidate caches so next request gets fresh data
       await runSafe('invalidateCaches', async () => {
         await env.CACHE.delete('rankings:v1');
+        await env.CACHE.delete('rankings:v2-vibe');
         await env.CACHE.delete('model-aliases:merged');
       });
       break;

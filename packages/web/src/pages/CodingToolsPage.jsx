@@ -233,6 +233,11 @@ export default function CodingToolsPage() {
   const tools = data?.tools || [];
   const categories = catData?.categories || [];
   const total = data?.total || 0;
+  const toolBySlug = Object.fromEntries(tools.map((tool) => [tool.slug, tool]));
+  const enrichedRankings = rankings.map((ranking) => ({
+    ...toolBySlug[ranking.slug],
+    ...ranking,
+  }));
 
   function handleSearch(e) {
     e.preventDefault();
@@ -269,7 +274,7 @@ export default function CodingToolsPage() {
       {/* Rankings */}
       {rankings.length > 0 && (
         <RankingChart
-          rankings={rankings.slice(0, 15)}
+          rankings={enrichedRankings.slice(0, 15)}
           dimensions={PLUGIN_DIMENSIONS}
           title="Plugin Rankings"
           subtitle="Composite score based on stars, freshness, compatibility, community, setup ease, and docs"

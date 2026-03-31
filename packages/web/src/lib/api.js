@@ -1,4 +1,15 @@
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const PROD_API_BASE = 'https://all-things-ai-worker.nikhouseholdr.workers.dev';
+
+function getApiBase() {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window === 'undefined') return '';
+
+  const { hostname } = window.location;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  return isLocalhost ? '' : PROD_API_BASE;
+}
+
+const API_BASE = getApiBase();
 
 async function request(path, options = {}) {
   const headers = { ...options.headers };
