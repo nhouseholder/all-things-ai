@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { setPageTitle } from '../lib/format.js';
 import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  Copy,
+  Check,
   Crown,
   DollarSign,
   Globe,
@@ -29,8 +32,15 @@ const PRICE_TIERS = [
   { label: 'Premium', max: Infinity, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
 ];
 
-const MODEL_COLORS = ['#60a5fa', '#a78bfa', '#fbbf24', '#34d399'];
-const MODEL_GLOWS = ['rgba(96,165,250,0.3)', 'rgba(167,139,250,0.3)', 'rgba(251,191,36,0.3)', 'rgba(52,211,153,0.3)'];
+const MODEL_COLORS = ['#60a5fa', '#a78bfa', '#fbbf24', '#34d399', '#f472b6', '#fb923c', '#22d3ee', '#a3e635', '#e879f9', '#f87171'];
+const MODEL_GLOWS = MODEL_COLORS.map(c => c.replace('#', 'rgba(').replace(/(..)(..)(..)/, (_, r, g, b) => `${parseInt(r, 16)},${parseInt(g, 16)},${parseInt(b, 16)},0.3)`));
+
+const COMPARE_PRESETS = [
+  { label: 'Frontier', slugs: ['claude-4.6', 'gpt-5.4', 'gemini-3.2-pro', 'grok-3'], desc: 'Top-tier flagship models' },
+  { label: 'Coding', slugs: ['claude-4.6', 'gpt-5.4', 'deepseek-v4', 'gemini-3.2-pro'], desc: 'Best for code generation' },
+  { label: 'Budget', slugs: ['gpt-5.4-low', 'deepseek-v4', 'llama-4.1-70b', 'qwen-3.1-175b'], desc: 'Cost-effective picks' },
+  { label: 'Open Source', slugs: ['llama-4.1-70b', 'deepseek-v4', 'qwen-3.1-175b', 'mistral-large'], desc: 'Open-weight models' },
+];
 
 const SCORE_DIMENSIONS = [
   { key: 'swe_bench', label: 'SWE-bench' },
@@ -85,6 +95,7 @@ function steeringBadge(effort) {
 
 export default function ComparePage() {
   useEffect(() => { setPageTitle('Compare Models'); }, []);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: modelsData, isLoading: modelsLoading } = useModels();
   const { data: pricingData, isLoading: pricingLoading } = useModelPricing();
   const loading = modelsLoading || pricingLoading;
@@ -92,7 +103,11 @@ export default function ComparePage() {
   const allModels = Array.isArray(modelsData) ? modelsData : [];
   const pricing = pricingData?.models || [];
 
-  const [selected, setSelected] = useState([]);
+  // Init selected from URL params
+  const [selected, setSelected] = useState(() => {
+    const param = searchParams.get('models');
+    return param ? param.split(',').filter(Boolean) : [];
+  });
   const [comparison, setComparison] = useState(null);
   const [taskProfiles, setTaskProfiles] = useState([]);
   const [alternatives, setAlternatives] = useState(null);
@@ -103,13 +118,24 @@ export default function ComparePage() {
   const [activeTab, setActiveTab] = useState('compare');
   const [selectedTask, setSelectedTask] = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Compare selected models
-  async function runComparison() {
-    if (selected.length < 2) return;
+  // Sync selected models to URL
+  useEffect(() => {
+    if (selected.length > 0) {
+      setSearchParams({ models: selected.join(',') }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  }, [selected, setSearchParams]);
+
+  // Auto-compare when 2+ models selected
+  const runComparison = useCallback(async (slugs) => {
+    const toCompare = slugs || selected;
+    if (toCompare.length < 2) { setComparison(null); return; }
     setComparing(true);
     try {
-      const res = await api.compareModels(selected);
+      const res = await api.compareModels(toCompare);
       setComparison(res.models || []);
       setTaskProfiles(res.task_profiles || []);
       if (res.task_profiles?.length && !selectedTask) {
@@ -117,7 +143,13 @@ export default function ComparePage() {
       }
     } catch { /* */ }
     finally { setComparing(false); }
-  }
+  }, [selected, selectedTask]);
+
+  // Auto-compare on selection change
+  useEffect(() => {
+    if (selected.length >= 2) runComparison(selected);
+    else setComparison(null);
+  }, [selected.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load alternatives for a model
   async function loadAlternatives(slug) {
@@ -129,7 +161,7 @@ export default function ComparePage() {
   }
 
   function addModel(slug) {
-    if (selected.length < 4 && !selected.includes(slug)) {
+    if (selected.length < 10 && !selected.includes(slug)) {
       setSelected([...selected, slug]);
     }
     setShowPicker(false);
@@ -138,7 +170,44 @@ export default function ComparePage() {
 
   function removeModel(slug) {
     setSelected(selected.filter(s => s !== slug));
-    setComparison(null);
+  }
+
+  function applyPreset(slugs) {
+    // Only include slugs that exist in our model list
+    const valid = slugs.filter(s => allModels.some(m => m.slug === s));
+    if (valid.length >= 2) setSelected(valid);
+  }
+
+  function copyShareLink() {
+    const url = `${window.location.origin}/compare?models=${selected.join(',')}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function exportMarkdown() {
+    if (!comparison?.length) return;
+    const headers = ['Metric', ...comparison.map(m => m.name)];
+    const rows = [
+      ['Score', ...comparison.map(m => m.composite_score?.toFixed(1) || '—')],
+      ['Input $/MTok', ...comparison.map(m => formatPrice(m.input_price_per_mtok))],
+      ['Output $/MTok', ...comparison.map(m => formatPrice(m.output_price_per_mtok))],
+      ['Context', ...comparison.map(m => m.context_window ? `${(m.context_window / 1000).toFixed(0)}K` : '—')],
+    ];
+    for (const dim of SCORE_DIMENSIONS) {
+      rows.push([dim.label, ...comparison.map(m => {
+        const v = m.score_components?.[dim.key];
+        return v != null ? v.toFixed(1) : '—';
+      })]);
+    }
+    const md = [
+      '| ' + headers.join(' | ') + ' |',
+      '| ' + headers.map(() => '---').join(' | ') + ' |',
+      ...rows.map(r => '| ' + r.join(' | ') + ' |'),
+    ].join('\n');
+    navigator.clipboard.writeText(md);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const filteredModels = useMemo(() => {
@@ -184,11 +253,40 @@ export default function ComparePage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-white mb-1">Model Compare</h1>
-        <p className="text-sm text-gray-400">
-          Deep comparison with benchmarks, task performance, and availability.
-          <span className="text-gray-600 text-xs ml-1">· Scores updated daily</span>
-        </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-extrabold text-white mb-1">Model Compare</h1>
+            <p className="text-sm text-gray-400">
+              Deep comparison with benchmarks, task performance, and availability.
+              <span className="text-gray-600 text-xs ml-1">· Up to 10 models · Scores updated daily</span>
+            </p>
+          </div>
+          {selected.length >= 2 && (
+            <div className="flex items-center gap-2">
+              <button onClick={copyShareLink} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors">
+                {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied' : 'Share'}
+              </button>
+              <button onClick={exportMarkdown} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors">
+                <BarChart3 className="w-3.5 h-3.5" />
+                Export MD
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Quick Presets */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {COMPARE_PRESETS.map(preset => (
+            <button
+              key={preset.label}
+              onClick={() => applyPreset(preset.slugs)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800/80 border border-gray-700/50 text-gray-400 hover:text-white hover:border-gray-600 transition-colors"
+              title={preset.desc}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -221,7 +319,6 @@ export default function ComparePage() {
           setShowPicker={setShowPicker}
           addModel={addModel}
           removeModel={removeModel}
-          runComparison={runComparison}
           comparing={comparing}
         />
       )}
@@ -435,7 +532,7 @@ export default function ComparePage() {
 }
 
 // ── Model Picker (shared) ────────────────────────────────────────
-function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearchTerm, showPicker, setShowPicker, addModel, removeModel, runComparison, comparing }) {
+function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearchTerm, showPicker, setShowPicker, addModel, removeModel, comparing }) {
   return (
     <div className="mb-6">
       <div className="flex flex-wrap gap-2 items-center">
@@ -444,7 +541,7 @@ function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearc
           const idx = selected.indexOf(slug);
           return (
             <div key={slug} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[idx] }} />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[idx % MODEL_COLORS.length] }} />
               <span className="text-xs text-white font-medium">{m?.name || slug}</span>
               <button onClick={() => removeModel(slug)} className="text-gray-500 hover:text-red-400">
                 <X className="w-3.5 h-3.5" />
@@ -452,7 +549,7 @@ function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearc
             </div>
           );
         })}
-        {selected.length < 4 && (
+        {selected.length < 10 && (
           <div className="relative">
             <button
               onClick={() => setShowPicker(!showPicker)}
@@ -461,7 +558,7 @@ function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearc
               + Add Model
             </button>
             {showPicker && (
-              <div className="absolute top-full left-0 mt-2 w-72 max-h-64 overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
+              <div className="absolute top-full left-0 mt-2 w-80 max-h-72 overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
                 <div className="sticky top-0 bg-gray-900 p-2 border-b border-gray-800">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-500" />
@@ -469,38 +566,39 @@ function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearc
                       autoFocus
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      placeholder="Search models..."
+                      placeholder="Search by name, vendor, or family..."
                       className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white placeholder:text-gray-500 outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
-                {filteredModels.filter(m => !selected.includes(m.slug)).map(m => (
+                {filteredModels.filter(m => !selected.includes(m.slug)).slice(0, 50).map(m => (
                   <button
                     key={m.slug}
                     onClick={() => addModel(m.slug)}
                     className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0"
                   >
-                    <p className="text-xs text-white font-medium">{m.name}</p>
-                    <p className="text-[10px] text-gray-500">{m.vendor} · {m.input_price_per_mtok != null ? `$${m.input_price_per_mtok}/$${m.output_price_per_mtok} per MTok` : 'Free'}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-white font-medium">{m.name}</p>
+                        <p className="text-[10px] text-gray-500">{m.vendor} · {m.family || ''}</p>
+                      </div>
+                      <span className="text-[10px] text-gray-500">
+                        {m.input_price_per_mtok != null ? `$${m.input_price_per_mtok}/$${m.output_price_per_mtok}` : 'Free'}
+                      </span>
+                    </div>
                   </button>
                 ))}
+                {filteredModels.filter(m => !selected.includes(m.slug)).length === 0 && (
+                  <p className="text-xs text-gray-500 p-3 text-center">No models found</p>
+                )}
               </div>
             )}
           </div>
         )}
-        {selected.length >= 2 && (
-          <button
-            onClick={runComparison}
-            disabled={comparing}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
-          >
-            {comparing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5" />}
-            Compare
-          </button>
-        )}
+        {comparing && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
       </div>
       {selected.length < 2 && (
-        <p className="text-[10px] text-gray-500 mt-2">Select 2-4 models to compare side by side</p>
+        <p className="text-[10px] text-gray-500 mt-2">Select 2+ models to compare side by side, or try a preset above</p>
       )}
     </div>
   );
@@ -531,7 +629,7 @@ function RadarComparisonChart({ models }) {
       <div className="flex items-center gap-5 mb-3 flex-wrap">
         {models.map((m, i) => (
           <div key={m.slug} className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: MODEL_COLORS[i], boxShadow: `0 0 8px ${MODEL_GLOWS[i]}` }} />
+            <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: MODEL_COLORS[i % MODEL_COLORS.length], boxShadow: `0 0 8px ${MODEL_GLOWS[i % MODEL_GLOWS.length]}` }} />
             <span className="text-xs text-gray-300 font-medium">{m.name}</span>
           </div>
         ))}
@@ -548,17 +646,18 @@ function RadarComparisonChart({ models }) {
           {/* Render in reverse so the first model (most important) is on top */}
           {[...models].reverse().map((m) => {
             const i = models.indexOf(m);
+            const color = MODEL_COLORS[i % MODEL_COLORS.length];
             return (
               <Radar
                 key={m.slug}
                 name={m.name}
                 dataKey={m.slug}
-                stroke={MODEL_COLORS[i]}
-                fill={MODEL_COLORS[i]}
-                fillOpacity={0.15}
-                strokeWidth={2.5}
-                dot={{ r: 3, fill: MODEL_COLORS[i], strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: MODEL_COLORS[i], stroke: '#fff', strokeWidth: 2 }}
+                stroke={color}
+                fill={color}
+                fillOpacity={0.12}
+                strokeWidth={2}
+                dot={{ r: 2.5, fill: color, strokeWidth: 0 }}
+                activeDot={{ r: 4, fill: color, stroke: '#fff', strokeWidth: 2 }}
               />
             );
           })}

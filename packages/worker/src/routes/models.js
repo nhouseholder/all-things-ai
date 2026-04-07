@@ -147,9 +147,9 @@ modelsRoutes.get('/alternatives', async (c) => {
   return c.json({ models: results });
 });
 
-// GET /api/models/compare — enriched side-by-side comparison of 2-4 models
+// GET /api/models/compare — enriched side-by-side comparison of 2-10 models
 modelsRoutes.get('/compare', async (c) => {
-  const slugs = c.req.query('models')?.split(',').slice(0, 4);
+  const slugs = c.req.query('models')?.split(',').slice(0, 10);
   if (!slugs?.length) return c.json({ error: 'Provide ?models=slug1,slug2' }, 400);
 
   const placeholders = slugs.map(() => '?').join(',');
