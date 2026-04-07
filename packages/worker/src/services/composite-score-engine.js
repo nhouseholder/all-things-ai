@@ -17,15 +17,18 @@
  */
 
 const BENCHMARK_MAP = {
-  swe:          { benchmark_name: 'SWE-bench Verified',        weight: 0.25 },
-  livecodebench:{ benchmark_name: 'LiveCodeBench',             weight: 0.15 },
-  nuance:       { benchmark_name: 'Human Nuance Understanding',weight: 0.20 },
-  arena:        { benchmark_name: 'Chatbot Arena ELO',         weight: 0.10 },
-  tau:          { benchmark_name: 'TAU-bench Retail',           weight: 0.10 },
-  gpqa:         { benchmark_name: 'GPQA Diamond',              weight: 0.10 },
+  swe:          { benchmark_name: 'SWE-bench Verified',        weight: 0.20 },
+  livecodebench:{ benchmark_name: 'LiveCodeBench',             weight: 0.12 },
+  nuance:       { benchmark_name: 'Human Nuance Understanding',weight: 0.12 },
+  arena:        { benchmark_name: 'Chatbot Arena ELO',         weight: 0.08 },
+  tau:          { benchmark_name: 'TAU-bench Retail',           weight: 0.08 },
+  gpqa:         { benchmark_name: 'GPQA Diamond',              weight: 0.08 },
+  hle:          { benchmark_name: "Humanity's Last Exam",      weight: 0.12 },
+  mmlu:         { benchmark_name: 'MMLU',                      weight: 0.08 },
+  humaneval:    { benchmark_name: 'HumanEval+',                weight: 0.05 },
 };
 
-const SUCCESS_WEIGHT = 0.10;
+const SUCCESS_WEIGHT = 0.07;
 
 // Community score weighting by user type
 const COMMUNITY_WEIGHTS = {
@@ -235,10 +238,11 @@ export async function computeCompositeScores(env) {
     }
 
     // Build weights for available components only
-    const baseWeights = {
-      swe: 0.25, livecodebench: 0.15, nuance: 0.20,
-      arena: 0.10, tau: 0.10, gpqa: 0.10, success: SUCCESS_WEIGHT,
-    };
+    const baseWeights = {};
+    for (const [k, cfg] of Object.entries(BENCHMARK_MAP)) {
+      baseWeights[k] = cfg.weight;
+    }
+    baseWeights.success = SUCCESS_WEIGHT;
 
     const available = Object.entries(baseWeights).filter(([k]) => components[k] != null);
     if (!available.length) continue;
@@ -338,8 +342,9 @@ export async function computeCompositeScores(env) {
     INSERT OR REPLACE INTO model_composite_scores
       (model_id, composite_score, swe_bench_component, livecodebench_component,
        nuance_component, arena_component, tau_component, gpqa_component,
+       hle_component, mmlu_component, humaneval_component,
        success_rate_component, community_adjustment, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const batch = [];
@@ -358,6 +363,9 @@ export async function computeCompositeScores(env) {
       components.arena != null ? Number((components.arena * 100).toFixed(2)) : null,
       components.tau != null ? Number((components.tau * 100).toFixed(2)) : null,
       components.gpqa != null ? Number((components.gpqa * 100).toFixed(2)) : null,
+      components.hle != null ? Number((components.hle * 100).toFixed(2)) : null,
+      components.mmlu != null ? Number((components.mmlu * 100).toFixed(2)) : null,
+      components.humaneval != null ? Number((components.humaneval * 100).toFixed(2)) : null,
       components.success != null ? Number((components.success * 100).toFixed(2)) : null,
       Number(community.adjustment.toFixed(2))
     ));

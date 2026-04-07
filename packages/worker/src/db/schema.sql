@@ -216,6 +216,9 @@ CREATE TABLE IF NOT EXISTS model_composite_scores (
     arena_component REAL DEFAULT 0,
     tau_component REAL DEFAULT 0,
     gpqa_component REAL DEFAULT 0,
+    hle_component REAL DEFAULT 0,
+    mmlu_component REAL DEFAULT 0,
+    humaneval_component REAL DEFAULT 0,
     success_rate_component REAL DEFAULT 0,
     community_adjustment REAL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))

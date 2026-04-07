@@ -21,6 +21,9 @@ export async function scrapeBenchmarks(env) {
     { name: 'swebench', fn: () => scrapeSWEBench(env, slugMap) },
     { name: 'gpqa', fn: () => scrapeGPQA(env, slugMap) },
     { name: 'taubench', fn: () => scrapeTAUBench(env, slugMap) },
+    { name: 'hle', fn: () => scrapeHLE(env, slugMap) },
+    { name: 'mmlu', fn: () => scrapeMMLU(env, slugMap) },
+    { name: 'humaneval', fn: () => scrapeHumanEval(env, slugMap) },
   ];
 
   for (const scraper of scrapers) {
@@ -371,6 +374,98 @@ async function processGenericBenchmark(env, data, slugMap, benchmarkName, catego
   }
 
   return { matched, unmatched: unmatched.length, source: benchmarkName };
+}
+
+/**
+ * Scrape Humanity's Last Exam (HLE) scores.
+ * HLE is published by Scale AI / CAIS on Hugging Face.
+ */
+async function scrapeHLE(env, slugMap) {
+  const cacheKey = 'benchmark:hle:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] HLE: using cached data');
+    return await processGenericBenchmark(env, cached, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai');
+  }
+
+  // Try the HLE leaderboard data from Hugging Face
+  const resp = await fetchWithTimeout(
+    'https://huggingface.co/api/spaces/cais/hle-leaderboard',
+    { headers: { 'User-Agent': USER_AGENT } }
+  );
+
+  if (!resp.ok) {
+    // Fallback: try GitHub-hosted results
+    const resp2 = await fetchWithTimeout(
+      'https://raw.githubusercontent.com/centerforaisafety/hle-leaderboard/main/results.json',
+      { headers: { 'User-Agent': USER_AGENT } }
+    );
+    if (!resp2.ok) {
+      console.log(`[BENCHMARK] HLE: fetch returned ${resp.status}, skipping`);
+      return { matched: 0, unmatched: 0, source: 'hle-unavailable' };
+    }
+    const data = await resp2.json();
+    await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+    return await processGenericBenchmark(env, data, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai');
+  }
+
+  const data = await resp.json();
+  await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+  return await processGenericBenchmark(env, data, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai');
+}
+
+/**
+ * Scrape MMLU (Massive Multitask Language Understanding) scores.
+ * MMLU results are widely published — try PapersWithCode first.
+ */
+async function scrapeMMLU(env, slugMap) {
+  const cacheKey = 'benchmark:mmlu:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] MMLU: using cached data');
+    return await processGenericBenchmark(env, cached, slugMap, 'MMLU', 'knowledge', 100, 'https://paperswithcode.com/sota/multi-task-language-understanding-on-mmlu');
+  }
+
+  const resp = await fetchWithTimeout(
+    'https://paperswithcode.com/api/v1/get-leaderboard/?task=multi-task-language-understanding-on-mmlu',
+    { headers: { 'User-Agent': USER_AGENT } }
+  );
+
+  if (!resp.ok) {
+    console.log(`[BENCHMARK] MMLU: fetch returned ${resp.status}, skipping`);
+    return { matched: 0, unmatched: 0, source: 'mmlu-unavailable' };
+  }
+
+  const data = await resp.json();
+  await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+  return await processGenericBenchmark(env, data, slugMap, 'MMLU', 'knowledge', 100, 'https://paperswithcode.com/sota/multi-task-language-understanding-on-mmlu');
+}
+
+/**
+ * Scrape HumanEval / EvalPlus scores for code generation.
+ * EvalPlus publishes results on GitHub.
+ */
+async function scrapeHumanEval(env, slugMap) {
+  const cacheKey = 'benchmark:humaneval:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] HumanEval: using cached data');
+    return await processGenericBenchmark(env, cached, slugMap, 'HumanEval+', 'coding', 100, 'https://evalplus.github.io/leaderboard.html');
+  }
+
+  const resp = await fetchWithTimeout(
+    'https://raw.githubusercontent.com/evalplus/evalplus/master/results/results.json',
+    { headers: { 'User-Agent': USER_AGENT } }
+  );
+
+  if (!resp.ok) {
+    console.log(`[BENCHMARK] HumanEval: fetch returned ${resp.status}, skipping`);
+    return { matched: 0, unmatched: 0, source: 'humaneval-unavailable' };
+  }
+
+  const data = await resp.json();
+  await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
+  return await processGenericBenchmark(env, data, slugMap, 'HumanEval+', 'coding', 100, 'https://evalplus.github.io/leaderboard.html');
 }
 
 // fetchWithTimeout imported from ../utils/fetch.js

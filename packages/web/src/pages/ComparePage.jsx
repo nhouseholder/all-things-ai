@@ -39,6 +39,9 @@ const SCORE_DIMENSIONS = [
   { key: 'arena', label: 'Arena' },
   { key: 'tau', label: 'TAU-bench' },
   { key: 'gpqa', label: 'GPQA' },
+  { key: 'hle', label: 'HLE' },
+  { key: 'mmlu', label: 'MMLU' },
+  { key: 'humaneval', label: 'HumanEval' },
   { key: 'success_rate', label: 'Success Rate' },
 ];
 

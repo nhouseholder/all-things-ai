@@ -27,13 +27,16 @@ import { compositeColor, compositeBarBg, setPageTitle, timeAgo } from '../lib/fo
 import { quartileColor } from '../lib/chart-utils.js';
 
 const SCORE_COMPONENTS = [
-  { key: 'swe_bench_component', label: 'SWE-bench', weight: '25%' },
-  { key: 'livecodebench_component', label: 'LiveCodeBench', weight: '15%' },
-  { key: 'nuance_component', label: 'Human Nuance', weight: '20%' },
-  { key: 'arena_component', label: 'Arena ELO', weight: '10%' },
-  { key: 'tau_component', label: 'TAU-bench', weight: '10%' },
-  { key: 'gpqa_component', label: 'GPQA', weight: '10%' },
-  { key: 'success_rate_component', label: 'Success Rate', weight: '10%' },
+  { key: 'swe_bench_component', label: 'SWE-bench', weight: '20%' },
+  { key: 'hle_component', label: 'HLE', weight: '12%' },
+  { key: 'livecodebench_component', label: 'LiveCodeBench', weight: '12%' },
+  { key: 'nuance_component', label: 'Human Nuance', weight: '12%' },
+  { key: 'arena_component', label: 'Arena ELO', weight: '8%' },
+  { key: 'tau_component', label: 'TAU-bench', weight: '8%' },
+  { key: 'gpqa_component', label: 'GPQA', weight: '8%' },
+  { key: 'mmlu_component', label: 'MMLU', weight: '8%' },
+  { key: 'humaneval_component', label: 'HumanEval+', weight: '5%' },
+  { key: 'success_rate_component', label: 'Success Rate', weight: '7%' },
 ];
 
 function scoreColor(score) {
