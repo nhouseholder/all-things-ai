@@ -1,3 +1,45 @@
+// Reverse lookup: OpenRouter vendor prefix → our vendor name + family
+const OR_PREFIX_TO_VENDOR = {
+  'anthropic': { vendor: 'Anthropic', family: 'Claude' },
+  'openai': { vendor: 'OpenAI', family: 'GPT' },
+  'google': { vendor: 'Google', family: 'Gemini' },
+  'meta-llama': { vendor: 'Meta', family: 'Llama' },
+  'meta': { vendor: 'Meta', family: 'Llama' },
+  'deepseek': { vendor: 'DeepSeek', family: 'DeepSeek' },
+  'mistralai': { vendor: 'Mistral AI', family: 'Mistral' },
+  'qwen': { vendor: 'Alibaba', family: 'Qwen' },
+  'x-ai': { vendor: 'xAI', family: 'Grok' },
+  'zhipu': { vendor: 'Zhipu AI', family: 'GLM' },
+  'minimax': { vendor: 'MiniMax', family: 'MiniMax' },
+  'moonshot': { vendor: 'Moonshot AI', family: 'Kimi' },
+  'cohere': { vendor: 'Cohere', family: 'Command' },
+  'ai21': { vendor: 'AI21 Labs', family: 'Jamba' },
+  'amazon': { vendor: 'Amazon', family: 'Nova' },
+  'microsoft': { vendor: 'Microsoft', family: 'Phi' },
+  'perplexity': { vendor: 'Perplexity', family: 'Sonar' },
+  'nous': { vendor: 'Nous Research', family: 'Hermes' },
+  'nousresearch': { vendor: 'Nous Research', family: 'Hermes' },
+  '01-ai': { vendor: '01.AI', family: 'Yi' },
+  'bytedance': { vendor: 'ByteDance', family: 'Doubao' },
+  'baidu': { vendor: 'Baidu', family: 'Ernie' },
+  'reka': { vendor: 'Reka AI', family: 'Reka' },
+  'stepfun': { vendor: 'StepFun', family: 'Step' },
+  'nvidia': { vendor: 'NVIDIA', family: 'Nemotron' },
+  'databricks': { vendor: 'Databricks', family: 'DBRX' },
+  'inflection': { vendor: 'Inflection', family: 'Pi' },
+  'sao10k': { vendor: 'Sao10k', family: 'Community' },
+  'pygmalionai': { vendor: 'PygmalionAI', family: 'Community' },
+  'lynn': { vendor: 'Lynn', family: 'Community' },
+  'thedrummer': { vendor: 'TheDrummer', family: 'Community' },
+  'neversleep': { vendor: 'NeverSleep', family: 'Community' },
+  'cognitivecomputations': { vendor: 'Cognitive Computations', family: 'Dolphin' },
+  'eva-unit-01': { vendor: 'Eva', family: 'Community' },
+  'featherless': { vendor: 'Featherless', family: 'Community' },
+  'liquid': { vendor: 'Liquid AI', family: 'LFM' },
+  'aion-labs': { vendor: 'Aion Labs', family: 'Aion' },
+  'huggingface': { vendor: 'HuggingFace', family: 'Community' },
+};
+
 const VENDOR_ALIASES = {
   '01.AI': ['01-ai', '01 ai'],
   'AI21 Labs': ['ai21'],
@@ -296,4 +338,62 @@ export async function mapModelsToOpenRouter(localModels, fetchImpl = fetch) {
   }
 
   return { openrouterModels, matches };
+}
+
+/**
+ * Derive vendor and family from an OpenRouter model ID prefix.
+ * e.g., "zhipu/glm-5-turbo" → { vendor: 'Zhipu AI', family: 'GLM' }
+ */
+export function resolveVendorFromOpenRouterId(openrouterId) {
+  const prefix = (openrouterId || '').split('/')[0].toLowerCase();
+  return OR_PREFIX_TO_VENDOR[prefix] || { vendor: prefix, family: prefix };
+}
+
+/**
+ * Generate a slug from an OpenRouter model ID.
+ * e.g., "zhipu/glm-5-turbo" → "glm-5-turbo"
+ * e.g., "openai/gpt-4o-mini" → "gpt-4o-mini"
+ */
+export function slugFromOpenRouterId(openrouterId) {
+  const afterSlash = (openrouterId || '').split('/').slice(1).join('/');
+  return afterSlash
+    .toLowerCase()
+    .replace(/:free$/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+/**
+ * Generate a display name from an OpenRouter model's name or ID.
+ * Prefers the OpenRouter name field, falls back to parsing the ID.
+ */
+export function displayNameFromOpenRouter(orModel) {
+  if (orModel.name) {
+    // Strip vendor prefix if present (e.g., "Zhipu: GLM-5 Turbo" → "GLM-5 Turbo")
+    return orModel.name.replace(/^[^:]+:\s*/, '');
+  }
+  // Fallback: title-case the slug portion
+  return slugFromOpenRouterId(orModel.id)
+    .split('-')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/**
+ * Filter OpenRouter models to only text-generation LLMs worth importing.
+ * Excludes: free wrappers, image/audio models, embedding models, moderation models.
+ */
+export function isImportableModel(orModel) {
+  const id = (orModel.id || '').toLowerCase();
+  // Skip :free variants (duplicates of paid models)
+  if (id.endsWith(':free')) return false;
+  // Skip image generation, audio, embedding, moderation models
+  const modality = orModel.architecture?.modality || '';
+  if (modality === 'image' || modality === 'audio' || modality === 'embedding') return false;
+  // Skip models with no text output
+  const outputModalities = orModel.architecture?.output_modalities || [];
+  if (outputModalities.length > 0 && !outputModalities.includes('text')) return false;
+  // Skip if pricing is completely absent (likely not available)
+  if (!orModel.pricing?.prompt && !orModel.pricing?.completion) return false;
+  return true;
 }

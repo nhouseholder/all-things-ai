@@ -79,8 +79,11 @@ CREATE TABLE IF NOT EXISTS models (
     params_total TEXT,
     params_active TEXT,
     is_open_weight INTEGER DEFAULT 0,
+    discovery_source TEXT DEFAULT 'seed',
+    openrouter_id TEXT,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_models_discovery_source ON models(discovery_source);
 
 -- Benchmark scores for models
 CREATE TABLE IF NOT EXISTS benchmarks (

@@ -3,6 +3,11 @@ import {
   extractOpenRouterSignals,
   fetchOpenRouterActivity,
   mapModelsToOpenRouter,
+  resolveVendorFromOpenRouterId,
+  slugFromOpenRouterId,
+  displayNameFromOpenRouter,
+  isImportableModel,
+  parseOpenRouterPrice,
 } from '../services/openrouter-utils.js';
 import { computeTaskCosts } from '../services/task-cost-calculator.js';
 
@@ -41,11 +46,13 @@ async function mapWithActivity(matches) {
 
 export async function syncOpenRouterStats(env) {
   const localModels = await loadLocalModels(env);
-  const { matches } = await mapModelsToOpenRouter(localModels);
+  const { openrouterModels, matches } = await mapModelsToOpenRouter(localModels);
 
   if (!matches.length) {
-    console.warn('[OPENROUTER] No local models matched OpenRouter catalog');
-    return { matched_models: 0, synced_models: 0, hydrated_core_models: 0 };
+    // Still try auto-import even if no existing models matched
+    const imported = await autoImportNewModels(env, openrouterModels, new Set());
+    console.warn(`[OPENROUTER] No local models matched OpenRouter catalog (${imported} auto-imported)`);
+    return { matched_models: 0, synced_models: 0, hydrated_core_models: 0, auto_imported: imported };
   }
 
   const withActivity = await mapWithActivity(matches);
@@ -172,11 +179,88 @@ export async function syncOpenRouterStats(env) {
     await env.CACHE.delete('rankings:v2-vibe');
   }
 
-  console.log(`[OPENROUTER] Synced ${withActivity.length} models (${hydratedCoreModels} core hydrations)`);
+  // Auto-import unmatched OpenRouter models
+  const matchedOrIds = new Set(matches.map(m => m.openrouter.id));
+  const imported = await autoImportNewModels(env, openrouterModels, matchedOrIds);
+
+  console.log(`[OPENROUTER] Synced ${withActivity.length} models (${hydratedCoreModels} core hydrations, ${imported} auto-imported)`);
 
   return {
     matched_models: matches.length,
     synced_models: withActivity.length,
     hydrated_core_models: hydratedCoreModels,
+    auto_imported: imported,
   };
+}
+
+/**
+ * Auto-import OpenRouter models that don't match any local model.
+ * Only imports text-generation LLMs with pricing data.
+ * Inserts into models table with discovery_source = 'openrouter'.
+ */
+async function autoImportNewModels(env, openrouterModels, matchedOrIds) {
+  // Get all existing slugs and openrouter_ids to avoid duplicates
+  const { results: existingModels } = await env.DB.prepare(
+    'SELECT slug, openrouter_id FROM models'
+  ).all();
+  const existingSlugs = new Set(existingModels.map(m => m.slug));
+  const existingOrIds = new Set(existingModels.map(m => m.openrouter_id).filter(Boolean));
+
+  const candidates = openrouterModels.filter(m =>
+    !matchedOrIds.has(m.id) &&
+    !existingOrIds.has(m.id) &&
+    isImportableModel(m)
+  );
+
+  if (!candidates.length) {
+    console.log('[OPENROUTER] No new models to auto-import');
+    return 0;
+  }
+
+  const insertModel = env.DB.prepare(`
+    INSERT OR IGNORE INTO models
+    (name, slug, vendor, family, description, is_active, discovery_source, openrouter_id,
+     input_price_per_mtok, output_price_per_mtok, cache_hit_price_per_mtok,
+     context_window, is_open_weight, updated_at)
+    VALUES (?, ?, ?, ?, ?, 1, 'openrouter', ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+
+  const batch = [];
+  let imported = 0;
+
+  for (const orModel of candidates) {
+    const slug = slugFromOpenRouterId(orModel.id);
+    if (!slug || slug.length < 2 || existingSlugs.has(slug)) continue;
+
+    const { vendor, family } = resolveVendorFromOpenRouterId(orModel.id);
+    const name = displayNameFromOpenRouter(orModel);
+    const description = (orModel.description || '').slice(0, 500);
+    const inputPrice = parseOpenRouterPrice(orModel.pricing?.prompt);
+    const outputPrice = parseOpenRouterPrice(orModel.pricing?.completion);
+    const cachePrice = parseOpenRouterPrice(orModel.pricing?.input_cache_read);
+    const contextWindow = orModel.context_length || null;
+    const isOpenWeight = orModel.architecture?.instruct_type ? 1 : 0;
+
+    batch.push(insertModel.bind(
+      name, slug, vendor, family, description, orModel.id,
+      inputPrice, outputPrice, cachePrice,
+      contextWindow, isOpenWeight,
+    ));
+
+    existingSlugs.add(slug);
+    imported++;
+  }
+
+  if (batch.length) {
+    // D1 batch limit is 100 statements
+    for (let i = 0; i < batch.length; i += 100) {
+      await env.DB.batch(batch.slice(i, i + 100));
+    }
+  }
+
+  if (imported > 0) {
+    console.log(`[OPENROUTER] Auto-imported ${imported} new models`);
+  }
+
+  return imported;
 }
