@@ -8,8 +8,10 @@ import {
   ChevronRight,
   Crown,
   DollarSign,
+  Clock,
   ExternalLink,
   Globe,
+  Layers,
   MessageSquare,
   Scale,
   Shield,
@@ -124,6 +126,8 @@ export default function ModelDetailPage() {
   const community = model.community || {};
   const taskEstimates = model.task_estimates || [];
   const alternatives = model.alternatives || [];
+  const similarModels = model.similar_models || [];
+  const modelAlerts = model.model_alerts || [];
   const compositeScore = model.composite_score;
   const openrouter = model.openrouter;
   const vibeProfile = model.vibe_coder_profile;
@@ -606,6 +610,84 @@ export default function ModelDetailPage() {
                       <p className="text-[10px] text-gray-500 mt-1 line-clamp-2">{alt.trade_off_notes}</p>
                     )}
                   </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Similar Models */}
+          {similarModels.length > 0 && (
+            <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Layers className="w-4 h-4" />
+                Similar Models
+              </h2>
+              <div className="space-y-2">
+                {similarModels.map((sm) => (
+                  <Link
+                    key={sm.slug}
+                    to={`/models/${sm.slug}`}
+                    className="block rounded-lg border border-gray-800 p-3 hover:border-gray-700 transition-colors group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-white group-hover:text-blue-400 transition-colors">{sm.name}</span>
+                      <span className={`text-xs font-semibold ${scoreColor(sm.composite_score)}`}>
+                        {Number(sm.composite_score).toFixed(1)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {sm.vendor}{sm.family === model.family ? ' · Same family' : ''}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1">
+                      {sm.input_price_per_mtok != null && (
+                        <span className="text-[10px] text-gray-400">
+                          ${sm.input_price_per_mtok}/${sm.output_price_per_mtok} per MTok
+                        </span>
+                      )}
+                      {sm.is_open_weight ? (
+                        <span className="text-[10px] text-green-400">Open Weight</span>
+                      ) : null}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Model Changelog */}
+          {modelAlerts.length > 0 && (
+            <section className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Changelog
+              </h2>
+              <div className="space-y-3">
+                {modelAlerts.map((alert) => (
+                  <div key={alert.id} className="border-l-2 border-gray-700 pl-3">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        alert.event_type === 'pricing-change' ? 'bg-yellow-500/10 text-yellow-400' :
+                        alert.event_type === 'new-model' ? 'bg-green-500/10 text-green-400' :
+                        'bg-blue-500/10 text-blue-400'
+                      }`}>
+                        {alert.event_type}
+                      </span>
+                      <span className="text-[10px] text-gray-600">
+                        {new Date(alert.detected_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <a
+                      href={alert.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-white hover:text-blue-400 transition-colors"
+                    >
+                      {alert.title}
+                    </a>
+                    {alert.summary && (
+                      <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">{alert.summary}</p>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>

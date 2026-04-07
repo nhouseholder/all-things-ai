@@ -291,7 +291,7 @@ modelsRoutes.get('/:slug', async (c) => {
   if (!model) return c.json({ error: 'Not found' }, 404);
 
   // Parallel queries for all detail data
-  const [benchRes, availRes, reviewRes, taskRes, altRes, openrouter] = await Promise.all([
+  const [benchRes, availRes, reviewRes, taskRes, altRes, openrouter, similarRes, alertsRes] = await Promise.all([
     c.env.DB.prepare(
       'SELECT benchmark_name, category, score, max_score FROM benchmarks WHERE model_id = ?'
     ).bind(model.id).all(),
@@ -355,6 +355,41 @@ modelsRoutes.get('/:slug', async (c) => {
       FROM model_openrouter_stats
       WHERE model_id = ?
     `).bind(model.id).first(),
+
+    // Similar models by composite score (±15 range, exclude self)
+    model.composite_score != null
+      ? c.env.DB.prepare(`
+          SELECT m.name, m.slug, m.vendor, m.family,
+            m.input_price_per_mtok, m.output_price_per_mtok, m.is_open_weight,
+            mcs.composite_score,
+            ABS(mcs.composite_score - ?) as score_diff
+          FROM models m
+          JOIN model_composite_scores mcs ON mcs.model_id = m.id
+          WHERE m.is_active = 1 AND m.id != ?
+            AND mcs.composite_score BETWEEN ? AND ?
+          ORDER BY
+            CASE WHEN m.family = ? THEN 0 ELSE 1 END,
+            score_diff ASC
+          LIMIT 6
+        `).bind(
+          model.composite_score, model.id,
+          model.composite_score - 15, model.composite_score + 15,
+          model.family
+        ).all()
+      : Promise.resolve({ results: [] }),
+
+    // Model-specific alerts (match model name in title or summary)
+    c.env.DB.prepare(`
+      SELECT id, source, event_type, title, summary, importance, detected_at, source_url
+      FROM industry_alerts
+      WHERE is_dismissed = 0
+        AND (title LIKE ? OR summary LIKE ? OR title LIKE ? OR summary LIKE ?)
+      ORDER BY detected_at DESC
+      LIMIT 10
+    `).bind(
+      `%${model.name}%`, `%${model.name}%`,
+      `%${model.slug}%`, `%${model.slug}%`
+    ).all(),
   ]);
 
   // Compute blended cost + bang_for_buck
@@ -414,5 +449,7 @@ modelsRoutes.get('/:slug', async (c) => {
         + Number(openrouter.completion_tokens_daily || 0),
     } : null,
     vibe_coder_profile: vibeProfile,
+    similar_models: similarRes.results,
+    model_alerts: alertsRes.results,
   });
 });
