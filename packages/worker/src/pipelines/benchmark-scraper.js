@@ -371,6 +371,27 @@ async function processGenericBenchmark(env, data, slugMap, benchmarkName, catego
 
   if (unmatched.length > 0) {
     console.log(`[BENCHMARK] ${benchmarkName}: ${unmatched.length} unmatched:`, unmatched.slice(0, 10).join(', '));
+
+    // Auto-alias: try to fuzzy-match unmatched names to existing models
+    const allSlugs = Object.values(slugMap);
+    const allNames = Object.keys(slugMap);
+    for (const name of unmatched.slice(0, 20)) {
+      const lower = name.toLowerCase().trim();
+      // Try substring match: if an existing model name contains this name or vice versa
+      const match = allNames.find(existing => {
+        const el = existing.toLowerCase();
+        return (el.includes(lower) || lower.includes(el)) && el !== lower;
+      });
+      if (match) {
+        const targetSlug = slugMap[match];
+        try {
+          await env.DB.prepare(
+            'INSERT OR IGNORE INTO model_aliases (model_slug, alias) VALUES (?, ?)'
+          ).bind(targetSlug, lower).run();
+          console.log(`[BENCHMARK] Auto-alias: "${lower}" → ${targetSlug}`);
+        } catch {}
+      }
+    }
   }
 
   return { matched, unmatched: unmatched.length, source: benchmarkName };

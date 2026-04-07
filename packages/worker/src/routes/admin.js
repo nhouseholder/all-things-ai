@@ -258,6 +258,61 @@ adminRoutes.post('/trigger/enrichment', async (c) => {
   return c.json(results);
 });
 
+// ── Pipeline Health ────────────────────────────────────────
+
+// GET /api/admin/pipeline-status — overview of data pipeline health
+adminRoutes.get('/pipeline-status', async (c) => {
+  const [
+    modelCount, benchmarkCount, scoreCount, alertCount,
+    newsCount, reviewCount, staleModels, pendingCount,
+    lastOpenRouterSync, lastBenchmarkScrape
+  ] = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM models WHERE is_active = 1').first(),
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM benchmarks').first(),
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM model_composite_scores').first(),
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM industry_alerts WHERE is_dismissed = 0').first(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM news_items WHERE published_at >= datetime('now', '-7 days')").first(),
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM community_reviews').first(),
+    c.env.DB.prepare(`
+      SELECT COUNT(*) as c FROM models m
+      LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
+      WHERE m.is_active = 1
+        AND (m.updated_at < datetime('now', '-14 days')
+          OR mcs.updated_at IS NULL
+          OR mcs.updated_at < datetime('now', '-14 days'))
+    `).first(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM pending_models WHERE status = 'pending'").first(),
+    c.env.DB.prepare(`
+      SELECT MAX(synced_at) as last_sync FROM model_openrouter_stats
+    `).first(),
+    c.env.DB.prepare(`
+      SELECT MAX(measured_at) as last_scrape FROM benchmarks
+    `).first(),
+  ]);
+
+  return c.json({
+    models: {
+      active: modelCount.c,
+      stale: staleModels.c,
+      pending: pendingCount.c,
+    },
+    benchmarks: {
+      total_scores: benchmarkCount.c,
+      composite_scores: scoreCount.c,
+      last_scrape: lastBenchmarkScrape?.last_scrape,
+    },
+    content: {
+      alerts: alertCount.c,
+      news_last_7d: newsCount.c,
+      reviews: reviewCount.c,
+    },
+    openrouter: {
+      last_sync: lastOpenRouterSync?.last_sync,
+    },
+    health: staleModels.c === 0 ? 'healthy' : staleModels.c <= 5 ? 'warning' : 'degraded',
+  });
+});
+
 // ── Helper functions ────────────────────────────────────────
 
 function generateAliases(name, slug, vendor, family) {

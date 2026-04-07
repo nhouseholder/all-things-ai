@@ -17,6 +17,30 @@ import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
 import { syncOpenRouterStats } from './pipelines/openrouter-sync.js';
 
+async function checkModelStaleness(env) {
+  const { results: staleModels } = await env.DB.prepare(`
+    SELECT m.id, m.name, m.slug, m.updated_at,
+      mcs.updated_at as score_updated_at
+    FROM models m
+    LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
+    WHERE m.is_active = 1
+      AND (
+        m.updated_at < datetime('now', '-14 days')
+        OR mcs.updated_at IS NULL
+        OR mcs.updated_at < datetime('now', '-14 days')
+      )
+  `).all();
+
+  if (staleModels.length > 0) {
+    console.log(`[STALENESS] ${staleModels.length} models stale (>14 days without update):`);
+    for (const m of staleModels.slice(0, 10)) {
+      console.log(`  - ${m.name} (${m.slug}): model=${m.updated_at}, score=${m.score_updated_at || 'never'}`);
+    }
+  } else {
+    console.log('[STALENESS] All models are fresh.');
+  }
+}
+
 export async function handleScheduled(event, env) {
   const cron = event.cron;
   console.log(`[CRON] Triggered: ${cron} at ${new Date().toISOString()}`);
@@ -63,10 +87,16 @@ export async function handleScheduled(event, env) {
       break;
     case '0 8 * * 1':
       await runSafe('buildAndSendDigest', () => buildAndSendDigest(env));
-      // Weekly benchmark scrape from authoritative leaderboards
+      // 2x/week benchmark scrape from authoritative leaderboards (Mon + Thu)
       await runSafe('scrapeBenchmarks', () => scrapeBenchmarks(env));
       // Weekly GitHub tool discovery — find new MCP servers, skills, agents
       await runSafe('discoverGitHubTools', () => discoverGitHubTools(env));
+      // Weekly staleness check
+      await runSafe('checkStaleness', () => checkModelStaleness(env));
+      break;
+    case '0 8 * * 4':
+      // Thursday benchmark scrape (2x/week)
+      await runSafe('scrapeBenchmarks', () => scrapeBenchmarks(env));
       break;
     // Community review scrape: every 6 hours
     case '0 */6 * * *':
