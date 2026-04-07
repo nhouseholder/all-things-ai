@@ -6,6 +6,10 @@ export function useFeed(params) {
   return useQuery({ queryKey: ['feed', params], queryFn: () => api.getFeed(params) });
 }
 
+export function useWhatsNew() {
+  return useQuery({ queryKey: ['whats-new'], queryFn: () => api.getWhatsNew() });
+}
+
 // Tools
 export function useTools() {
   return useQuery({ queryKey: ['tools'], queryFn: api.getTools });

@@ -4,7 +4,8 @@ import {
   Rss, MessageSquare, Github, Globe, Check, X, CheckCheck,
   DollarSign, Box, Megaphone, ChevronDown,
 } from 'lucide-react';
-import { useFeed, useAlerts, useUnreadAlertCount, useMarkAlertRead, useMarkAllAlertsRead, useDismissAlert } from '../lib/hooks.js';
+import { Link } from 'react-router-dom';
+import { useFeed, useWhatsNew, useAlerts, useUnreadAlertCount, useMarkAlertRead, useMarkAllAlertsRead, useDismissAlert } from '../lib/hooks.js';
 import { timeAgo, setPageTitle } from '../lib/format.js';
 
 // ── Source config ─────────────────────────────────────────────────────
@@ -193,6 +194,9 @@ export default function NewsPage() {
   const [page, setPage] = useState(1);
   const [alertFilter, setAlertFilter] = useState({});
 
+  // What's New data
+  const { data: whatsNewData, isLoading: whatsNewLoading } = useWhatsNew();
+
   // News data
   const feedParams = { page: String(page), limit: '30' };
   if (source) feedParams.source = source;
@@ -237,6 +241,15 @@ export default function NewsPage() {
       {/* Tab bar */}
       <div className="flex items-center gap-1 mb-6 border-b border-gray-800 pb-2">
         <button
+          onClick={() => setTab('whats-new')}
+          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
+            tab === 'whats-new' ? 'bg-gray-900 text-green-400 border-b-2 border-green-400' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          What's New
+        </button>
+        <button
           onClick={() => setTab('news')}
           className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
             tab === 'news' ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'
@@ -261,6 +274,154 @@ export default function NewsPage() {
           )}
         </button>
       </div>
+
+      {/* ── What's New Tab ───────────────────────────────────── */}
+      {tab === 'whats-new' && (
+        <>
+          {whatsNewLoading ? (
+            <div className="space-y-4">
+              {[1,2,3].map(i => <div key={i} className="h-32 rounded-xl bg-gray-900/50 border border-gray-800 animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {/* Recently Added Models */}
+              {(whatsNewData?.recent_models?.length > 0) && (
+                <section>
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-green-400" />
+                    Recently Added Models
+                    <span className="text-[10px] text-gray-600 font-normal normal-case">Last 30 days</span>
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {whatsNewData.recent_models.map((m) => (
+                      <Link
+                        key={m.slug}
+                        to={`/models/${m.slug}`}
+                        className="block rounded-lg border border-gray-800 bg-gray-900/50 p-4 hover:border-green-500/30 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-white group-hover:text-green-400 transition-colors">{m.name}</span>
+                          {m.is_open_weight ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Open</span>
+                          ) : null}
+                        </div>
+                        <p className="text-[10px] text-gray-500">{m.vendor} · {m.family || 'Unknown family'}</p>
+                        <div className="flex items-center gap-3 mt-2 text-[10px]">
+                          {m.input_price_per_mtok != null && (
+                            <span className="text-gray-400">${m.input_price_per_mtok}/${m.output_price_per_mtok} per MTok</span>
+                          )}
+                          {m.discovery_source && m.discovery_source !== 'seed' && (
+                            <span className="text-blue-400">via {m.discovery_source}</span>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-gray-600 mt-1">{new Date(m.created_at).toLocaleDateString()}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Pricing Changes */}
+              {(whatsNewData?.pricing_changes?.length > 0) && (
+                <section>
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-yellow-400" />
+                    Pricing Changes
+                  </h2>
+                  <div className="space-y-2">
+                    {whatsNewData.pricing_changes.map((pc) => (
+                      <a
+                        key={pc.id}
+                        href={pc.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-lg border border-gray-800 bg-gray-900/50 p-3 hover:border-yellow-500/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <DollarSign className="w-3.5 h-3.5 text-yellow-400" />
+                          <span className="text-xs font-medium text-white">{decodeHtml(pc.title)}</span>
+                          <span className="text-[10px] text-gray-600 ml-auto">{new Date(pc.detected_at).toLocaleDateString()}</span>
+                        </div>
+                        {pc.summary && <p className="text-[10px] text-gray-400 line-clamp-2 ml-5.5">{decodeHtml(pc.summary)}</p>}
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* On the Horizon */}
+              {(whatsNewData?.pending_models?.length > 0) && (
+                <section>
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-purple-400" />
+                    On the Horizon
+                    <span className="text-[10px] text-gray-600 font-normal normal-case">Coming Soon</span>
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {whatsNewData.pending_models.map((pm) => (
+                      <div
+                        key={pm.slug}
+                        className="rounded-lg border border-dashed border-purple-500/30 bg-purple-500/5 p-4"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-white">{pm.name}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Coming Soon</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500">{pm.vendor}{pm.family ? ` · ${pm.family}` : ''}</p>
+                        {pm.description && <p className="text-[10px] text-gray-400 mt-1.5 line-clamp-2">{pm.description}</p>}
+                        <p className="text-[9px] text-gray-600 mt-1">Discovered {new Date(pm.created_at).toLocaleDateString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Recent Key Alerts */}
+              {(whatsNewData?.recent_alerts?.length > 0) && (
+                <section>
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-orange-400" />
+                    Key Updates
+                    <span className="text-[10px] text-gray-600 font-normal normal-case">Last 14 days</span>
+                  </h2>
+                  <div className="space-y-2">
+                    {whatsNewData.recent_alerts.map((a) => {
+                      const cfg = ALERT_TYPE_CONFIG[a.event_type] || ALERT_TYPE_CONFIG.announcement;
+                      const Icon = cfg.icon;
+                      return (
+                        <a
+                          key={a.id}
+                          href={a.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`block rounded-lg border border-gray-800 border-l-4 ${cfg.border} bg-gray-900/50 p-3 hover:border-gray-700 transition-colors`}
+                        >
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <Icon className={`w-3.5 h-3.5 ${cfg.color}`} />
+                            <span className={`text-[10px] font-medium ${cfg.color}`}>{cfg.label}</span>
+                            <span className="text-[10px] text-gray-600 ml-auto">{timeAgo(a.detected_at)}</span>
+                          </div>
+                          <p className="text-xs font-medium text-white">{decodeHtml(a.title)}</p>
+                          {a.summary && <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">{decodeHtml(a.summary)}</p>}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Empty state */}
+              {!whatsNewData?.recent_models?.length && !whatsNewData?.recent_alerts?.length && !whatsNewData?.pending_models?.length && (
+                <div className="text-center py-16 rounded-xl border border-gray-800 border-dashed">
+                  <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">No recent updates yet.</p>
+                  <p className="text-xs text-gray-600 mt-1">New models and changes will appear here as they're detected.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── News Tab ──────────────────────────────────────────── */}
       {tab === 'news' && (

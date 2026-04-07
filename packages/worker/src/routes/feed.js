@@ -40,6 +40,61 @@ feedRoutes.get('/', async (c) => {
   });
 });
 
+// GET /api/feed/whats-new — aggregated "What's New" digest
+feedRoutes.get('/whats-new', async (c) => {
+  const [recentModels, recentAlerts, pendingModels, recentPricing] = await Promise.all([
+    // Recently added models (last 30 days)
+    c.env.DB.prepare(`
+      SELECT name, slug, vendor, family, discovery_source, created_at,
+        input_price_per_mtok, output_price_per_mtok, is_open_weight
+      FROM models
+      WHERE is_active = 1
+        AND created_at >= datetime('now', '-30 days')
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all(),
+
+    // Recent high-importance alerts
+    c.env.DB.prepare(`
+      SELECT id, source, event_type, title, summary, importance, detected_at, source_url
+      FROM industry_alerts
+      WHERE is_dismissed = 0
+        AND detected_at >= datetime('now', '-14 days')
+      ORDER BY
+        CASE importance WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+        detected_at DESC
+      LIMIT 15
+    `).all(),
+
+    // Pending / coming soon models
+    c.env.DB.prepare(`
+      SELECT name, slug, vendor, family, description, discovery_source, created_at
+      FROM pending_models
+      WHERE status = 'pending'
+      ORDER BY created_at DESC
+      LIMIT 10
+    `).all(),
+
+    // Recent pricing changes from alerts
+    c.env.DB.prepare(`
+      SELECT id, title, summary, detected_at, source_url, metadata
+      FROM industry_alerts
+      WHERE event_type = 'pricing-change'
+        AND is_dismissed = 0
+        AND detected_at >= datetime('now', '-30 days')
+      ORDER BY detected_at DESC
+      LIMIT 10
+    `).all(),
+  ]);
+
+  return c.json({
+    recent_models: recentModels.results,
+    recent_alerts: recentAlerts.results,
+    pending_models: pendingModels.results,
+    pricing_changes: recentPricing.results,
+  });
+});
+
 // GET /api/feed/:id
 feedRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');

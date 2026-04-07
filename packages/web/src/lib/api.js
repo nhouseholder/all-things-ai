@@ -24,6 +24,7 @@ async function request(path, options = {}) {
 
 export const api = {
   // Feed
+  getWhatsNew: () => request('/api/feed/whats-new'),
   getFeed: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/api/feed${qs ? '?' + qs : ''}`);
