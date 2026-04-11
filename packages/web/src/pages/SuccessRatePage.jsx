@@ -1,4 +1,5 @@
 import { Loader2, Target } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -127,7 +128,9 @@ export default function SuccessRatePage() {
                 >
                   <td className="px-4 py-2.5 text-gray-500 font-medium">{i + 1}</td>
                   <td className="px-4 py-2.5">
-                    <span className="text-white font-medium">{m.model_name}</span>
+                    <Link to={`/models/${m.model_slug}`} className="text-white font-medium hover:text-blue-400 transition-colors">
+                      {m.model_name}
+                    </Link>
                   </td>
                   <td className="px-4 py-2.5 text-gray-400">{m.vendor}</td>
                   <td className="px-4 py-2.5 text-right">

@@ -32,6 +32,28 @@ export async function monitorAIIndustry(env) {
   return { sourcesChecked: MONITOR_SOURCES.length, changesDetected, alertsCreated, errored };
 }
 
+export function buildMonitorClassificationPrompt(source, diffText) {
+  return `You are an AI industry analyst. Analyze this content change from "${source.name}" (${source.type} page).
+
+NEW/CHANGED CONTENT:
+${diffText.slice(0, 3000)}
+
+Extract ALL noteworthy announcements. For each, output a JSON object on its own line with these fields:
+- event_type: one of "coding-model", "coding-plan", "new-model", "pricing-change", "new-plan", "new-feature", "new-product", "announcement"
+- title: concise headline (max 100 chars)
+- summary: 2-3 sentence summary with specific details (prices, limits, dates, model names)
+- importance: "high" (major coding model launch, major plan/pricing change), "medium" (new feature/plan), "low" (minor update)
+- metadata: JSON object with extracted specifics (e.g. {"vendor": "Anthropic", "model": "Claude Sonnet", "plan": "Pro+", "price": "$200/mo", "limits": "daily: 100 messages"})
+
+Use "coding-model" when the update is primarily about a coding-focused model, coding agent, code generation upgrade, software engineering benchmark jump, or developer-facing model capability from vendors/tools like Claude, GPT, Gemini, Copilot, GLM, Kimi, MiniMax, Claude Code, Codex, or Gemini Code Assist.
+Use "coding-plan" when the update is primarily about a coding-related plan, pricing tier, seat model, usage cap, quota, package, or subscription change for those tools/vendors.
+Use the older generic types only when the update is noteworthy but not specifically coding-model or coding-plan oriented.
+Prioritize coding-model and coding-plan whenever both a general and coding-specific label could fit, especially for vibe coding, app design, agentic coding, CLI coding tools, and developer workflows.
+
+If no noteworthy AI industry events, output: NONE
+Output ONLY the JSON lines or NONE, no other text.`;
+}
+
 /**
  * Fetch a source and compare content hash to detect changes.
  */
@@ -129,21 +151,7 @@ async function classifyAndStore(source, result, env) {
     return 0;
   }
 
-  // Classify with Workers AI
-  const prompt = `You are an AI industry analyst. Analyze this content change from "${source.name}" (${source.type} page).
-
-NEW/CHANGED CONTENT:
-${diffText.slice(0, 3000)}
-
-Extract ALL noteworthy announcements. For each, output a JSON object on its own line with these fields:
-- event_type: one of "new-model", "pricing-change", "new-plan", "new-feature", "new-product", "announcement"
-- title: concise headline (max 100 chars)
-- summary: 2-3 sentence summary with specific details (prices, limits, dates, model names)
-- importance: "high" (new model/major pricing change), "medium" (new feature/plan), "low" (minor update)
-- metadata: JSON object with extracted specifics (e.g. {"model": "GPT-5", "price": "$200/mo", "limits": "daily: 100 messages"})
-
-If no noteworthy AI industry events, output: NONE
-Output ONLY the JSON lines or NONE, no other text.`;
+  const prompt = buildMonitorClassificationPrompt(source, diffText);
 
   let alerts = [];
   try {

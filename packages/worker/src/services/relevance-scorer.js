@@ -114,30 +114,78 @@ function computeRecencyScore(publishedAt) {
   return Math.max(0, Math.round(100 - hoursAgo * 0.5));
 }
 
+function matchesAnyPattern(text, patterns) {
+  return patterns.some((pattern) => {
+    if (pattern instanceof RegExp) return pattern.test(text);
+    return text.includes(pattern);
+  });
+}
+
 /**
  * Detect category tags from text and score them.
  * Boost if a tag relates to user's subscribed tools.
  */
-function computeCategoryScore(text) {
-  const tags = [];
+export function computeCategoryScore(text) {
+  const normalizedText = text.toLowerCase();
+  const tags = new Set();
 
-  const tagPatterns = [
-    { tag: 'pricing-change', patterns: ['price', 'pricing', 'cost', 'plan', 'subscription'] },
-    { tag: 'model-release', patterns: ['release', 'launch', 'new model', 'announce'] },
-    { tag: 'tool-update', patterns: ['update', 'upgrade', 'version'] },
-    { tag: 'benchmark', patterns: ['benchmark', 'eval', 'score', 'performance'] },
-    { tag: 'new-tool', patterns: ['new tool', 'introducing', 'now available'] },
-    { tag: 'tutorial', patterns: ['tutorial', 'guide', 'how to', 'walkthrough'] },
-  ];
+  const mentionsCodingTerms = matchesAnyPattern(normalizedText, [
+    'coding', 'code generation', 'developer', 'developers', 'software engineering',
+    'swe-bench', 'livecodebench', 'cli', 'agentic coding', 'editor', 'ide',
+    'vibe coding', 'app design', 'ui generation', 'design-to-code', 'prototype to code',
+  ]);
+  const mentionsCodingVendors = matchesAnyPattern(normalizedText, [
+    'claude', 'claude code', 'gpt', 'openai', 'codex', 'gemini', 'gemini code assist',
+    'copilot', 'github copilot', 'glm', 'zhipu', 'kimi', 'moonshot', 'minimax',
+    'cursor', 'windsurf', 'aider', 'roo code', 'antigravity',
+  ]);
+  const mentionsPlanTerms = matchesAnyPattern(normalizedText, [
+    'price', 'pricing', 'cost', 'plan', 'subscription', 'tier', 'seat', 'per seat',
+    'team plan', 'enterprise plan', 'usage cap', 'rate limit', 'quota', 'credits',
+    'pro+', 'pro plus', 'max plan', 'monthly', 'monthly billing', 'annual billing',
+  ]);
+  const mentionsReleaseTerms = matchesAnyPattern(normalizedText, [
+    'release', 'launch', 'new model', 'announce', 'announced', 'introducing', 'now available', 'rollout',
+  ]);
+  const mentionsBenchmarks = matchesAnyPattern(normalizedText, [
+    'benchmark', 'eval', 'evaluation', 'score', 'performance', 'swe-bench', 'livecodebench', 'gpqa', 'arena',
+  ]);
+  const mentionsToolTerms = matchesAnyPattern(normalizedText, [
+    'tool', 'editor', 'extension', 'plugin', 'cli', 'workspace', 'ide', 'agent', 'assistant', 'copilot', 'cursor', 'windsurf',
+  ]);
+  const mentionsTutorialTerms = matchesAnyPattern(normalizedText, ['tutorial', 'guide', 'how to', 'walkthrough']);
 
-  for (const { tag, patterns } of tagPatterns) {
-    if (patterns.some(p => text.includes(p))) {
-      tags.push(tag);
-    }
+  if (mentionsCodingVendors && mentionsCodingTerms) {
+    tags.add('coding-model');
+  }
+  if (mentionsPlanTerms && (mentionsCodingVendors || mentionsCodingTerms || mentionsToolTerms)) {
+    tags.add('coding-plan');
+    tags.add('pricing-change');
+  }
+  if (mentionsCodingTerms && mentionsToolTerms) {
+    tags.add('coding-tool');
+    tags.add('tool-update');
+  } else if (matchesAnyPattern(normalizedText, ['update', 'upgrade', 'version'])) {
+    tags.add('tool-update');
+  }
+  if (matchesAnyPattern(normalizedText, ['vibe coding', 'app design', 'ui generation', 'design-to-code', 'prototype to code'])) {
+    tags.add('vibe-coding');
+  }
+  if (mentionsCodingVendors && mentionsReleaseTerms) {
+    tags.add('model-release');
+  }
+  if (mentionsBenchmarks) {
+    tags.add('benchmark');
+  }
+  if (matchesAnyPattern(normalizedText, ['new tool', 'introducing', 'now available']) && mentionsToolTerms) {
+    tags.add('new-tool');
+  }
+  if (mentionsTutorialTerms) {
+    tags.add('tutorial');
   }
 
-  if (tags.length === 0) {
-    tags.push('general-ai');
+  if (tags.size === 0) {
+    tags.add('general-ai');
   }
 
   // Score = best tag weight, not sum, to avoid over-counting
@@ -156,5 +204,5 @@ function computeCategoryScore(text) {
     score = Math.min(100, score + 15);
   }
 
-  return { score: Math.round(score), tags };
+  return { score: Math.round(score), tags: [...tags] };
 }

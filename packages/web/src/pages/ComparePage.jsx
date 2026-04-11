@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { setPageTitle } from '../lib/format.js';
 import {
   BarChart3,
@@ -90,6 +90,14 @@ function steeringBadge(effort) {
     <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.bg} ${s.text} border ${s.border} capitalize`}>
       {effort}
     </span>
+  );
+}
+
+function ModelNameLink({ slug, name, className = 'text-white font-medium hover:text-blue-400 transition-colors' }) {
+  return (
+    <Link to={`/models/${slug}`} className={className}>
+      {name}
+    </Link>
   );
 }
 
@@ -485,7 +493,11 @@ export default function ComparePage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-xs font-semibold text-white">{m.name}</h3>
+                            <ModelNameLink
+                              slug={m.slug}
+                              name={m.name}
+                              className="text-xs font-semibold text-white hover:text-blue-400 transition-colors"
+                            />
                             {m.is_open_weight ? (
                               <Globe className="w-3 h-3 text-emerald-400" />
                             ) : null}
@@ -542,7 +554,11 @@ function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearc
           return (
             <div key={slug} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[idx % MODEL_COLORS.length] }} />
-              <span className="text-xs text-white font-medium">{m?.name || slug}</span>
+              <ModelNameLink
+                slug={slug}
+                name={m?.name || slug}
+                className="text-xs text-white font-medium hover:text-blue-400 transition-colors"
+              />
               <button onClick={() => removeModel(slug)} className="text-gray-500 hover:text-red-400">
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -690,7 +706,11 @@ function ScoreBreakdown({ models }) {
               <th className="text-left py-2 px-2 text-gray-500 font-medium w-28">Component</th>
               {models.map((m, i) => (
                 <th key={m.slug} className="text-center py-2 px-2">
-                  <span className="text-white font-medium">{m.name}</span>
+                  <ModelNameLink
+                    slug={m.slug}
+                    name={m.name}
+                    className="text-white font-medium hover:text-blue-400 transition-colors"
+                  />
                 </th>
               ))}
             </tr>
@@ -987,7 +1007,11 @@ function AvailabilityMatrix({ models: rawModels }) {
             <div key={m.slug} className="rounded-xl border border-gray-800 bg-gray-900/50 p-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
-                <span className="text-xs font-semibold text-white truncate">{m.name}</span>
+                <ModelNameLink
+                  slug={m.slug}
+                  name={m.name}
+                  className="text-xs font-semibold text-white truncate hover:text-blue-400 transition-colors"
+                />
               </div>
               {cheapest != null ? (
                 <>
@@ -1016,7 +1040,11 @@ function AvailabilityMatrix({ models: rawModels }) {
                   <th key={m.slug} className="text-center py-3 px-3">
                     <div className="flex items-center justify-center gap-1.5">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
-                      <span className="text-white font-medium">{m.name}</span>
+                      <ModelNameLink
+                        slug={m.slug}
+                        name={m.name}
+                        className="text-white font-medium hover:text-blue-400 transition-colors"
+                      />
                     </div>
                   </th>
                 ))}
@@ -1101,7 +1129,11 @@ function ComparisonTable({ models }) {
                   <div className="flex items-center justify-center gap-1.5">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MODEL_COLORS[i] }} />
                     <div>
-                      <p className="text-white font-semibold">{m.name}</p>
+                      <ModelNameLink
+                        slug={m.slug}
+                        name={m.name}
+                        className="text-white font-semibold hover:text-blue-400 transition-colors"
+                      />
                       <p className="text-[10px] text-gray-500 font-normal">{m.vendor}</p>
                     </div>
                   </div>

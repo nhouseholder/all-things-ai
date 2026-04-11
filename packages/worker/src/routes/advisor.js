@@ -182,7 +182,6 @@ advisorRoutes.get('/matrix', async (c) => {
 });
 
 // GET /api/advisor/rankings — dual leaderboard (best overall + best bang for buck)
-// NOTE: Cache temporarily disabled to ensure fake models are purged. Re-enable after validation.
 advisorRoutes.get('/rankings', async (c) => {
   const cache = c.env.CACHE;
   if (cache) {

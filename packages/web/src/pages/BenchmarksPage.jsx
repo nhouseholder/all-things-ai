@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { setPageTitle } from '../lib/format.js';
 import {
   Loader2,
@@ -293,7 +294,9 @@ function TopModelTiles({ models, benchmarkNames, category }) {
                 </span>
               )}
             </div>
-            <p className="text-sm font-semibold text-white truncate">{m.name}</p>
+            <Link to={`/models/${m.slug}`} className="text-sm font-semibold text-white truncate hover:text-blue-400 transition-colors">
+              {m.name}
+            </Link>
             <p className="text-xs text-gray-500 mb-2">{m.vendor}</p>
             <div className="flex items-baseline gap-1">
               <span className={`text-2xl font-bold ${theme.color}`}>
@@ -438,7 +441,9 @@ function TokenPricingTab() {
                   className="border-t border-gray-800 hover:bg-gray-900/50 transition-colors"
                 >
                   <td className="px-4 py-2.5 sticky left-0 bg-gray-950 z-10">
-                    <span className="text-white font-medium">{m.name}</span>
+                    <Link to={`/models/${m.slug}`} className="text-white font-medium hover:text-blue-400 transition-colors">
+                      {m.name}
+                    </Link>
                     {m.is_open_weight ? (
                       <span className="ml-1.5 text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
                         Open

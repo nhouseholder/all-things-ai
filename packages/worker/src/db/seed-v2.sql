@@ -92,9 +92,10 @@ INSERT INTO models (name, slug, vendor, family, release_date, description, is_ac
 
 -- OpenAI family
 INSERT INTO models (name, slug, vendor, family, release_date, description, is_active, input_price_per_mtok, output_price_per_mtok, cache_hit_price_per_mtok, context_window) VALUES
-('GPT-5.4', 'gpt-5.4', 'OpenAI', 'GPT', '2026-03-05', 'OpenAI flagship model. Strong coding and reasoning. 1.1M context.', 1, 2.50, 15.00, 0.25, 1100000),
-('GPT-5.4 Mini', 'gpt-5.4-mini', 'OpenAI', 'GPT', '2026-03-17', 'Smaller, faster GPT-5.4 variant. 400K context.', 1, 0.75, 4.50, 0.075, 400000),
-('GPT-5.4 Nano', 'gpt-5.4-nano', 'OpenAI', 'GPT', '2026-03-17', 'Smallest GPT-5.4 variant. Ultra-low cost. 400K context.', 1, 0.20, 1.25, 0.02, 400000),
+('GPT-5.4', 'gpt-5.4', 'OpenAI', 'GPT', '2026-03-05', 'OpenAI flagship. Unified architecture with strong coding and reasoning. Supports reasoning effort levels (none/low/medium/high/xhigh). 1.05M context.', 1, 2.50, 15.00, 0.25, 1050000),
+('GPT-5.4 Pro', 'gpt-5.4-pro', 'OpenAI', 'GPT', '2026-03-05', 'OpenAI most advanced model. Enhanced reasoning for complex, high-stakes tasks. 1.05M context. Optimized for agentic coding and multi-step problem solving.', 1, 30.00, 180.00, 3.00, 1050000),
+('GPT-5.4 Mini', 'gpt-5.4-mini', 'OpenAI', 'GPT', '2026-03-17', 'Smaller, faster GPT-5.4 variant for coding, computer use, and subagents. 400K context.', 1, 0.75, 4.50, 0.075, 400000),
+('GPT-5.4 Nano', 'gpt-5.4-nano', 'OpenAI', 'GPT', '2026-03-17', 'Cheapest GPT-5.4-class model for simple high-volume tasks. 400K context.', 1, 0.20, 1.25, 0.02, 400000),
 ('GPT-o3', 'gpt-o3', 'OpenAI', 'GPT-o', '2025-04-16', 'OpenAI reasoning model with extended thinking. Strong on complex problems. 200K context.', 1, 10.00, 40.00, NULL, 200000),
 ('GPT-4o', 'gpt-4o', 'OpenAI', 'GPT', '2024-05-13', 'Previous-generation OpenAI multimodal flagship. Superseded by GPT-5.4. 128K context.', 0, 2.50, 10.00, NULL, 128000),
 ('Codex Mini', 'codex-mini', 'OpenAI', 'Codex', '2026-01-01', 'Codex coding model optimized for software engineering tasks.', 1, 1.50, 6.00, NULL, NULL);
@@ -141,6 +142,7 @@ INSERT INTO models (name, slug, vendor, family, release_date, description, is_ac
 INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VALUES
 ((SELECT id FROM models WHERE slug='claude-opus-4.6'), 'SWE-bench Verified', 'coding', 80.8, 100),
 ((SELECT id FROM models WHERE slug='claude-sonnet-4.6'), 'SWE-bench Verified', 'coding', 79.6, 100),
+((SELECT id FROM models WHERE slug='gpt-5.4-pro'), 'SWE-bench Verified', 'coding', 85.0, 100),
 ((SELECT id FROM models WHERE slug='gpt-5.4'), 'SWE-bench Verified', 'coding', 77.2, 100),
 ((SELECT id FROM models WHERE slug='gpt-o3'), 'SWE-bench Verified', 'coding', 69.1, 100),
 ((SELECT id FROM models WHERE slug='gemini-3.1-pro'), 'SWE-bench Verified', 'coding', 80.6, 100),
@@ -153,6 +155,7 @@ INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VA
 -- GPQA Diamond (reasoning, max_score=100)
 INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VALUES
 ((SELECT id FROM models WHERE slug='claude-opus-4.6'), 'GPQA Diamond', 'reasoning', 91.3, 100),
+((SELECT id FROM models WHERE slug='gpt-5.4-pro'), 'GPQA Diamond', 'reasoning', 95.0, 100),
 ((SELECT id FROM models WHERE slug='gpt-5.4'), 'GPQA Diamond', 'reasoning', 92.0, 100),
 ((SELECT id FROM models WHERE slug='gpt-o3'), 'GPQA Diamond', 'reasoning', 83.3, 100),
 ((SELECT id FROM models WHERE slug='gemini-3.1-pro'), 'GPQA Diamond', 'reasoning', 94.1, 100),
@@ -173,6 +176,7 @@ INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VA
 ((SELECT id FROM models WHERE slug='gemini-3-flash'), 'LiveCodeBench', 'coding', 90.8, 100),
 ((SELECT id FROM models WHERE slug='claude-opus-4.6'), 'LiveCodeBench', 'coding', 85.0, 100),
 ((SELECT id FROM models WHERE slug='gpt-5.4'), 'LiveCodeBench', 'coding', 82.0, 100),
+((SELECT id FROM models WHERE slug='gpt-5.4-pro'), 'LiveCodeBench', 'coding', 90.0, 100),
 ((SELECT id FROM models WHERE slug='deepseek-v3.2'), 'LiveCodeBench', 'coding', 83.3, 100);
 
 -- Chatbot Arena ELO (nuance, max_score=2000)
@@ -181,6 +185,7 @@ INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VA
 ((SELECT id FROM models WHERE slug='gemini-3.1-pro'), 'Chatbot Arena ELO', 'nuance', 1500, 2000),
 ((SELECT id FROM models WHERE slug='gemini-3-pro'), 'Chatbot Arena ELO', 'nuance', 1485, 2000),
 ((SELECT id FROM models WHERE slug='gpt-5.4'), 'Chatbot Arena ELO', 'nuance', 1480, 2000),
+((SELECT id FROM models WHERE slug='gpt-5.4-pro'), 'Chatbot Arena ELO', 'nuance', 1530, 2000),
 ((SELECT id FROM models WHERE slug='claude-sonnet-4.6'), 'Chatbot Arena ELO', 'nuance', 1470, 2000),
 ((SELECT id FROM models WHERE slug='deepseek-v3.2'), 'Chatbot Arena ELO', 'nuance', 1420, 2000),
 ((SELECT id FROM models WHERE slug='qwen-3.5'), 'Chatbot Arena ELO', 'nuance', 1410, 2000),
@@ -197,6 +202,7 @@ INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VA
 INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score) VALUES
 ((SELECT id FROM models WHERE slug='claude-opus-4.6'), 'Human Nuance Understanding', 'nuance', 95, 100),
 ((SELECT id FROM models WHERE slug='gpt-5.4'), 'Human Nuance Understanding', 'nuance', 92, 100),
+((SELECT id FROM models WHERE slug='gpt-5.4-pro'), 'Human Nuance Understanding', 'nuance', 94, 100),
 ((SELECT id FROM models WHERE slug='gemini-3.1-pro'), 'Human Nuance Understanding', 'nuance', 88, 100),
 ((SELECT id FROM models WHERE slug='grok-4'), 'Human Nuance Understanding', 'nuance', 85, 100),
 ((SELECT id FROM models WHERE slug='claude-sonnet-4.6'), 'Human Nuance Understanding', 'nuance', 84, 100),

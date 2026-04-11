@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Newspaper, ExternalLink, Clock, Filter, Sparkles, Zap, Bell,
   Rss, MessageSquare, Github, Globe, Check, X, CheckCheck,
-  DollarSign, Box, Megaphone, ChevronDown,
+  DollarSign, Box, Megaphone,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useFeed, useWhatsNew, useAlerts, useUnreadAlertCount, useMarkAlertRead, useMarkAllAlertsRead, useDismissAlert } from '../lib/hooks.js';
@@ -25,14 +25,17 @@ const SOURCE_CONFIG = {
 const RELEVANCE_TAGS = [
   { value: '', label: 'All' },
   { value: 'model-release', label: 'Model Releases' },
-  { value: 'pricing', label: 'Pricing' },
-  { value: 'coding-tool', label: 'Coding Tools' },
+  { value: 'coding-model', label: 'Coding Models' },
+  { value: 'coding-plan', label: 'Coding Plans' },
+  { value: 'pricing-change', label: 'Pricing & Plans' },
+  { value: 'tool-update', label: 'Coding Tools' },
   { value: 'benchmark', label: 'Benchmarks' },
-  { value: 'new-model', label: 'New Models' },
   { value: 'vibe-coding', label: 'Vibe Coding' },
 ];
 
 const ALERT_TYPE_CONFIG = {
+  'coding-model':   { icon: Sparkles, label: 'Coding Model', color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/10', border: 'border-l-fuchsia-500' },
+  'coding-plan':    { icon: DollarSign, label: 'Coding Plan', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-l-emerald-500' },
   'new-model':       { icon: Sparkles, label: 'New Model', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-l-purple-500' },
   'pricing-change':  { icon: DollarSign, label: 'Pricing', color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-l-yellow-500' },
   'new-plan':        { icon: Box, label: 'New Plan', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-l-green-500' },
@@ -65,11 +68,13 @@ function parseTags(raw) {
 
 const TAG_LABELS = {
   'model-release': 'New Model', 'new-model': 'New Model', 'pricing-change': 'Pricing',
-  'pricing': 'Pricing', 'coding-tool': 'Tool Update', 'benchmark': 'Benchmark',
-  'vibe-coding': 'Vibe Coding', 'new-feature': 'Feature',
+  'coding-model': 'Coding Model', 'coding-plan': 'Coding Plan',
+  'pricing': 'Pricing', 'coding-tool': 'Tool Update', 'tool-update': 'Tool Update',
+  'benchmark': 'Benchmark', 'vibe-coding': 'Vibe Coding', 'new-feature': 'Feature',
 };
 const TAG_COLORS = {
   'New Model': 'bg-purple-500/10 text-purple-400', 'Pricing': 'bg-yellow-500/10 text-yellow-400',
+  'Coding Model': 'bg-fuchsia-500/10 text-fuchsia-400', 'Coding Plan': 'bg-emerald-500/10 text-emerald-400',
   'Tool Update': 'bg-blue-500/10 text-blue-400', 'Benchmark': 'bg-cyan-500/10 text-cyan-400',
   'Vibe Coding': 'bg-green-500/10 text-green-400', 'Feature': 'bg-emerald-500/10 text-emerald-400',
 };
@@ -205,6 +210,8 @@ export default function NewsPage() {
 
   // Alerts data
   const { data: alertsData, isLoading: alertsLoading } = useAlerts({ ...alertFilter, limit: '50' });
+  const { data: codingModelsData, isLoading: codingModelsLoading } = useAlerts({ type: 'coding-model', limit: '8' });
+  const { data: codingPlansData, isLoading: codingPlansLoading } = useAlerts({ type: 'coding-plan', limit: '8' });
   const { data: unreadData } = useUnreadAlertCount();
   const markRead = useMarkAlertRead();
   const markAllRead = useMarkAllAlertsRead();
@@ -215,6 +222,9 @@ export default function NewsPage() {
   const totalPages = Math.ceil(total / 30);
   const alerts = alertsData?.alerts || [];
   const alertTotal = alertsData?.total || 0;
+  const codingModelAlerts = codingModelsData?.alerts || [];
+  const codingPlanAlerts = codingPlansData?.alerts || [];
+  const codingWatchCount = codingModelAlerts.length + codingPlanAlerts.length;
   const unreadCount = unreadData?.count || 0;
 
   const hero = items[0];
@@ -231,7 +241,7 @@ export default function NewsPage() {
           <div>
             <h1 className="text-2xl font-extrabold text-white tracking-tight">The AI Wire</h1>
             <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] font-medium">
-              Filtered for vibe coders &middot; Updated every 30 minutes
+              News feed every 30 minutes &middot; Coding watch refreshed daily
             </p>
           </div>
         </div>
@@ -272,6 +282,16 @@ export default function NewsPage() {
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setTab('coding-watch')}
+          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
+            tab === 'coding-watch' ? 'bg-gray-900 text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Coding Watch
+          <span className="text-[10px] text-gray-500 ml-1">({codingWatchCount})</span>
         </button>
       </div>
 
@@ -522,6 +542,86 @@ export default function NewsPage() {
                   onDismiss={(id) => dismiss.mutate(id)}
                 />
               ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'coding-watch' && (
+        <>
+          <div className="mb-5 rounded-2xl border border-fuchsia-500/20 bg-gradient-to-br from-fuchsia-500/8 via-gray-950 to-emerald-500/8 p-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Sparkles className="w-4 h-4 text-fuchsia-400" />
+              <p className="text-sm font-semibold text-white">Daily coding-model and coding-plan monitor</p>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              This lane tracks official vendor pages for coding model launches, coding agent upgrades, plan changes, pricing tiers, and usage-cap updates across Claude, GPT, Gemini, Copilot, GLM, Kimi, MiniMax, and related developer tools.
+            </p>
+          </div>
+
+          {(codingModelsLoading || codingPlansLoading) ? (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map(i => <div key={i} className="animate-pulse bg-gray-900 rounded-lg h-24 border border-gray-800" />)}
+            </div>
+          ) : (codingModelAlerts.length === 0 && codingPlanAlerts.length === 0) ? (
+            <div className="text-center py-16 rounded-xl border border-gray-800 border-dashed">
+              <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No coding-watch alerts yet.</p>
+              <p className="text-xs text-gray-600 mt-1">The daily monitor will populate this lane as vendor pages change.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">Coding Models</h2>
+                    <p className="text-[11px] text-gray-500">Model launches, coding upgrades, and benchmark jumps</p>
+                  </div>
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-fuchsia-500/10 text-fuchsia-400">
+                    {codingModelAlerts.length} tracked
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {codingModelAlerts.length === 0 ? (
+                    <div className="rounded-xl border border-gray-800 border-dashed p-4 text-xs text-gray-500">
+                      No coding model alerts yet.
+                    </div>
+                  ) : codingModelAlerts.map(alert => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      onMarkRead={(id) => markRead.mutate(id)}
+                      onDismiss={(id) => dismiss.mutate(id)}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">Coding Plans</h2>
+                    <p className="text-[11px] text-gray-500">Pricing, tiers, seats, limits, and access-package changes</p>
+                  </div>
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">
+                    {codingPlanAlerts.length} tracked
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {codingPlanAlerts.length === 0 ? (
+                    <div className="rounded-xl border border-gray-800 border-dashed p-4 text-xs text-gray-500">
+                      No coding plan alerts yet.
+                    </div>
+                  ) : codingPlanAlerts.map(alert => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      onMarkRead={(id) => markRead.mutate(id)}
+                      onDismiss={(id) => dismiss.mutate(id)}
+                    />
+                  ))}
+                </div>
+              </section>
             </div>
           )}
         </>
