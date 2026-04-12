@@ -21,3 +21,22 @@ test('computeCategoryScore tags coding plan changes distinctly', () => {
   assert(tags.includes('coding-plan'));
   assert(tags.includes('pricing-change'));
 });
+
+test('computeCategoryScore keeps pricing-plan stories out of model-release', () => {
+  const { tags } = computeCategoryScore(
+    'OpenAI announced a new $100/month ChatGPT Pro plan with higher usage caps and monthly subscription changes for developers.'
+  );
+
+  assert(tags.includes('coding-plan'));
+  assert(tags.includes('pricing-change'));
+  assert.equal(tags.includes('model-release'), false);
+});
+
+test('computeCategoryScore keeps investigation stories out of pricing and model-release lanes', () => {
+  const { tags } = computeCategoryScore(
+    'Florida AG announces investigation into OpenAI after police said ChatGPT was used to plan the attack.'
+  );
+
+  assert.equal(tags.includes('pricing-change'), false);
+  assert.equal(tags.includes('model-release'), false);
+});

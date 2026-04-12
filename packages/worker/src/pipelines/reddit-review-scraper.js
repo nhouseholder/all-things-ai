@@ -11,6 +11,7 @@
  */
 
 import { analyzeReview, aggregateReviews, loadAliases } from '../services/review-analysis-engine.js';
+import { buildReviewSearchQueries, loadReviewTargetModels } from '../services/community-review-targets.js';
 import { fetchWithTimeout } from '../utils/fetch.js';
 
 const RATE_LIMIT_SECONDS = 14400; // 4 hours between scrapes per subreddit
@@ -26,27 +27,6 @@ const REVIEW_SUBREDDITS = [
   { slug: 'reddit-chatgpt',     sub: 'ChatGPT',          tier: 'mass' },
   { slug: 'reddit-artificial',  sub: 'artificial',        tier: 'mass' },
   { slug: 'reddit-singularity', sub: 'singularity',       tier: 'mass' },
-];
-
-// Search queries to find model discussions
-const MODEL_SEARCH_QUERIES = [
-  'claude opus sonnet coding',
-  'gpt-5 coding review',
-  'gemini pro coding experience',
-  'deepseek coding',
-  'cursor copilot windsurf comparison',
-  'best model for coding',
-  'switched from to model',
-  'claude code review',
-  'vibe coding model',
-  'which AI model coding',
-  'grok coding',
-  'mistral coding',
-  'qwen coder',
-  'llama coding',
-  'kimi coding',
-  'minimax model',
-  'glm-5 coding',
 ];
 
 /**
@@ -87,12 +67,14 @@ async function fetchRedditJson(url, env, rateLimitKey) {
 /**
  * Scrape a subreddit's search results for model discussions
  */
-async function scrapeSubredditReviews(sub, env, aliases) {
+async function scrapeSubredditReviews(sub, env, aliases, queries, options = {}) {
   const reviews = [];
+  const timeWindow = options.backfill ? 'year' : 'month';
+  const limit = options.backfill ? 25 : 10;
 
-  for (const query of MODEL_SEARCH_QUERIES) {
-    const rateLimitKey = `review:reddit:${sub.sub}:${query.replace(/\s+/g, '_')}`;
-    const url = `https://www.reddit.com/r/${sub.sub}/search.json?q=${encodeURIComponent(query)}&restrict_sr=on&sort=new&t=month&limit=10`;
+  for (const query of queries) {
+    const rateLimitKey = `review:reddit:${sub.sub}:${timeWindow}:${query.replace(/\s+/g, '_')}`;
+    const url = `https://www.reddit.com/r/${sub.sub}/search.json?q=${encodeURIComponent(query)}&restrict_sr=on&sort=new&t=${timeWindow}&limit=${limit}`;
 
     const json = await fetchRedditJson(url, env, rateLimitKey);
     if (!json?.data?.children) continue;
@@ -129,18 +111,26 @@ async function scrapeSubredditReviews(sub, env, aliases) {
 /**
  * Main entry: scrape all review subreddits, analyze, aggregate, and store
  */
-export async function scrapeRedditReviews(env) {
+export async function scrapeRedditReviews(env, options = {}) {
   console.log('[RedditReview] Starting community review scrape...');
 
   // Pre-load dynamic aliases once for the entire scrape run
   const aliases = await loadAliases(env);
+  const reviewTargets = await loadReviewTargetModels(env);
+  const queries = buildReviewSearchQueries(reviewTargets, {
+    source: 'reddit',
+    backfill: options.backfill,
+    coverageThreshold: options.coverageThreshold,
+    maxModels: options.maxModels,
+    perModelQueries: options.backfill ? 2 : 1,
+  });
 
   let totalReviews = 0;
   const allRawReviews = [];
 
   for (const sub of REVIEW_SUBREDDITS) {
     try {
-      const reviews = await scrapeSubredditReviews(sub, env, aliases);
+      const reviews = await scrapeSubredditReviews(sub, env, aliases, queries, options);
       totalReviews += reviews.length;
       allRawReviews.push(...reviews);
       console.log(`[RedditReview] ${sub.sub}: ${reviews.length} relevant reviews`);
@@ -257,5 +247,5 @@ export async function scrapeRedditReviews(env) {
   }
 
   console.log(`[RedditReview] Done: ${totalReviews} reviews → ${modelsUpdated} model-source pairs updated`);
-  return { totalReviews, modelsUpdated };
+  return { totalReviews, modelsUpdated, queryCount: queries.length };
 }

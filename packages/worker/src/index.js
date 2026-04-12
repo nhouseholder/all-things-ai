@@ -20,13 +20,14 @@ import { rateLimit } from './middleware/rate-limit.js';
 import { fetchAllRSS } from './pipelines/rss-fetcher.js';
 import { scrapeReddit } from './pipelines/reddit-scraper.js';
 import { scrapeHackerNews } from './pipelines/hn-scraper.js';
-import { scoreUnscored } from './services/relevance-scorer.js';
+import { rescoreRecentNews, scoreUnscored } from './services/relevance-scorer.js';
 import { generateRecommendations } from './services/recommendation-engine.js';
 import { computeCompositeScores } from './services/composite-score-engine.js';
 import { computeTaskCosts } from './services/task-cost-calculator.js';
 import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
 import { scrapeHNReviews } from './pipelines/hn-review-scraper.js';
 import { syncOpenRouterStats } from './pipelines/openrouter-sync.js';
+import { syncModelAliases } from './services/community-review-targets.js';
 
 const app = new Hono();
 
@@ -67,9 +68,9 @@ app.onError((err, c) => {
 app.get('/', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').first();
-    return c.json({ name: 'All Things AI API', version: '0.11.0', status: 'ok', db: 'connected' });
+    return c.json({ name: 'All Things AI API', version: '0.11.1', status: 'ok', db: 'connected' });
   } catch {
-    return c.json({ name: 'All Things AI API', version: '0.11.0', status: 'degraded', db: 'error' }, 503);
+    return c.json({ name: 'All Things AI API', version: '0.11.1', status: 'degraded', db: 'error' }, 503);
   }
 });
 
@@ -93,8 +94,10 @@ app.post('/api/ingest', requireAdmin(), async (c) => {
   try { await scrapeReddit(c.env); results.reddit = 'ok'; } catch (e) { results.reddit = e.message; }
   try { await scrapeHackerNews(c.env); results.hn = 'ok'; } catch (e) { results.hn = e.message; }
   try { await scoreUnscored(c.env); results.scoring = 'ok'; } catch (e) { results.scoring = e.message; }
+  try { results.rescoring = await rescoreRecentNews(c.env); } catch (e) { results.rescoring = e.message; }
   try { await generateRecommendations(c.env); results.recommendations = 'ok'; } catch (e) { results.recommendations = e.message; }
   try { await computeTaskCosts(c.env); results.taskCosts = 'ok'; } catch (e) { results.taskCosts = e.message; }
+  try { results.aliases = await syncModelAliases(c.env); } catch (e) { results.aliases = e.message; }
   try { await scrapeRedditReviews(c.env); results.redditReviews = 'ok'; } catch (e) { results.redditReviews = e.message; }
   try { await scrapeHNReviews(c.env); results.hnReviews = 'ok'; } catch (e) { results.hnReviews = e.message; }
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
@@ -115,13 +118,25 @@ app.post('/api/ingest/monitor', requireAdmin(), async (c) => {
 
 // Manual trigger for community review scraping only — C1: require auth
 app.post('/api/ingest/reviews', requireAdmin(), async (c) => {
+  const searchParams = new URL(c.req.url).searchParams;
+  const backfill = ['1', 'true', 'yes'].includes((searchParams.get('backfill') || '').toLowerCase());
+  const maxModels = Number.parseInt(searchParams.get('maxModels') || '', 10);
+  const coverageThreshold = Number.parseInt(searchParams.get('coverageThreshold') || '', 10);
+  const reviewOptions = {
+    backfill,
+    maxModels: Number.isFinite(maxModels) ? maxModels : undefined,
+    coverageThreshold: Number.isFinite(coverageThreshold) ? coverageThreshold : undefined,
+  };
   const results = {};
   try {
-    const reddit = await scrapeRedditReviews(c.env);
+    results.aliases = { status: 'ok', ...await syncModelAliases(c.env) };
+  } catch (e) { results.aliases = { status: 'error', message: e.message }; }
+  try {
+    const reddit = await scrapeRedditReviews(c.env, reviewOptions);
     results.reddit = { status: 'ok', ...reddit };
   } catch (e) { results.reddit = { status: 'error', message: e.message }; }
   try {
-    const hn = await scrapeHNReviews(c.env);
+    const hn = await scrapeHNReviews(c.env, reviewOptions);
     results.hn = { status: 'ok', ...hn };
   } catch (e) { results.hn = { status: 'error', message: e.message }; }
   // Tool/plugin reviews
@@ -132,6 +147,21 @@ app.post('/api/ingest/reviews', requireAdmin(), async (c) => {
   // Recompute composite scores after review update
   try { await computeCompositeScores(c.env); results.compositeScores = 'ok'; } catch (e) { results.compositeScores = e.message; }
   return c.json(results);
+});
+
+app.post('/api/ingest/news/rescore', requireAdmin(), async (c) => {
+  try {
+    const searchParams = new URL(c.req.url).searchParams;
+    const days = Number.parseInt(searchParams.get('days') || '', 10);
+    const limit = Number.parseInt(searchParams.get('limit') || '', 10);
+    const result = await rescoreRecentNews(c.env, {
+      days: Number.isFinite(days) ? days : undefined,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    return c.json({ status: 'ok', ...result });
+  } catch (e) {
+    return c.json({ status: 'error', message: e.message }, 500);
+  }
 });
 
 // Manual trigger for OpenRouter sync only

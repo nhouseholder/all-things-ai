@@ -8,6 +8,8 @@
  * and determinism in a Cloudflare Worker context.
  */
 
+import { buildAliasRows } from './community-review-targets.js';
+
 // ── Model name → slug mapping for detection in text ──────────────────────
 const MODEL_ALIASES = {
   'claude-opus-4.6':    ['opus 4.6','opus4.6','claude opus','opus 4','claude-opus','opus46'],
@@ -217,6 +219,17 @@ export async function loadAliases(env) {
       if (!dynamic[row.model_slug]) dynamic[row.model_slug] = [];
       dynamic[row.model_slug].push(row.alias.toLowerCase());
     }
+
+    const { results: models } = await env.DB.prepare(`
+      SELECT slug, name, vendor, family, version_string, release_date
+      FROM models
+      WHERE is_active = 1
+    `).all();
+
+    for (const row of buildAliasRows(models)) {
+      if (!dynamic[row.modelSlug]) dynamic[row.modelSlug] = [];
+      dynamic[row.modelSlug].push(row.alias);
+    }
   } catch {
     // Table may not exist yet — use hardcoded only
   }
@@ -243,17 +256,58 @@ export async function loadAliases(env) {
  */
 export function detectModels(text, aliases) {
   const lower = text.toLowerCase();
-  const found = [];
   const aliasMap = aliases || MODEL_ALIASES;
+
+  function isBoundary(index) {
+    if (index < 0 || index >= lower.length) return true;
+    return !/[a-z0-9]/.test(lower[index]);
+  }
+
+  const matches = [];
+
   for (const [slug, aliasList] of Object.entries(aliasMap)) {
-    for (const alias of aliasList) {
-      if (lower.includes(alias)) {
-        found.push(slug);
-        break;
+    const uniqueAliases = [...new Set(aliasList.map((alias) => alias.toLowerCase()).filter(Boolean))];
+    for (const alias of uniqueAliases) {
+      let start = lower.indexOf(alias);
+      while (start !== -1) {
+        const end = start + alias.length;
+        if (isBoundary(start - 1) && isBoundary(end)) {
+          matches.push({ slug, alias, start, end });
+        }
+        start = lower.indexOf(alias, start + 1);
       }
     }
   }
-  return [...new Set(found)];
+
+  matches.sort((left, right) => {
+    if (right.alias.length !== left.alias.length) {
+      return right.alias.length - left.alias.length;
+    }
+    return left.start - right.start;
+  });
+
+  const accepted = [];
+  for (const match of matches) {
+    const isContained = accepted.some((candidate) =>
+      match.start >= candidate.start && match.end <= candidate.end
+    );
+    if (!isContained) {
+      accepted.push(match);
+    }
+  }
+
+  accepted.sort((left, right) => left.start - right.start || right.alias.length - left.alias.length);
+
+  const found = [];
+  const seen = new Set();
+  for (const match of accepted) {
+    if (!seen.has(match.slug)) {
+      found.push(match.slug);
+      seen.add(match.slug);
+    }
+  }
+
+  return found;
 }
 
 /**

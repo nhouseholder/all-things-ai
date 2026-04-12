@@ -2,7 +2,7 @@ import { fetchAllRSS } from './pipelines/rss-fetcher.js';
 import { scrapeReddit } from './pipelines/reddit-scraper.js';
 import { scrapeHackerNews } from './pipelines/hn-scraper.js';
 import { scrapePricing } from './pipelines/pricing-scraper.js';
-import { scoreUnscored } from './services/relevance-scorer.js';
+import { rescoreRecentNews, scoreUnscored } from './services/relevance-scorer.js';
 import { generateRecommendations } from './services/recommendation-engine.js';
 import { buildAndSendDigest } from './pipelines/digest-builder.js';
 import { scrapeRedditReviews } from './pipelines/reddit-review-scraper.js';
@@ -16,6 +16,7 @@ import { discoverGitHubTools } from './pipelines/github-tool-discovery.js';
 import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
 import { syncOpenRouterStats } from './pipelines/openrouter-sync.js';
+import { syncModelAliases } from './services/community-review-targets.js';
 
 async function checkModelStaleness(env) {
   const { results: staleModels } = await env.DB.prepare(`
@@ -70,6 +71,7 @@ export async function handleScheduled(event, env) {
       break;
     case '0 7 * * *':
       await runSafe('scoreUnscored', () => scoreUnscored(env));
+      await runSafe('rescoreRecentNews', () => rescoreRecentNews(env));
       await runSafe('generateRecommendations', () => generateRecommendations(env));
       // Model discovery: scan recent news for new model releases
       await runSafe('discoverNewModels', () => discoverNewModels(env));
@@ -100,6 +102,7 @@ export async function handleScheduled(event, env) {
       break;
     // Community review scrape: every 6 hours
     case '0 */6 * * *':
+      await runSafe('syncModelAliases', () => syncModelAliases(env));
       await runSafe('scrapeRedditReviews', () => scrapeRedditReviews(env));
       await runSafe('scrapeHNReviews', () => scrapeHNReviews(env));
       await runSafe('computeCompositeScores', () => computeCompositeScores(env));

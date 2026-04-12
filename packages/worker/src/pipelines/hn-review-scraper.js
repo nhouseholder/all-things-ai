@@ -7,36 +7,13 @@
  */
 
 import { analyzeReview, aggregateReviews, loadAliases } from '../services/review-analysis-engine.js';
+import { buildReviewSearchQueries, loadReviewTargetModels } from '../services/community-review-targets.js';
 
 import { fetchWithTimeout } from '../utils/fetch.js';
 
 const ALGOLIA_SEARCH = 'https://hn.algolia.com/api/v1/search';
 const ALGOLIA_RECENT = 'https://hn.algolia.com/api/v1/search_by_date';
 const RATE_LIMIT_SECONDS = 14400; // 4 hours
-
-// Search queries targeting model discussions
-const HN_MODEL_QUERIES = [
-  'Claude Opus coding',
-  'Claude Sonnet programming',
-  'GPT-5 coding review',
-  'Gemini Pro coding',
-  'DeepSeek coding',
-  'Cursor AI coding',
-  'Copilot AI coding review',
-  'AI coding assistant comparison',
-  'LLM coding benchmark',
-  'vibe coding AI',
-  'best LLM for programming',
-  'switched from Claude to GPT',
-  'Grok coding',
-  'Mistral coding',
-  'Qwen coder',
-  'Llama coding',
-  'open source LLM coding',
-  'GLM-5',
-  'Kimi K2',
-  'Minimax AI',
-];
 
 /**
  * Fetch from HN Algolia API with rate limiting
@@ -71,15 +48,16 @@ async function fetchHNJson(url, env, rateLimitKey) {
 /**
  * Search HN for stories mentioning AI models
  */
-async function searchHNStories(query, env, aliases) {
+async function searchHNStories(query, env, aliases, options = {}) {
   const reviews = [];
-  const rateLimitKey = `review:hn:story:${query.replace(/\s+/g, '_')}`;
+  const mode = options.backfill ? 'backfill' : 'recent';
+  const rateLimitKey = `review:hn:story:${mode}:${query.replace(/\s+/g, '_')}`;
 
   // Search recent stories (last 30 days)
   const params = new URLSearchParams({
     query,
     tags: 'story',
-    hitsPerPage: '15',
+    hitsPerPage: options.backfill ? '30' : '15',
     numericFilters: 'points>10',
   });
 
@@ -111,14 +89,15 @@ async function searchHNStories(query, env, aliases) {
 /**
  * Search HN comments for model discussions (higher signal)
  */
-async function searchHNComments(query, env, aliases) {
+async function searchHNComments(query, env, aliases, options = {}) {
   const reviews = [];
-  const rateLimitKey = `review:hn:comment:${query.replace(/\s+/g, '_')}`;
+  const mode = options.backfill ? 'backfill' : 'recent';
+  const rateLimitKey = `review:hn:comment:${mode}:${query.replace(/\s+/g, '_')}`;
 
   const params = new URLSearchParams({
     query,
     tags: 'comment',
-    hitsPerPage: '20',
+    hitsPerPage: options.backfill ? '35' : '20',
     numericFilters: 'points>3',
   });
 
@@ -148,18 +127,26 @@ async function searchHNComments(query, env, aliases) {
 /**
  * Main entry: scrape HN stories + comments, analyze, aggregate, and store
  */
-export async function scrapeHNReviews(env) {
+export async function scrapeHNReviews(env, options = {}) {
   console.log('[HNReview] Starting Hacker News review scrape...');
 
   // Pre-load dynamic aliases once for the entire scrape run
   const aliases = await loadAliases(env);
+  const reviewTargets = await loadReviewTargetModels(env);
+  const queries = buildReviewSearchQueries(reviewTargets, {
+    source: 'hn',
+    backfill: options.backfill,
+    coverageThreshold: options.coverageThreshold,
+    maxModels: options.maxModels,
+    perModelQueries: options.backfill ? 2 : 1,
+  });
 
   const allRawReviews = [];
 
-  for (const query of HN_MODEL_QUERIES) {
+  for (const query of queries) {
     try {
-      const storyReviews = await searchHNStories(query, env, aliases);
-      const commentReviews = await searchHNComments(query, env, aliases);
+      const storyReviews = await searchHNStories(query, env, aliases, options);
+      const commentReviews = await searchHNComments(query, env, aliases, options);
       allRawReviews.push(...storyReviews, ...commentReviews);
       console.log(`[HNReview] "${query}": ${storyReviews.length} stories, ${commentReviews.length} comments`);
     } catch (err) {
@@ -275,5 +262,5 @@ export async function scrapeHNReviews(env) {
   }
 
   console.log(`[HNReview] Done: ${allRawReviews.length} reviews → ${modelsUpdated} model-source pairs updated`);
-  return { totalReviews: allRawReviews.length, modelsUpdated };
+  return { totalReviews: allRawReviews.length, modelsUpdated, queryCount: queries.length };
 }

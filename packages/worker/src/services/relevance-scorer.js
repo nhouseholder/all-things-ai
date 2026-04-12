@@ -1,25 +1,19 @@
 import { SCORING_WEIGHTS, KEYWORDS, SOURCE_WEIGHTS, TAG_WEIGHTS } from '../config/scoring-weights.js';
 import { USER_PROFILE } from '../config/user-profile.js';
 
-/**
- * Score all unscored news items by relevance to the user.
- * Each item gets a 0-100 score based on keyword match, source reputation,
- * recency, and category match.
- */
-export async function scoreUnscored(env) {
-  const unscored = await env.DB.prepare(
-    `SELECT id, title, summary, source, published_at FROM news_items WHERE relevance_score = 0`
-  ).all();
+function clampInteger(value, fallback, minimum, maximum) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
 
-  const items = unscored.results;
+async function scoreItems(env, items) {
   if (!items.length) {
-    console.log('[SCORER] No unscored items found');
-    return;
+    return { scored: 0, avgScore: 0 };
   }
 
   let totalScore = 0;
 
-  // W5: Batch updates instead of individual DB calls
   const updateStmt = env.DB.prepare(
     `UPDATE news_items SET relevance_score = ?, relevance_tags = ? WHERE id = ?`
   );
@@ -41,19 +35,61 @@ export async function scoreUnscored(env) {
     );
 
     const clampedScore = Math.max(0, Math.min(100, finalScore));
-    const tagsJson = JSON.stringify(tags);
-
-    batch.push(updateStmt.bind(clampedScore, tagsJson, item.id));
+    batch.push(updateStmt.bind(clampedScore, JSON.stringify(tags), item.id));
     totalScore += clampedScore;
   }
 
-  // Execute in chunks of 50 (D1 batch limit)
-  for (let i = 0; i < batch.length; i += 50) {
-    await env.DB.batch(batch.slice(i, i + 50));
+  for (let index = 0; index < batch.length; index += 50) {
+    await env.DB.batch(batch.slice(index, index + 50));
   }
 
-  const avgScore = Math.round(totalScore / items.length);
+  return {
+    scored: items.length,
+    avgScore: Math.round(totalScore / items.length),
+  };
+}
+
+/**
+ * Score all unscored news items by relevance to the user.
+ * Each item gets a 0-100 score based on keyword match, source reputation,
+ * recency, and category match.
+ */
+export async function scoreUnscored(env) {
+  const unscored = await env.DB.prepare(
+    `SELECT id, title, summary, source, published_at FROM news_items WHERE relevance_score = 0`
+  ).all();
+
+  const items = unscored.results;
+  if (!items.length) {
+    console.log('[SCORER] No unscored items found');
+    return;
+  }
+
+  const { avgScore } = await scoreItems(env, items);
   console.log(`[SCORER] Scored ${items.length} items, avg score: ${avgScore}`);
+}
+
+export async function rescoreRecentNews(env, options = {}) {
+  const days = clampInteger(options.days, 45, 1, 90);
+  const limit = clampInteger(options.limit, 250, 25, 1000);
+
+  const recent = await env.DB.prepare(`
+    SELECT id, title, summary, source, published_at
+    FROM news_items
+    WHERE datetime(published_at) >= datetime('now', ?)
+    ORDER BY published_at DESC
+    LIMIT ?
+  `).bind(`-${days} days`, limit).all();
+
+  const items = recent.results;
+  if (!items.length) {
+    console.log('[SCORER] No recent items found to rescore');
+    return { rescored: 0, avgScore: 0, days, limit };
+  }
+
+  const { scored, avgScore } = await scoreItems(env, items);
+  console.log(`[SCORER] Rescored ${scored} recent items, avg score: ${avgScore}`);
+  return { rescored: scored, avgScore, days, limit };
 }
 
 /**
@@ -140,9 +176,11 @@ export function computeCategoryScore(text) {
     'cursor', 'windsurf', 'aider', 'roo code', 'antigravity',
   ]);
   const mentionsPlanTerms = matchesAnyPattern(normalizedText, [
-    'price', 'pricing', 'cost', 'plan', 'subscription', 'tier', 'seat', 'per seat',
+    /\$\s*\d+(?:\.\d+)?\s*(?:\/|per\s+)(?:month|mo|seat|user|year|yr)\b/,
+    'price', 'pricing', 'cost', 'subscription', 'tier', 'seat', 'per seat',
     'team plan', 'enterprise plan', 'usage cap', 'rate limit', 'quota', 'credits',
-    'pro+', 'pro plus', 'max plan', 'monthly', 'monthly billing', 'annual billing',
+    'pro+', 'pro plus', 'max plan', 'monthly billing', 'annual billing',
+    'monthly subscription', 'annual subscription', 'pro plan', 'starter plan', 'business plan',
   ]);
   const mentionsReleaseTerms = matchesAnyPattern(normalizedText, [
     'release', 'launch', 'new model', 'announce', 'announced', 'introducing', 'now available', 'rollout',
@@ -154,6 +192,20 @@ export function computeCategoryScore(text) {
     'tool', 'editor', 'extension', 'plugin', 'cli', 'workspace', 'ide', 'agent', 'assistant', 'copilot', 'cursor', 'windsurf',
   ]);
   const mentionsTutorialTerms = matchesAnyPattern(normalizedText, ['tutorial', 'guide', 'how to', 'walkthrough']);
+  const mentionsModelIdentity = matchesAnyPattern(normalizedText, [
+    /\b(?:claude|gpt|chatgpt|gemini|codex|copilot|glm|qwen|deepseek|grok|mistral|llama|kimi|minimax|phi|gemma|yi|command|jamba|mythos|sonar)(?:[\s-]+[a-z0-9.+-]+){0,2}\b/,
+  ]);
+  const mentionsModelContext = matchesAnyPattern(normalizedText, [
+    'model', 'models', 'capability', 'capabilities', 'checkpoint', 'checkpoints', 'weights', 'reasoning',
+  ]) || mentionsBenchmarks || mentionsCodingTerms;
+  const mentionsInvestigationTerms = matchesAnyPattern(normalizedText, [
+    'investigation', 'probe', 'lawsuit', 'sues', 'suing', 'shooting', 'safety',
+    'protect the internet', 'regulator', 'antitrust', 'hearing',
+  ]);
+  const mentionsModelReleaseSpecifics = matchesAnyPattern(normalizedText, [
+    'new model', 'model release', 'capability', 'capabilities', 'benchmark', 'swe-bench', 'livecodebench', 'code generation',
+  ]);
+  const isPlanOnlyStory = mentionsPlanTerms && !mentionsModelReleaseSpecifics;
 
   if (mentionsCodingVendors && mentionsCodingTerms) {
     tags.add('coding-model');
@@ -171,7 +223,7 @@ export function computeCategoryScore(text) {
   if (matchesAnyPattern(normalizedText, ['vibe coding', 'app design', 'ui generation', 'design-to-code', 'prototype to code'])) {
     tags.add('vibe-coding');
   }
-  if (mentionsCodingVendors && mentionsReleaseTerms) {
+  if (mentionsCodingVendors && mentionsReleaseTerms && mentionsModelIdentity && mentionsModelContext && !mentionsInvestigationTerms && !isPlanOnlyStory) {
     tags.add('model-release');
   }
   if (mentionsBenchmarks) {
