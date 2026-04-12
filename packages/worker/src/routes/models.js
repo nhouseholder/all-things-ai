@@ -9,10 +9,14 @@ const BENCHMARK_COMPONENT_MAP = {
   'Human Nuance Understanding': 'nuance',
   'Chatbot Arena ELO': 'arena',
   'TAU-bench Retail': 'tau',
+  'TAU-bench (retail)': 'tau',
+  'TAU-bench (airline)': 'tau',
   'GPQA Diamond': 'gpqa',
   "Humanity's Last Exam": 'hle',
   MMLU: 'mmlu',
+  'MMLU Pro': 'mmlu',
   'HumanEval+': 'humaneval',
+  HumanEval: 'humaneval',
 };
 
 function normalizeBenchmarkComponent(key, score) {
@@ -32,6 +36,138 @@ function deriveSuccessRateComponent(taskEstimateMap) {
 
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
   return Number((average * 100).toFixed(2));
+}
+
+const COMPARE_BENCHMARK_BLUEPRINT = [
+  { benchmark_name: 'SWE-bench Verified', category: 'coding', component: 'swe_bench', max_score: 100 },
+  { benchmark_name: 'LiveCodeBench', category: 'coding', component: 'livecodebench', max_score: 100 },
+  { benchmark_name: 'Human Nuance Understanding', category: 'nuance', component: 'nuance', max_score: 100 },
+  { benchmark_name: 'Chatbot Arena ELO', category: 'nuance', component: 'arena', max_score: 2000 },
+  { benchmark_name: 'TAU-bench Retail', category: 'agentic', component: 'tau', max_score: 100 },
+  { benchmark_name: 'GPQA Diamond', category: 'reasoning', component: 'gpqa', max_score: 100 },
+  { benchmark_name: "Humanity's Last Exam", category: 'reasoning', component: 'hle', max_score: 100 },
+  { benchmark_name: 'MMLU', category: 'reasoning', component: 'mmlu', max_score: 100 },
+  { benchmark_name: 'HumanEval+', category: 'coding', component: 'humaneval', max_score: 100 },
+];
+
+const SYNTHETIC_TASK_TEMPLATE = {
+  'complex-debugging': { successDelta: -0.06, avgMessages: 2.2, avgMinutes: 18, autonomyDelta: -6 },
+  'feature-implementation': { successDelta: 0.0, avgMessages: 1.8, avgMinutes: 13, autonomyDelta: 0 },
+  'boilerplate-scaffolding': { successDelta: 0.08, avgMessages: 1.2, avgMinutes: 7, autonomyDelta: 8 },
+  'quick-fixes': { successDelta: 0.12, avgMessages: 1.1, avgMinutes: 4, autonomyDelta: 12 },
+  'multi-file-refactor': { successDelta: -0.1, avgMessages: 2.5, avgMinutes: 25, autonomyDelta: -10 },
+  'code-review': { successDelta: 0.02, avgMessages: 1.5, avgMinutes: 10, autonomyDelta: 4 },
+  'learning-exploring': { successDelta: 0.04, avgMessages: 1.3, avgMinutes: 7, autonomyDelta: 6 },
+};
+
+function clampPercentScore(value, decimals = 2) {
+  if (value == null) return null;
+  return Number(Math.max(0, Math.min(100, value)).toFixed(decimals));
+}
+
+function deriveArenaBenchmarkScore(component) {
+  if (component == null) return null;
+  return Number((1200 + (component / 100) * 400).toFixed(0));
+}
+
+function deriveHleComponent(components) {
+  if (components.hle != null && components.hle !== 0) return components.hle;
+  if (components.gpqa == null || components.gpqa === 0) return null;
+  return clampPercentScore(components.gpqa * 0.21, 1);
+}
+
+function deriveMmluComponent(components) {
+  if (components.mmlu != null && components.mmlu !== 0) return components.mmlu;
+  const inputs = [components.nuance, components.gpqa].filter((value) => value != null && value !== 0);
+  if (inputs.length < 2) return null;
+  const average = inputs.reduce((sum, value) => sum + value, 0) / inputs.length;
+  return clampPercentScore(average + 4, 1);
+}
+
+function deriveHumanEvalComponent(components) {
+  if (components.humaneval != null && components.humaneval !== 0) return components.humaneval;
+  const inputs = [components.swe_bench, components.livecodebench].filter((value) => value != null && value !== 0);
+  if (!inputs.length) return null;
+  const average = inputs.reduce((sum, value) => sum + value, 0) / inputs.length;
+  return clampPercentScore(average + 12, 1);
+}
+
+export function buildCompareBenchmarks(benchmarks = [], capabilityProfile = {}) {
+  const merged = [...benchmarks];
+  const coveredComponents = new Set(
+    benchmarks
+      .map((benchmark) => BENCHMARK_COMPONENT_MAP[benchmark.benchmark_name])
+      .filter(Boolean)
+  );
+
+  for (const blueprint of COMPARE_BENCHMARK_BLUEPRINT) {
+    if (coveredComponents.has(blueprint.component)) continue;
+
+    const rawScore = blueprint.component === 'arena'
+      ? deriveArenaBenchmarkScore(capabilityProfile.arena)
+      : capabilityProfile[blueprint.component];
+
+    if (rawScore == null || rawScore === 0) continue;
+
+    merged.push({
+      benchmark_name: blueprint.benchmark_name,
+      category: blueprint.category,
+      score: rawScore,
+      max_score: blueprint.max_score,
+      estimated: true,
+    });
+  }
+
+  return merged;
+}
+
+function deriveSyntheticSteering(successRate) {
+  if (successRate >= 0.78) return 'low';
+  if (successRate >= 0.62) return 'medium';
+  return 'high';
+}
+
+export function buildCompareTaskEstimates(model, capabilityProfile, taskEstimateMap = {}, taskProfiles = []) {
+  const hydrated = { ...(taskEstimateMap || {}) };
+  const baseSuccessRate = capabilityProfile?.success_rate != null
+    ? capabilityProfile.success_rate / 100
+    : null;
+
+  if (baseSuccessRate == null) return hydrated;
+
+  for (const taskProfile of taskProfiles) {
+    if (hydrated[taskProfile.slug]) continue;
+
+    const template = SYNTHETIC_TASK_TEMPLATE[taskProfile.slug];
+    if (!template) continue;
+
+    const successRate = Number(Math.max(0.25, Math.min(0.97, baseSuccessRate + template.successDelta)).toFixed(2));
+    const effortPenalty = Math.max(0, 0.82 - successRate);
+    const avgMessages = Number((template.avgMessages + (effortPenalty * 4)).toFixed(1));
+    const avgMinutes = Number((template.avgMinutes + (effortPenalty * 30)).toFixed(1));
+    const autonomyScore = Math.max(25, Math.min(97, Math.round((successRate * 100) + template.autonomyDelta)));
+    let costPerTask = null;
+
+    if (model.input_price_per_mtok != null && model.output_price_per_mtok != null) {
+      const perMessageCost = (
+        ((taskProfile.avg_input_tokens || 0) / 1_000_000) * model.input_price_per_mtok
+        + ((taskProfile.avg_output_tokens || 0) / 1_000_000) * model.output_price_per_mtok
+      );
+      costPerTask = Number((perMessageCost * avgMessages).toFixed(4));
+    }
+
+    hydrated[taskProfile.slug] = {
+      success_rate: successRate,
+      avg_messages: avgMessages,
+      avg_minutes: avgMinutes,
+      steering_effort: deriveSyntheticSteering(successRate),
+      autonomy_score: autonomyScore,
+      cost_per_task: costPerTask,
+      estimated: true,
+    };
+  }
+
+  return hydrated;
 }
 
 export function buildCapabilityProfile(model, benchmarks = [], taskEstimateMap = {}) {
@@ -59,6 +195,18 @@ export function buildCapabilityProfile(model, benchmarks = [], taskEstimateMap =
 
   if (components.success_rate == null || components.success_rate === 0) {
     components.success_rate = deriveSuccessRateComponent(taskEstimateMap);
+  }
+
+  if (components.hle == null || components.hle === 0) {
+    components.hle = deriveHleComponent(components);
+  }
+
+  if (components.mmlu == null || components.mmlu === 0) {
+    components.mmlu = deriveMmluComponent(components);
+  }
+
+  if (components.humaneval == null || components.humaneval === 0) {
+    components.humaneval = deriveHumanEvalComponent(components);
   }
 
   return components;
@@ -292,7 +440,11 @@ modelsRoutes.get('/compare', async (c) => {
       ORDER BY tp.sort_order
     `).bind(...modelIds).all(),
 
-    c.env.DB.prepare('SELECT id, name, slug, complexity FROM task_profiles ORDER BY sort_order').all(),
+    c.env.DB.prepare(`
+      SELECT id, name, slug, complexity, avg_input_tokens, avg_output_tokens
+      FROM task_profiles
+      ORDER BY sort_order
+    `).all(),
   ]);
 
   // Index all data by model_id
@@ -325,24 +477,43 @@ modelsRoutes.get('/compare', async (c) => {
 
   const comparison = models.map(m => {
     const rev = reviewByModel[m.id];
-    const benchmarks = benchmarksByModel[m.id] || [];
-    const taskEstimates = tasksByModel[m.id] || {};
-    const capabilityProfile = buildCapabilityProfile(m, benchmarks, taskEstimates);
+    const rawBenchmarks = benchmarksByModel[m.id] || [];
+    const rawTaskEstimates = tasksByModel[m.id] || {};
+    const capabilityProfile = buildCapabilityProfile(m, rawBenchmarks, rawTaskEstimates);
+    const benchmarks = buildCompareBenchmarks(rawBenchmarks, capabilityProfile);
+    const taskEstimates = buildCompareTaskEstimates(m, capabilityProfile, rawTaskEstimates, taskProfileRes.results);
+    const hasEstimatedBenchmarks = benchmarks.some((benchmark) => benchmark.estimated);
+    const hasEstimatedTasks = Object.values(taskEstimates).some((entry) => entry?.estimated);
+    const community = rev ? {
+      total_reviews: rev.total_reviews,
+      satisfaction: rev.avg_satisfaction,
+      sentiment: rev.avg_sentiment,
+      heavy_count: rev.heavy_count,
+      vibe_count: rev.vibe_count,
+      casual_count: rev.casual_count,
+    } : {
+      total_reviews: 0,
+      satisfaction: null,
+      sentiment: null,
+      heavy_count: 0,
+      vibe_count: 0,
+      casual_count: 0,
+      estimated: true,
+    };
+
     return {
       ...m,
       benchmarks,
       availability: availByModel[m.id] || [],
       blended_cost: (m.input_price_per_mtok * 0.3 + m.output_price_per_mtok * 0.7),
       score_components: capabilityProfile,
-      community: rev ? {
-        total_reviews: rev.total_reviews,
-        satisfaction: rev.avg_satisfaction,
-        sentiment: rev.avg_sentiment,
-        heavy_count: rev.heavy_count,
-        vibe_count: rev.vibe_count,
-        casual_count: rev.casual_count,
-      } : null,
+      community,
       task_estimates: taskEstimates,
+      data_quality: {
+        benchmark_coverage: hasEstimatedBenchmarks ? 'estimated' : 'official',
+        task_coverage: hasEstimatedTasks ? 'estimated' : 'official',
+        community_coverage: rev ? 'official' : 'missing',
+      },
     };
   });
 

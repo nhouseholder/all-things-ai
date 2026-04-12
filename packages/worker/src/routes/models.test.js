@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCapabilityProfile } from './models.js';
+import { buildCapabilityProfile, buildCompareBenchmarks, buildCompareTaskEstimates } from './models.js';
 
 test('buildCapabilityProfile fills missing capability axes from raw benchmarks', () => {
   const profile = buildCapabilityProfile(
@@ -70,4 +70,126 @@ test('buildCapabilityProfile keeps existing populated components', () => {
   assert.equal(profile.mmlu, 88);
   assert.equal(profile.success_rate, 73);
   assert.equal(profile.community, -0.5);
+});
+
+test('buildCapabilityProfile supports legacy benchmark aliases used in older seed data', () => {
+  const profile = buildCapabilityProfile(
+    {
+      swe_bench_component: null,
+      livecodebench_component: null,
+      nuance_component: null,
+      arena_component: 0,
+      tau_component: null,
+      gpqa_component: null,
+      hle_component: null,
+      mmlu_component: null,
+      humaneval_component: null,
+      success_rate_component: null,
+      community_adjustment: 0,
+    },
+    [
+      { benchmark_name: 'TAU-bench (airline)', score: 53 },
+      { benchmark_name: 'MMLU Pro', score: 84.3 },
+      { benchmark_name: 'HumanEval', score: 93 },
+    ],
+    {}
+  );
+
+  assert.equal(profile.tau, 53);
+  assert.equal(profile.mmlu, 84.3);
+  assert.equal(profile.humaneval, 93);
+});
+
+test('buildCapabilityProfile derives missing HLE, MMLU, and HumanEval components heuristically', () => {
+  const profile = buildCapabilityProfile(
+    {
+      swe_bench_component: 74,
+      livecodebench_component: 76,
+      nuance_component: 76,
+      arena_component: 69,
+      tau_component: 70,
+      gpqa_component: 82,
+      hle_component: null,
+      mmlu_component: null,
+      humaneval_component: null,
+      success_rate_component: 76,
+      community_adjustment: 0,
+    },
+    [],
+    {}
+  );
+
+  assert.equal(profile.hle, 17.2);
+  assert.equal(profile.mmlu, 83);
+  assert.equal(profile.humaneval, 87);
+});
+
+test('buildCompareBenchmarks synthesizes missing canonical compare benchmarks', () => {
+  const benchmarks = buildCompareBenchmarks(
+    [
+      { benchmark_name: 'SWE-bench Verified', category: 'coding', score: 76.8, max_score: 100 },
+      { benchmark_name: 'TAU-bench (airline)', category: 'agentic', score: 53, max_score: 100 },
+    ],
+    {
+      swe_bench: 76.8,
+      livecodebench: 79.4,
+      nuance: 84,
+      arena: 61.25,
+      tau: 53,
+      gpqa: 86.5,
+      hle: 18.2,
+      mmlu: 89.1,
+      humaneval: 91,
+    }
+  );
+
+  const benchmarkNames = benchmarks.map((benchmark) => benchmark.benchmark_name);
+  assert.equal(benchmarkNames.filter((name) => name === 'SWE-bench Verified').length, 1);
+  assert.equal(benchmarkNames.includes('LiveCodeBench'), true);
+  assert.equal(benchmarkNames.includes('Chatbot Arena ELO'), true);
+  assert.equal(benchmarkNames.includes("Humanity's Last Exam"), true);
+  assert.equal(benchmarkNames.includes('MMLU'), true);
+  assert.equal(benchmarkNames.includes('HumanEval+'), true);
+
+  const arena = benchmarks.find((benchmark) => benchmark.benchmark_name === 'Chatbot Arena ELO');
+  assert.equal(arena.score, 1445);
+  assert.equal(arena.estimated, true);
+
+  const tau = benchmarks.find((benchmark) => benchmark.benchmark_name === 'TAU-bench (airline)');
+  assert.equal(tau.estimated, undefined);
+});
+
+test('buildCompareTaskEstimates synthesizes missing compare task rows', () => {
+  const taskEstimates = buildCompareTaskEstimates(
+    {
+      input_price_per_mtok: 0.5,
+      output_price_per_mtok: 3,
+    },
+    {
+      success_rate: 76,
+    },
+    {},
+    [
+      {
+        slug: 'quick-fixes',
+        avg_input_tokens: 3000,
+        avg_output_tokens: 1500,
+      },
+      {
+        slug: 'complex-debugging',
+        avg_input_tokens: 15000,
+        avg_output_tokens: 6000,
+      },
+    ]
+  );
+
+  assert.equal(taskEstimates['quick-fixes'].success_rate, 0.88);
+  assert.equal(taskEstimates['quick-fixes'].steering_effort, 'low');
+  assert.equal(taskEstimates['quick-fixes'].estimated, true);
+  assert.equal(taskEstimates['quick-fixes'].cost_per_task, 0.0066);
+
+  assert.equal(taskEstimates['complex-debugging'].success_rate, 0.7);
+  assert.equal(taskEstimates['complex-debugging'].steering_effort, 'medium');
+  assert.equal(taskEstimates['complex-debugging'].estimated, true);
+  assert.equal(taskEstimates['complex-debugging'].cost_per_task, 0.0689);
 });
