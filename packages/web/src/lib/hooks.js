@@ -19,6 +19,10 @@ export function useToolPlans() {
   return useQuery({ queryKey: ['tools', 'plans'], queryFn: api.getToolPlans });
 }
 
+export function useCodingPlans() {
+  return useQuery({ queryKey: ['tools', 'coding-plans'], queryFn: api.getCodingPlans });
+}
+
 // Models
 export function useModels() {
   return useQuery({ queryKey: ['models'], queryFn: api.getModels });

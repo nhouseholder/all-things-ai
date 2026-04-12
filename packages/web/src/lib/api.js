@@ -36,6 +36,7 @@ export const api = {
   getTools: () => request('/api/tools'),
   getTool: (slug) => request(`/api/tools/${slug}`),
   getToolPlans: () => request('/api/tools/plans'),
+  getCodingPlans: () => request('/api/tools/coding-plans'),
 
   // Models
   getModels: () => request('/api/models'),

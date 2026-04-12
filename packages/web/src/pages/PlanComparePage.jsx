@@ -32,8 +32,8 @@ export default function PlanComparePage() {
   useEffect(() => { setPageTitle('Compare Plans'); }, []);
   const { data: plansData, isLoading } = useToolPlans();
   const allPlans = useMemo(() => {
-    if (!Array.isArray(plansData)) return [];
-    return plansData.filter(p => p.is_current);
+    const plans = plansData?.plans || [];
+    return Array.isArray(plans) ? plans.filter((plan) => plan.is_current) : [];
   }, [plansData]);
 
   const [selected, setSelected] = useState([]);
@@ -300,7 +300,7 @@ export default function PlanComparePage() {
                       <FeatureRow label="Included Requests" plans={selectedPlans} accessor={p => p.included_requests || '∞'} />
                       <FeatureRow label="Overage Model" plans={selectedPlans} accessor={p => p.overage_model || '—'} />
                       <FeatureRow label="Models Available" plans={selectedPlans} accessor={p => {
-                        const models = p.models || [];
+                        const models = p.model_pricing || [];
                         return models.length > 0 ? `${models.length} models` : '—';
                       }} />
                     </tbody>
@@ -331,7 +331,7 @@ export default function PlanComparePage() {
                     // Collect all models across plans
                     const modelSet = new Map();
                     for (const plan of selectedPlans) {
-                      for (const m of (plan.models || [])) {
+                      for (const m of (plan.model_pricing || [])) {
                         if (!modelSet.has(m.slug || m.name)) {
                           modelSet.set(m.slug || m.name, m.name || m.slug);
                         }
@@ -341,7 +341,7 @@ export default function PlanComparePage() {
                       <tr key={slug}>
                         <td className="py-1.5 px-2 text-gray-400">{name}</td>
                         {selectedPlans.map(plan => {
-                          const model = (plan.models || []).find(m => (m.slug || m.name) === slug);
+                          const model = (plan.model_pricing || []).find(m => (m.slug || m.name) === slug);
                           return (
                             <td key={plan.id} className="py-1.5 px-2 text-center">
                               {model ? (

@@ -1,6 +1,63 @@
 import { Hono } from 'hono';
+import {
+  buildPlanRecords,
+  isCatalogVisiblePlan,
+  isCodingSubscriptionPlan,
+} from '../services/plan-catalog.js';
 
 export const toolsRoutes = new Hono();
+
+const PLAN_QUERY = `
+  SELECT pp.*, t.name as tool_name, t.slug as tool_slug, t.vendor, t.category,
+         t.description as tool_description, t.website_url, t.pricing_page_url,
+         t.install_url, t.install_method,
+         (SELECT json_group_array(json_object(
+           'source', tr.source, 'satisfaction', tr.satisfaction, 'review_count', tr.review_count,
+           'common_praises', tr.common_praises, 'common_complaints', tr.common_complaints
+         )) FROM tool_reviews tr WHERE tr.tool_id = t.id) as reviews
+  FROM pricing_plans pp
+  JOIN tools t ON t.id = pp.tool_id
+  WHERE pp.is_current = 1
+`;
+
+const MODEL_PRICING_QUERY = `
+  SELECT slug, name, vendor, input_price_per_mtok, output_price_per_mtok
+  FROM models
+  WHERE is_active = 1
+`;
+
+const AVAILABILITY_QUERY = `
+  SELECT
+    ma.plan_id,
+    m.slug, m.name, m.vendor,
+    m.input_price_per_mtok, m.output_price_per_mtok,
+    ma.access_level, ma.credits_per_request, ma.cost_notes
+  FROM model_availability ma
+  JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
+  JOIN models m ON m.id = ma.model_id
+  WHERE m.is_active = 1
+    AND ma.plan_id IS NOT NULL
+`;
+
+function comparePlansByPrice(a, b) {
+  const priceA = a.price_anchor ?? Number.POSITIVE_INFINITY;
+  const priceB = b.price_anchor ?? Number.POSITIVE_INFINITY;
+
+  if (priceA !== priceB) return priceA - priceB;
+  return `${a.tool_name} ${a.plan_name}`.localeCompare(`${b.tool_name} ${b.plan_name}`);
+}
+
+async function loadPlanRecords(env) {
+  const { results } = await env.DB.prepare(`${PLAN_QUERY} ORDER BY pp.price_monthly ASC NULLS LAST, t.name, pp.plan_name`).all();
+
+  const { results: allModels } = await env.DB.prepare(MODEL_PRICING_QUERY).all();
+  const modelPricing = {};
+  for (const model of allModels) modelPricing[model.slug] = model;
+
+  const { results: availabilityRows } = await env.DB.prepare(AVAILABILITY_QUERY).all();
+
+  return buildPlanRecords(results, modelPricing, availabilityRows).sort(comparePlansByPrice);
+}
 
 // GET /api/tools — all tools with current pricing
 toolsRoutes.get('/', async (c) => {
@@ -27,104 +84,14 @@ toolsRoutes.get('/', async (c) => {
 
 // GET /api/tools/plans — all plans with full detail for comparison page
 toolsRoutes.get('/plans', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT pp.*, t.name as tool_name, t.slug as tool_slug, t.vendor, t.category,
-           t.description as tool_description, t.install_url, t.install_method,
-           (SELECT json_group_array(json_object(
-             'source', tr.source, 'satisfaction', tr.satisfaction, 'review_count', tr.review_count,
-             'common_praises', tr.common_praises, 'common_complaints', tr.common_complaints
-           )) FROM tool_reviews tr WHERE tr.tool_id = t.id) as reviews
-    FROM pricing_plans pp
-    JOIN tools t ON t.id = pp.tool_id
-    WHERE pp.is_current = 1
-    ORDER BY pp.price_monthly ASC NULLS LAST
-  `).all();
+  const plans = (await loadPlanRecords(c.env)).filter(isCatalogVisiblePlan);
 
-  // Load all model pricing in one query for per-model cost enrichment
-  const { results: allModels } = await c.env.DB.prepare(
-    'SELECT slug, name, vendor, input_price_per_mtok, output_price_per_mtok FROM models WHERE is_active = 1'
-  ).all();
-  const modelPricing = {};
-  for (const m of allModels) modelPricing[m.slug] = m;
+  return c.json({ plans });
+});
 
-  const { results: availabilityRows } = await c.env.DB.prepare(`
-    SELECT
-      ma.plan_id,
-      m.slug, m.name, m.vendor,
-      m.input_price_per_mtok, m.output_price_per_mtok,
-      ma.access_level, ma.credits_per_request, ma.cost_notes
-    FROM model_availability ma
-    JOIN pricing_plans pp ON pp.id = ma.plan_id AND pp.is_current = 1
-    JOIN models m ON m.id = ma.model_id
-    WHERE m.is_active = 1
-      AND ma.plan_id IS NOT NULL
-  `).all();
-
-  const modelsByPlanId = {};
-  for (const row of availabilityRows) {
-    if (!modelsByPlanId[row.plan_id]) modelsByPlanId[row.plan_id] = [];
-    modelsByPlanId[row.plan_id].push({
-      slug: row.slug,
-      name: row.name,
-      vendor: row.vendor,
-      input_per_mtok: row.input_price_per_mtok,
-      output_per_mtok: row.output_price_per_mtok,
-      access_level: row.access_level,
-      credits_per_request: row.credits_per_request,
-      cost_notes: row.cost_notes,
-    });
-  }
-
-  const plans = results.map(p => {
-    let features = p.features;
-    let modelSlugs = p.models_included;
-    let reviews = p.reviews;
-    try { features = JSON.parse(features); } catch {}
-    try { modelSlugs = JSON.parse(modelSlugs); } catch {}
-    try { reviews = JSON.parse(reviews)?.filter(r => r.source) || []; } catch { reviews = []; }
-
-    // Fallback for plans that do not have per-model availability rows yet.
-    const fallbackModelPricing = (Array.isArray(modelSlugs) ? modelSlugs : [])
-      .filter(slug => slug && slug !== 'any-via-api')
-      .map(slug => {
-        const m = modelPricing[slug];
-        return m ? {
-          slug,
-          name: m.name,
-          vendor: m.vendor,
-          input_per_mtok: m.input_price_per_mtok,
-          output_per_mtok: m.output_price_per_mtok,
-          access_level: null,
-          credits_per_request: null,
-          cost_notes: null,
-        } : {
-          slug,
-          name: slug,
-          vendor: null,
-          input_per_mtok: null,
-          output_per_mtok: null,
-          access_level: null,
-          credits_per_request: null,
-          cost_notes: null,
-        };
-      });
-
-    const planModels = [...(modelsByPlanId[p.id] || fallbackModelPricing)].sort((a, b) => {
-      const rateA = a.credits_per_request ?? Number.POSITIVE_INFINITY;
-      const rateB = b.credits_per_request ?? Number.POSITIVE_INFINITY;
-      if (rateA !== rateB) return rateA - rateB;
-      return a.name.localeCompare(b.name);
-    });
-
-    return {
-      ...p,
-      features,
-      models_included: planModels.map((model) => model.slug),
-      model_pricing: planModels,
-      reviews,
-    };
-  });
-
+// GET /api/tools/coding-plans — dedicated coding subscription comparison data
+toolsRoutes.get('/coding-plans', async (c) => {
+  const plans = (await loadPlanRecords(c.env)).filter(isCodingSubscriptionPlan);
   return c.json({ plans });
 });
 
