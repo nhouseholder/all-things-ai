@@ -742,7 +742,6 @@ function ScoreBreakdown({ models }) {
                           <span className={`text-[10px] font-medium ${isWinner ? 'text-white' : 'text-gray-400'}`}>
                             {val != null ? val.toFixed(1) : '—'}
                           </span>
-                          {isWinner && <Crown className="w-3 h-3 text-yellow-400" />}
                         </div>
                       </td>
                     );
@@ -948,7 +947,6 @@ function TaskRow({ label, data, accessor, format, best, higher = false }) {
           <td key={d.slug} className={`py-2.5 px-3 text-center font-medium ${isWinner ? 'text-white' : 'text-gray-300'}`}>
             <span className="inline-flex items-center gap-1">
               {format(val)}
-              {isWinner && <Crown className="w-3 h-3 text-yellow-400" />}
             </span>
           </td>
         );
@@ -1145,6 +1143,7 @@ function ComparisonTable({ models }) {
             <CompRow label="AllThingsAI Score" models={models} accessor={m => m.composite_score}
               format={v => v?.toFixed(1) || '—'}
               highlight={v => v === bestComposite && bestComposite > 0}
+              showCrown
             />
             <CompRow label="Input $/MTok" models={models} accessor={m => m.input_price_per_mtok}
               format={v => formatPrice(v)}
@@ -1238,7 +1237,7 @@ function ComparisonTable({ models }) {
   );
 }
 
-function CompRow({ label, models, accessor, format, highlight, highlightColor = 'text-blue-400' }) {
+function CompRow({ label, models, accessor, format, highlight, highlightColor = 'text-blue-400', showCrown = false }) {
   return (
     <tr>
       <td className="py-2.5 px-3 text-gray-500 font-medium">{label}</td>
@@ -1250,7 +1249,7 @@ function CompRow({ label, models, accessor, format, highlight, highlightColor = 
           <td key={m.slug} className={`py-2.5 px-3 text-center font-medium ${isHighlighted ? highlightColor + ' font-bold' : 'text-gray-300'}`}>
             <span className="inline-flex items-center gap-1">
               {formatted}
-              {isHighlighted && <Crown className="w-3 h-3 text-yellow-400" />}
+              {isHighlighted && showCrown && <Crown className="w-3 h-3 text-yellow-400" />}
             </span>
           </td>
         );
