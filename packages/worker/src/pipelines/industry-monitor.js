@@ -1,4 +1,5 @@
 import { MONITOR_SOURCES } from '../config/sources.js';
+import { extractModelCandidatesFromText, ingestModelCandidate } from '../services/model-intake.js';
 import { fetchWithTimeout } from '../utils/fetch.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -8,13 +9,18 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
  * pricing pages, and aggregators for new products, plans, models, and pricing changes.
  * Uses SHA-256 content hashing to detect changes, then Workers AI to classify them.
  */
-export async function monitorAIIndustry(env) {
-  console.log(`[MONITOR] Starting AI industry check across ${MONITOR_SOURCES.length} sources`);
+export async function monitorAIIndustry(env, options = {}) {
+  const sourceKeys = Array.isArray(options.sourceKeys) ? options.sourceKeys : [];
+  const selectedSources = sourceKeys.length > 0
+    ? MONITOR_SOURCES.filter((source) => sourceKeys.includes(source.key))
+    : MONITOR_SOURCES;
+
+  console.log(`[MONITOR] Starting AI industry check across ${selectedSources.length} sources`);
   let changesDetected = 0;
   let alertsCreated = 0;
   let errored = 0;
 
-  for (const source of MONITOR_SOURCES) {
+  for (const source of selectedSources) {
     try {
       const result = await checkSource(source, env);
       if (result.changed) {
@@ -29,7 +35,7 @@ export async function monitorAIIndustry(env) {
   }
 
   console.log(`[MONITOR] Done: ${changesDetected} changes detected, ${alertsCreated} alerts created, ${errored} errors`);
-  return { sourcesChecked: MONITOR_SOURCES.length, changesDetected, alertsCreated, errored };
+  return { sourcesChecked: selectedSources.length, changesDetected, alertsCreated, errored };
 }
 
 export function buildMonitorClassificationPrompt(source, diffText) {
@@ -52,6 +58,124 @@ Prioritize coding-model and coding-plan whenever both a general and coding-speci
 
 If no noteworthy AI industry events, output: NONE
 Output ONLY the JSON lines or NONE, no other text.`;
+}
+
+function signalTypeFromMonitorSource(source) {
+  if (source.trust === 'official' || source.trust === 'catalog' || source.trust === 'community') {
+    return source.trust;
+  }
+  if (source.type === 'aggregator' || source.type === 'hn-api') return 'news';
+  return 'official';
+}
+
+function shouldExtractDirectCandidates(source) {
+  return source.trust === 'official'
+    && Array.isArray(source.vendorHints)
+    && source.vendorHints.length > 0;
+}
+
+export function extractDirectSourceModelSignals(source, diffText) {
+  if (!shouldExtractDirectCandidates(source)) {
+    return [];
+  }
+
+  const candidates = extractModelCandidatesFromText(diffText, {
+    vendorHints: source.vendorHints,
+  });
+
+  return candidates.slice(0, source.directCandidateLimit || 6).map((candidate) => ({
+    ...candidate,
+    sourceKey: source.key,
+    sourceLabel: source.name,
+    sourceUrl: source.url,
+    contentUrl: source.url,
+    discoverySource: source.key,
+    discoveryUrl: source.url,
+    signalType: signalTypeFromMonitorSource(source),
+    title: candidate.name,
+    summary: null,
+    vendorHints: source.vendorHints,
+    metadata: {
+      extraction: 'direct-source-candidate',
+    },
+  }));
+}
+
+function extractAlertModelSignals(source, alert, diffText) {
+  if (!['coding-model', 'new-model'].includes(alert.event_type)) {
+    return [];
+  }
+
+  const metadata = alert.metadata && typeof alert.metadata === 'object' ? alert.metadata : {};
+  const vendorHints = [metadata.vendor, ...(source.vendorHints || [])].filter(Boolean);
+  const directNames = [metadata.model, metadata.model_name, metadata.name]
+    .filter((value) => typeof value === 'string' && value.trim());
+
+  const extracted = directNames.length > 0
+    ? directNames.map((name) => ({ name, vendor: metadata.vendor || null, family: metadata.family || null }))
+    : extractModelCandidatesFromText(
+      [alert.title, alert.summary, diffText].filter(Boolean).join(' '),
+      { vendorHints }
+    );
+
+  const deduped = new Map();
+  for (const candidate of extracted.slice(0, 3)) {
+    if (!candidate?.slug && !candidate?.name) continue;
+    const dedupeKey = candidate.slug || candidate.name.toLowerCase();
+    if (deduped.has(dedupeKey)) continue;
+
+    deduped.set(dedupeKey, {
+      ...candidate,
+      sourceKey: source.key,
+      sourceLabel: source.name,
+      sourceUrl: source.url,
+      contentUrl: metadata.source_url || metadata.url || source.url,
+      discoverySource: source.key,
+      discoveryUrl: metadata.source_url || metadata.url || source.url,
+      signalType: signalTypeFromMonitorSource(source),
+      title: alert.title,
+      summary: alert.summary,
+      releaseDate: metadata.release_date || null,
+      description: metadata.description || null,
+      vendorHints,
+      metadata: {
+        ...metadata,
+        event_type: alert.event_type,
+        importance: alert.importance,
+      },
+    });
+  }
+
+  return [...deduped.values()];
+}
+
+async function ingestAlertModelSignals(source, alerts, diffText, env) {
+  let processed = 0;
+
+  for (const alert of alerts) {
+    const candidates = extractAlertModelSignals(source, alert, diffText);
+    for (const candidate of candidates) {
+      const result = await ingestModelCandidate(env, candidate);
+      if (result.outcome !== 'skipped') {
+        processed += 1;
+      }
+    }
+  }
+
+  return processed;
+}
+
+async function ingestDirectSourceCandidates(source, diffText, env) {
+  let processed = 0;
+
+  for (const candidate of extractDirectSourceModelSignals(source, diffText)) {
+    const result = await ingestModelCandidate(env, candidate);
+    if (result.outcome !== 'skipped') {
+      processed += 1;
+    }
+  }
+
+  return processed;
 }
 
 /**
@@ -100,8 +224,11 @@ async function checkSource(source, env) {
     await env.DB.prepare(
       'INSERT INTO content_hashes (source_key, content_hash, last_checked) VALUES (?, ?, ?)'
     ).bind(source.key, newHash, now).run();
-    console.log(`[MONITOR] ${source.key}: baseline hash stored`);
-    return { changed: false };
+    if (env.CACHE) {
+      await env.CACHE.put(`monitor:content:${source.key}`, content, { expirationTtl: 172800 });
+    }
+    console.log(`[MONITOR] ${source.key}: baseline hash stored${source.bootstrapCapture ? ' (bootstrap capture enabled)' : ''}`);
+    return { changed: Boolean(source.bootstrapCapture), content, previousContent: null };
   }
 
   if (existing.content_hash === newHash) {
@@ -120,10 +247,12 @@ async function checkSource(source, env) {
   console.log(`[MONITOR] ${source.key}: content change detected`);
 
   // Get previous content from cache for diffing
-  const cachedContent = await env.CACHE.get(`monitor:content:${source.key}`);
+  const cachedContent = env.CACHE ? await env.CACHE.get(`monitor:content:${source.key}`) : null;
 
   // Cache new content
-  await env.CACHE.put(`monitor:content:${source.key}`, content, { expirationTtl: 172800 }); // 48h
+  if (env.CACHE) {
+    await env.CACHE.put(`monitor:content:${source.key}`, content, { expirationTtl: 172800 }); // 48h
+  }
 
   return { changed: true, content, previousContent: cachedContent };
 }
@@ -142,8 +271,8 @@ async function classifyAndStore(source, result, env) {
       .filter(l => !prevLines.has(l));
     diffText = newLines.slice(0, 50).join('\n'); // cap to prevent huge prompts
   } else {
-    // No previous — use first 2000 chars of content
-    diffText = content.slice(0, 2000);
+    // No previous — use a larger bootstrap slice for catalog-like pages.
+    diffText = content.slice(0, source.bootstrapSliceChars || 2000);
   }
 
   if (!diffText || diffText.length < 20) {
@@ -228,6 +357,17 @@ async function classifyAndStore(source, result, env) {
   if (stored > 0) {
     console.log(`[MONITOR] ${source.key}: created ${stored} new alerts`);
   }
+
+  const ingestedSignals = await ingestAlertModelSignals(source, alerts, diffText, env);
+  if (ingestedSignals > 0) {
+    console.log(`[MONITOR] ${source.key}: processed ${ingestedSignals} model candidate signals`);
+  }
+
+  const directSignals = await ingestDirectSourceCandidates(source, diffText, env);
+  if (directSignals > 0) {
+    console.log(`[MONITOR] ${source.key}: processed ${directSignals} direct source candidates`);
+  }
+
   return stored;
 }
 

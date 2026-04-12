@@ -67,9 +67,9 @@ app.onError((err, c) => {
 app.get('/', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').first();
-    return c.json({ name: 'All Things AI API', version: '0.10.1', status: 'ok', db: 'connected' });
+    return c.json({ name: 'All Things AI API', version: '0.11.0', status: 'ok', db: 'connected' });
   } catch {
-    return c.json({ name: 'All Things AI API', version: '0.10.1', status: 'degraded', db: 'error' }, 503);
+    return c.json({ name: 'All Things AI API', version: '0.11.0', status: 'degraded', db: 'error' }, 503);
   }
 });
 
@@ -105,7 +105,8 @@ app.post('/api/ingest', requireAdmin(), async (c) => {
 // Manual trigger for industry monitor only — C1: require auth
 app.post('/api/ingest/monitor', requireAdmin(), async (c) => {
   try {
-    const result = await monitorAIIndustry(c.env);
+    const sourceKeys = new URL(c.req.url).searchParams.getAll('source').filter(Boolean);
+    const result = await monitorAIIndustry(c.env, { sourceKeys });
     return c.json({ status: 'ok', ...result });
   } catch (e) {
     return c.json({ status: 'error', message: e.message }, 500);

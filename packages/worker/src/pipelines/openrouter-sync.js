@@ -9,6 +9,7 @@ import {
   isImportableModel,
   parseOpenRouterPrice,
 } from '../services/openrouter-utils.js';
+import { ingestModelCandidate } from '../services/model-intake.js';
 import { computeTaskCosts } from '../services/task-cost-calculator.js';
 
 async function loadLocalModels(env) {
@@ -51,8 +52,8 @@ export async function syncOpenRouterStats(env) {
   if (!matches.length) {
     // Still try auto-import even if no existing models matched
     const imported = await autoImportNewModels(env, openrouterModels, new Set());
-    console.warn(`[OPENROUTER] No local models matched OpenRouter catalog (${imported} auto-imported)`);
-    return { matched_models: 0, synced_models: 0, hydrated_core_models: 0, auto_imported: imported };
+    console.warn(`[OPENROUTER] No local models matched OpenRouter catalog (${imported.autoPublished} auto-published, ${imported.queued} queued)`);
+    return { matched_models: 0, synced_models: 0, hydrated_core_models: 0, auto_imported: imported.autoPublished, queued_candidates: imported.queued };
   }
 
   const withActivity = await mapWithActivity(matches);
@@ -68,7 +69,7 @@ export async function syncOpenRouterStats(env) {
       completion_tokens_daily, match_score, hydrates_core_model,
       source_url, activity_source_url, last_synced_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(model_id) DO UPDATE SET
       openrouter_id = excluded.openrouter_id,
       canonical_slug = excluded.canonical_slug,
@@ -183,50 +184,48 @@ export async function syncOpenRouterStats(env) {
   const matchedOrIds = new Set(matches.map(m => m.openrouter.id));
   const imported = await autoImportNewModels(env, openrouterModels, matchedOrIds);
 
-  console.log(`[OPENROUTER] Synced ${withActivity.length} models (${hydratedCoreModels} core hydrations, ${imported} auto-imported)`);
+  console.log(`[OPENROUTER] Synced ${withActivity.length} models (${hydratedCoreModels} core hydrations, ${imported.autoPublished} auto-published, ${imported.queued} queued)`);
 
   return {
     matched_models: matches.length,
     synced_models: withActivity.length,
     hydrated_core_models: hydratedCoreModels,
-    auto_imported: imported,
+    auto_imported: imported.autoPublished,
+    queued_candidates: imported.queued,
   };
 }
 
 /**
- * Auto-import OpenRouter models that don't match any local model.
- * Only imports text-generation LLMs with pricing data.
- * Inserts into models table with discovery_source = 'openrouter'.
+ * Route unmatched OpenRouter models through the shared intake path.
+ * Catalog signals alone do not auto-publish unless a trusted corroborator already exists.
  */
 async function autoImportNewModels(env, openrouterModels, matchedOrIds) {
   // Get all existing slugs and openrouter_ids to avoid duplicates
   const { results: existingModels } = await env.DB.prepare(
     'SELECT slug, openrouter_id FROM models'
   ).all();
+  const { results: pendingModels } = await env.DB.prepare(
+    "SELECT slug, openrouter_id FROM pending_models WHERE status = 'pending'"
+  ).all();
   const existingSlugs = new Set(existingModels.map(m => m.slug));
   const existingOrIds = new Set(existingModels.map(m => m.openrouter_id).filter(Boolean));
+  const pendingSlugs = new Set(pendingModels.map(m => m.slug).filter(Boolean));
+  const pendingOrIds = new Set(pendingModels.map(m => m.openrouter_id).filter(Boolean));
 
   const candidates = openrouterModels.filter(m =>
     !matchedOrIds.has(m.id) &&
     !existingOrIds.has(m.id) &&
+    (pendingOrIds.has(m.id) || pendingSlugs.has(slugFromOpenRouterId(m.id))) &&
     isImportableModel(m)
   );
 
   if (!candidates.length) {
-    console.log('[OPENROUTER] No new models to auto-import');
-    return 0;
+    console.log('[OPENROUTER] No pending candidates need OpenRouter corroboration');
+    return { autoPublished: 0, queued: 0 };
   }
 
-  const insertModel = env.DB.prepare(`
-    INSERT OR IGNORE INTO models
-    (name, slug, vendor, family, description, is_active, discovery_source, openrouter_id,
-     input_price_per_mtok, output_price_per_mtok, cache_hit_price_per_mtok,
-     context_window, is_open_weight, updated_at)
-    VALUES (?, ?, ?, ?, ?, 1, 'openrouter', ?, ?, ?, ?, ?, ?, datetime('now'))
-  `);
-
-  const batch = [];
-  let imported = 0;
+  let autoPublished = 0;
+  let queued = 0;
 
   for (const orModel of candidates) {
     const slug = slugFromOpenRouterId(orModel.id);
@@ -241,26 +240,42 @@ async function autoImportNewModels(env, openrouterModels, matchedOrIds) {
     const contextWindow = orModel.context_length || null;
     const isOpenWeight = orModel.architecture?.instruct_type ? 1 : 0;
 
-    batch.push(insertModel.bind(
-      name, slug, vendor, family, description, orModel.id,
-      inputPrice, outputPrice, cachePrice,
-      contextWindow, isOpenWeight,
-    ));
+    const result = await ingestModelCandidate(env, {
+      name,
+      slug,
+      vendor,
+      family,
+      description,
+      inputPricePerMtok: inputPrice,
+      outputPricePerMtok: outputPrice,
+      cacheHitPricePerMtok: cachePrice,
+      contextWindow,
+      isOpenWeight,
+      openrouterId: orModel.id,
+      discoverySource: 'openrouter',
+      discoveryUrl: `https://openrouter.ai/${orModel.id}`,
+      sourceKey: 'openrouter-catalog',
+      sourceLabel: 'OpenRouter Catalog',
+      sourceUrl: 'https://openrouter.ai/api/v1/models',
+      contentUrl: `https://openrouter.ai/${orModel.id}`,
+      signalType: 'catalog',
+      metadata: {
+        canonical_slug: orModel.canonical_slug || null,
+        openrouter_id: orModel.id,
+      },
+    });
 
     existingSlugs.add(slug);
-    imported++;
-  }
-
-  if (batch.length) {
-    // D1 batch limit is 100 statements
-    for (let i = 0; i < batch.length; i += 100) {
-      await env.DB.batch(batch.slice(i, i + 100));
+    if (result.outcome === 'auto-published') {
+      autoPublished++;
+    } else if (result.outcome === 'queued') {
+      queued++;
     }
   }
 
-  if (imported > 0) {
-    console.log(`[OPENROUTER] Auto-imported ${imported} new models`);
+  if (autoPublished > 0 || queued > 0) {
+    console.log(`[OPENROUTER] Processed ${autoPublished + queued} pending candidates (${autoPublished} auto-published, ${queued} still pending)`);
   }
 
-  return imported;
+  return { autoPublished, queued };
 }

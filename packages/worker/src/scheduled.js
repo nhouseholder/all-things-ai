@@ -114,9 +114,11 @@ export async function handleScheduled(event, env) {
         await env.CACHE.delete('model-aliases:merged');
       });
       break;
-    // Daily 9am: AI Industry Monitor — check vendor blogs, pricing pages, aggregators
-    case '0 9 * * *':
+    // Faster model-intake sweep so new releases are picked up within hours, not days
+    case '15 */4 * * *':
       await runSafe('monitorAIIndustry', () => monitorAIIndustry(env));
+      await runSafe('syncOpenRouterStats', () => syncOpenRouterStats(env));
+      await runSafe('discoverNewModels', () => discoverNewModels(env));
       break;
     default:
       console.log(`[CRON] Unknown schedule: ${cron}`);

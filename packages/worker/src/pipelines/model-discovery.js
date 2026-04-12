@@ -1,8 +1,8 @@
-import { KNOWN_VENDORS } from '../config/sources.js';
+import { extractModelCandidatesFromText, ingestModelCandidate } from '../services/model-intake.js';
 
 /**
- * Scans recent news items for model release announcements and creates
- * pending_models entries for review. Conservative — never auto-promotes.
+ * Scans recent news items for model release announcements and routes
+ * discoveries into the shared intake pipeline.
  */
 export async function discoverNewModels(env) {
   // 1. Fetch recent news items tagged as model releases (last 48h)
@@ -25,92 +25,42 @@ export async function discoverNewModels(env) {
     return { discovered: 0 };
   }
 
-  // 2. Get existing model slugs to deduplicate
-  const { results: existingModels } = await env.DB.prepare('SELECT slug FROM models').all();
-  const { results: pendingModels } = await env.DB.prepare("SELECT slug FROM pending_models WHERE status = 'pending'").all();
-  const knownSlugs = new Set([
-    ...existingModels.map(m => m.slug),
-    ...pendingModels.map(m => m.slug),
-  ]);
-
-  // 3. Scan each news item for model name patterns
   let discovered = 0;
+  let autoPublished = 0;
+
   for (const item of newsItems) {
-    const text = `${item.title} ${item.summary || ''}`.toLowerCase();
-    const candidates = extractModelCandidates(text);
+    const text = `${item.title} ${item.summary || ''}`;
+    const candidates = extractModelCandidatesFromText(text);
 
     for (const candidate of candidates) {
-      if (knownSlugs.has(candidate.slug)) continue;
+      const result = await ingestModelCandidate(env, {
+        ...candidate,
+        sourceKey: item.source,
+        sourceLabel: item.source,
+        sourceUrl: item.content_url || null,
+        contentUrl: item.content_url || null,
+        discoverySource: item.source,
+        discoveryUrl: item.content_url || null,
+        signalType: 'news',
+        title: item.title,
+        summary: item.summary || null,
+        metadata: {
+          news_item_id: item.id,
+          published_at: item.published_at,
+          source: item.source,
+        },
+      });
 
-      try {
-        await env.DB.prepare(`
-          INSERT OR IGNORE INTO pending_models
-          (name, slug, vendor, family, discovery_source, discovery_url, status)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending')
-        `).bind(
-          candidate.name,
-          candidate.slug,
-          candidate.vendor,
-          candidate.family,
-          item.source,
-          item.content_url
-        ).run();
-
-        knownSlugs.add(candidate.slug);
+      if (result.outcome === 'queued' || result.outcome === 'auto-published') {
         discovered++;
         console.log(`[DISCOVERY] New model candidate: "${candidate.name}" from ${item.source}`);
-      } catch (e) {
-        // UNIQUE constraint = already pending, skip
+      }
+      if (result.outcome === 'auto-published') {
+        autoPublished++;
       }
     }
   }
 
-  console.log(`[DISCOVERY] Scanned ${newsItems.length} items, discovered ${discovered} new candidates`);
-  return { discovered, scanned: newsItems.length };
-}
-
-/**
- * Extract model name candidates from text using known vendor patterns.
- * Returns array of { name, slug, vendor, family }
- */
-function extractModelCandidates(text) {
-  const candidates = [];
-  const seen = new Set();
-
-  for (const [vendor, config] of Object.entries(KNOWN_VENDORS)) {
-    for (const prefix of config.prefixes) {
-      // Match pattern: prefix + version/name (e.g., "gemini 3.2", "claude opus 5", "gpt-6")
-      const patterns = [
-        new RegExp(`${prefix}[\\s-]*(\\d+\\.?\\d*(?:\\s*(?:pro|ultra|flash|mini|plus|max|turbo|scout|maverick|large|medium|small|high|xhigh))?)`, 'gi'),
-        new RegExp(`${prefix}[\\s-]*([a-z]+\\s*\\d+\\.?\\d*)`, 'gi'),
-      ];
-
-      for (const regex of patterns) {
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          const fullMatch = match[0].trim();
-          const slug = fullMatch
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-
-          if (slug.length < 4 || seen.has(slug)) continue;
-          seen.add(slug);
-
-          // Title-case the name
-          const name = fullMatch.replace(/\b\w/g, c => c.toUpperCase());
-
-          candidates.push({
-            name,
-            slug,
-            vendor,
-            family: config.family,
-          });
-        }
-      }
-    }
-  }
-
-  return candidates;
+  console.log(`[DISCOVERY] Scanned ${newsItems.length} items, discovered ${discovered} new candidates (${autoPublished} auto-published)`);
+  return { discovered, autoPublished, scanned: newsItems.length };
 }

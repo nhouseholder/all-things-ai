@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS models (
     slug TEXT NOT NULL UNIQUE,
     vendor TEXT NOT NULL,
     family TEXT,
+    version_string TEXT,
     release_date TEXT,
     description TEXT,
     is_active INTEGER DEFAULT 1,
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS models (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_models_discovery_source ON models(discovery_source);
+CREATE INDEX IF NOT EXISTS idx_models_version_string ON models(version_string);
 
 -- Benchmark scores for models
 CREATE TABLE IF NOT EXISTS benchmarks (
@@ -311,6 +313,7 @@ CREATE TABLE IF NOT EXISTS pending_models (
     slug TEXT NOT NULL UNIQUE,
     vendor TEXT NOT NULL,
     family TEXT,
+    version_string TEXT,
     release_date TEXT,
     description TEXT,
     input_price_per_mtok REAL,
@@ -320,10 +323,34 @@ CREATE TABLE IF NOT EXISTS pending_models (
     is_open_weight INTEGER DEFAULT 0,
     discovery_source TEXT,
     discovery_url TEXT,
+    openrouter_id TEXT,
+    metadata TEXT,
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    published_model_id INTEGER REFERENCES models(id),
+    decision_source TEXT,
     reviewed_at TEXT,
+    last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_pending_status_seen ON pending_models(status, last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pending_published_model ON pending_models(published_model_id);
+
+CREATE TABLE IF NOT EXISTS model_candidate_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pending_model_id INTEGER NOT NULL REFERENCES pending_models(id),
+    signal_type TEXT NOT NULL CHECK(signal_type IN ('official','catalog','news','community')),
+    source_key TEXT NOT NULL,
+    source_label TEXT,
+    source_url TEXT,
+    content_url TEXT,
+    signal_hash TEXT NOT NULL UNIQUE,
+    title TEXT,
+    summary TEXT,
+    metadata TEXT,
+    detected_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_model_candidate_signals_pending ON model_candidate_signals(pending_model_id);
+CREATE INDEX IF NOT EXISTS idx_model_candidate_signals_type ON model_candidate_signals(signal_type);
 
 -- Dynamic model aliases for community review matching
 CREATE TABLE IF NOT EXISTS model_aliases (

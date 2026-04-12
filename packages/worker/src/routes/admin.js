@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireAdmin } from '../middleware/auth.js';
+import { generateModelAliases, publishPendingModel } from '../services/model-intake.js';
 
 export const adminRoutes = new Hono();
 
@@ -11,9 +12,9 @@ adminRoutes.use('*', requireAdmin());
 // POST /api/admin/models — create a model directly (active)
 adminRoutes.post('/models', async (c) => {
   const body = await c.req.json();
-  const { name, slug, vendor, family, release_date, description,
+  const { name, slug, vendor, family, version_string, release_date, description,
     input_price_per_mtok, output_price_per_mtok, cache_hit_price_per_mtok,
-    context_window, is_open_weight } = body;
+    context_window, is_open_weight, discovery_source, openrouter_id } = body;
 
   if (!name || !slug || !vendor) {
     return c.json({ error: 'name, slug, and vendor are required' }, 400);
@@ -24,14 +25,15 @@ adminRoutes.post('/models', async (c) => {
   if (existing) return c.json({ error: `Model with slug "${slug}" already exists` }, 409);
 
   const result = await c.env.DB.prepare(`
-    INSERT INTO models (name, slug, vendor, family, release_date, description,
+    INSERT INTO models (name, slug, vendor, family, version_string, release_date, description,
       input_price_per_mtok, output_price_per_mtok, cache_hit_price_per_mtok,
-      context_window, is_open_weight, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      context_window, is_open_weight, is_active, discovery_source, openrouter_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
   `).bind(
-    name, slug, vendor, family || null, release_date || null, description || null,
+    name, slug, vendor, family || null, version_string || null, release_date || null, description || null,
     input_price_per_mtok ?? null, output_price_per_mtok ?? null,
     cache_hit_price_per_mtok ?? null, context_window ?? null, is_open_weight ?? 0
+    , discovery_source || 'manual', openrouter_id || null
   ).run();
 
   // Auto-generate basic aliases
@@ -87,7 +89,7 @@ adminRoutes.delete('/models/:slug', async (c) => {
 adminRoutes.get('/pending', async (c) => {
   const status = c.req.query('status') || 'pending';
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM pending_models WHERE status = ? ORDER BY created_at DESC LIMIT 50'
+    'SELECT * FROM pending_models WHERE status = ? ORDER BY COALESCE(last_seen_at, created_at) DESC LIMIT 50'
   ).bind(status).all();
   return c.json({ pending: results });
 });
@@ -101,36 +103,12 @@ adminRoutes.post('/pending/:id/approve', async (c) => {
   // Check slug doesn't already exist in models
   const existing = await c.env.DB.prepare('SELECT id FROM models WHERE slug = ?').bind(pending.slug).first();
   if (existing) {
-    await c.env.DB.prepare("UPDATE pending_models SET status = 'rejected', reviewed_at = datetime('now') WHERE id = ?").bind(id).run();
+    await c.env.DB.prepare("UPDATE pending_models SET status = 'rejected', reviewed_at = datetime('now'), decision_source = 'manual' WHERE id = ?").bind(id).run();
     return c.json({ error: `Model slug "${pending.slug}" already exists in models table`, action: 'auto-rejected' }, 409);
   }
 
-  // Insert into models
-  const result = await c.env.DB.prepare(`
-    INSERT INTO models (name, slug, vendor, family, release_date, description,
-      input_price_per_mtok, output_price_per_mtok, cache_hit_price_per_mtok,
-      context_window, is_open_weight, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).bind(
-    pending.name, pending.slug, pending.vendor, pending.family,
-    pending.release_date, pending.description,
-    pending.input_price_per_mtok, pending.output_price_per_mtok,
-    pending.cache_hit_price_per_mtok, pending.context_window,
-    pending.is_open_weight || 0
-  ).run();
-
-  const modelId = result.meta?.last_row_id;
-
-  // Mark as approved
-  await c.env.DB.prepare("UPDATE pending_models SET status = 'approved', reviewed_at = datetime('now') WHERE id = ?").bind(id).run();
-
-  // Auto-generate aliases
-  const aliases = generateAliases(pending.name, pending.slug, pending.vendor, pending.family);
-  if (aliases.length > 0) {
-    const stmt = c.env.DB.prepare('INSERT OR IGNORE INTO model_aliases (model_slug, alias) VALUES (?, ?)');
-    await c.env.DB.batch(aliases.map(a => stmt.bind(pending.slug, a)));
-    await c.env.CACHE.delete('model-aliases:merged');
-  }
+  const published = await publishPendingModel(c.env, pending, { decisionSource: 'manual' });
+  const modelId = published.modelId;
 
   // Auto-enrich: interpolate task estimates from sibling model
   let estimatesCreated = 0;
@@ -152,7 +130,7 @@ adminRoutes.post('/pending/:id/approve', async (c) => {
   return c.json({
     ok: true,
     model_id: modelId,
-    aliases_created: aliases.length,
+    aliases_created: published.aliasesCreated,
     estimates_created: estimatesCreated,
   });
 });
@@ -160,7 +138,7 @@ adminRoutes.post('/pending/:id/approve', async (c) => {
 // POST /api/admin/pending/:id/reject
 adminRoutes.post('/pending/:id/reject', async (c) => {
   const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE pending_models SET status = 'rejected', reviewed_at = datetime('now') WHERE id = ?").bind(id).run();
+  await c.env.DB.prepare("UPDATE pending_models SET status = 'rejected', reviewed_at = datetime('now'), decision_source = 'manual' WHERE id = ?").bind(id).run();
   return c.json({ ok: true });
 });
 
@@ -283,7 +261,7 @@ adminRoutes.get('/pipeline-status', async (c) => {
     `).first(),
     c.env.DB.prepare("SELECT COUNT(*) as c FROM pending_models WHERE status = 'pending'").first(),
     c.env.DB.prepare(`
-      SELECT MAX(synced_at) as last_sync FROM model_openrouter_stats
+      SELECT MAX(last_synced_at) as last_sync FROM model_openrouter_stats
     `).first(),
     c.env.DB.prepare(`
       SELECT MAX(measured_at) as last_scrape FROM benchmarks
@@ -312,39 +290,6 @@ adminRoutes.get('/pipeline-status', async (c) => {
     health: staleModels.c === 0 ? 'healthy' : staleModels.c <= 5 ? 'warning' : 'degraded',
   });
 });
-
-// ── Helper functions ────────────────────────────────────────
-
-function generateAliases(name, slug, vendor, family) {
-  const aliases = new Set();
-  const lower = name.toLowerCase();
-
-  // Full name lowercase
-  aliases.add(lower);
-  // Slug itself
-  aliases.add(slug);
-  // Without vendor prefix
-  if (vendor && lower.startsWith(vendor.toLowerCase())) {
-    aliases.add(lower.slice(vendor.length).trim());
-  }
-  // Family + version: "Claude Opus 4.6" → "opus 4.6"
-  if (family) {
-    const familyLower = family.toLowerCase();
-    const idx = lower.indexOf(familyLower);
-    if (idx >= 0) {
-      aliases.add(lower.slice(idx)); // "opus 4.6"
-    }
-  }
-  // No dots: "opus4.6" → "opus46"
-  aliases.add(lower.replace(/\./g, ''));
-  // No spaces: "opus 4.6" → "opus4.6"
-  aliases.add(lower.replace(/\s+/g, ''));
-  // Hyphenated: "opus 4.6" → "opus-4.6"
-  aliases.add(lower.replace(/\s+/g, '-'));
-
-  // Remove empty or too-short aliases
-  return [...aliases].filter(a => a.length >= 3);
-}
 
 async function interpolateTaskEstimates(env, modelId, vendor, family) {
   // Find closest sibling model in the same family
