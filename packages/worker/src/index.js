@@ -68,9 +68,9 @@ app.onError((err, c) => {
 app.get('/', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').first();
-    return c.json({ name: 'All Things AI API', version: '0.11.1', status: 'ok', db: 'connected' });
+    return c.json({ name: 'All Things AI API', version: '0.11.2', status: 'ok', db: 'connected' });
   } catch {
-    return c.json({ name: 'All Things AI API', version: '0.11.1', status: 'degraded', db: 'error' }, 503);
+    return c.json({ name: 'All Things AI API', version: '0.11.2', status: 'degraded', db: 'error' }, 503);
   }
 });
 

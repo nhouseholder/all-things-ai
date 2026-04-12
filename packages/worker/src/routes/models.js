@@ -3,6 +3,85 @@ import { computeVibeCoderFit, summarizeTaskSignals } from '../services/vibe-fit-
 
 export const modelsRoutes = new Hono();
 
+const BENCHMARK_COMPONENT_MAP = {
+  'SWE-bench Verified': 'swe_bench',
+  LiveCodeBench: 'livecodebench',
+  'Human Nuance Understanding': 'nuance',
+  'Chatbot Arena ELO': 'arena',
+  'TAU-bench Retail': 'tau',
+  'GPQA Diamond': 'gpqa',
+  "Humanity's Last Exam": 'hle',
+  MMLU: 'mmlu',
+  'HumanEval+': 'humaneval',
+};
+
+function normalizeBenchmarkComponent(key, score) {
+  if (score == null) return null;
+  if (key === 'arena') {
+    return Number(Math.max(0, Math.min(100, ((score - 1200) / 400) * 100)).toFixed(2));
+  }
+  return Number(Math.max(0, Math.min(100, score)).toFixed(2));
+}
+
+function deriveSuccessRateComponent(taskEstimateMap) {
+  const values = Object.values(taskEstimateMap || {})
+    .map((entry) => entry?.success_rate)
+    .filter((value) => value != null);
+
+  if (!values.length) return null;
+
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Number((average * 100).toFixed(2));
+}
+
+export function buildCapabilityProfile(model, benchmarks = [], taskEstimateMap = {}) {
+  const components = {
+    swe_bench: model.swe_bench_component,
+    livecodebench: model.livecodebench_component,
+    nuance: model.nuance_component,
+    arena: model.arena_component,
+    tau: model.tau_component,
+    gpqa: model.gpqa_component,
+    hle: model.hle_component,
+    mmlu: model.mmlu_component,
+    humaneval: model.humaneval_component,
+    success_rate: model.success_rate_component,
+    community: model.community_adjustment,
+  };
+
+  for (const benchmark of benchmarks) {
+    const key = BENCHMARK_COMPONENT_MAP[benchmark.benchmark_name];
+    if (!key) continue;
+    if (components[key] == null || components[key] === 0) {
+      components[key] = normalizeBenchmarkComponent(key, benchmark.score);
+    }
+  }
+
+  if (components.success_rate == null || components.success_rate === 0) {
+    components.success_rate = deriveSuccessRateComponent(taskEstimateMap);
+  }
+
+  return components;
+}
+
+function applyCapabilityProfileFallbacks(model, benchmarks = [], taskEstimateMap = {}) {
+  const capabilityProfile = buildCapabilityProfile(model, benchmarks, taskEstimateMap);
+
+  return {
+    ...model,
+    swe_bench_component: capabilityProfile.swe_bench,
+    livecodebench_component: capabilityProfile.livecodebench,
+    nuance_component: capabilityProfile.nuance,
+    arena_component: capabilityProfile.arena,
+    tau_component: capabilityProfile.tau,
+    gpqa_component: capabilityProfile.gpqa,
+    hle_component: capabilityProfile.hle,
+    mmlu_component: capabilityProfile.mmlu,
+    humaneval_component: capabilityProfile.humaneval,
+    success_rate_component: capabilityProfile.success_rate,
+  };
+}
+
 // GET /api/models — all models with latest benchmarks
 modelsRoutes.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(`
@@ -158,7 +237,8 @@ modelsRoutes.get('/compare', async (c) => {
     SELECT m.*,
       mcs.composite_score, mcs.swe_bench_component, mcs.livecodebench_component,
       mcs.nuance_component, mcs.arena_component, mcs.tau_component,
-      mcs.gpqa_component, mcs.success_rate_component, mcs.community_adjustment
+      mcs.gpqa_component, mcs.hle_component, mcs.mmlu_component,
+      mcs.humaneval_component, mcs.success_rate_component, mcs.community_adjustment
     FROM models m
     LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
     WHERE m.slug IN (${placeholders}) AND m.is_active = 1
@@ -245,21 +325,15 @@ modelsRoutes.get('/compare', async (c) => {
 
   const comparison = models.map(m => {
     const rev = reviewByModel[m.id];
+    const benchmarks = benchmarksByModel[m.id] || [];
+    const taskEstimates = tasksByModel[m.id] || {};
+    const capabilityProfile = buildCapabilityProfile(m, benchmarks, taskEstimates);
     return {
       ...m,
-      benchmarks: benchmarksByModel[m.id] || [],
+      benchmarks,
       availability: availByModel[m.id] || [],
       blended_cost: (m.input_price_per_mtok * 0.3 + m.output_price_per_mtok * 0.7),
-      score_components: {
-        swe_bench: m.swe_bench_component,
-        livecodebench: m.livecodebench_component,
-        nuance: m.nuance_component,
-        arena: m.arena_component,
-        tau: m.tau_component,
-        gpqa: m.gpqa_component,
-        success_rate: m.success_rate_component,
-        community: m.community_adjustment,
-      },
+      score_components: capabilityProfile,
       community: rev ? {
         total_reviews: rev.total_reviews,
         satisfaction: rev.avg_satisfaction,
@@ -268,7 +342,7 @@ modelsRoutes.get('/compare', async (c) => {
         vibe_count: rev.vibe_count,
         casual_count: rev.casual_count,
       } : null,
-      task_estimates: tasksByModel[m.id] || {},
+      task_estimates: taskEstimates,
     };
   });
 
@@ -282,7 +356,8 @@ modelsRoutes.get('/:slug', async (c) => {
     SELECT m.*,
       mcs.composite_score, mcs.swe_bench_component, mcs.livecodebench_component,
       mcs.nuance_component, mcs.arena_component, mcs.tau_component,
-      mcs.gpqa_component, mcs.success_rate_component, mcs.community_adjustment,
+      mcs.gpqa_component, mcs.hle_component, mcs.mmlu_component,
+      mcs.humaneval_component, mcs.success_rate_component, mcs.community_adjustment,
       mcs.updated_at as score_updated_at
     FROM models m
     LEFT JOIN model_composite_scores mcs ON mcs.model_id = m.id
@@ -422,9 +497,13 @@ modelsRoutes.get('/:slug', async (c) => {
       vibe_satisfaction: vibeSatisfaction,
     },
   });
+  const taskEstimateMap = Object.fromEntries(
+    taskRes.results.map((task) => [task.task_slug, { success_rate: task.first_attempt_success_rate }])
+  );
+  const hydratedModel = applyCapabilityProfileFallbacks(model, benchRes.results, taskEstimateMap);
 
   return c.json({
-    ...model,
+    ...hydratedModel,
     blended_cost_per_mtok: blendedCost ? Number(blendedCost.toFixed(4)) : null,
     benchmarks: benchRes.results,
     availability: availRes.results,
