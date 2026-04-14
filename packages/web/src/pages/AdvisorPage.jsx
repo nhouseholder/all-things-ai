@@ -17,6 +17,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Brain,
+  Sparkles,
 } from 'lucide-react';
 import {
   BarChart,
