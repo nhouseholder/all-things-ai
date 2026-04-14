@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Newspaper, CreditCard, Flame, ArrowLeftRight } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Newspaper, CreditCard } from 'lucide-react';
 import { useUnreadAlertCount } from '../../lib/hooks.js';
 
 const links = [
@@ -11,9 +11,6 @@ const links = [
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/coding-tools', icon: Puzzle, label: 'Plugins' },
   { to: '/plans', icon: CreditCard, label: 'Plans' },
-  { to: '/coding-plans', icon: Scale, label: 'Coding Plans' },
-  { to: '/plan-burn', icon: Flame, label: 'Plan Burn' },
-  { to: '/plan-compare', icon: ArrowLeftRight, label: 'Plan Compare' },
   { to: '/cost', icon: DollarSign, label: 'Optimize' },
   { to: '/news', icon: Newspaper, label: 'News', hasBadge: true },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -58,7 +55,7 @@ export default function Sidebar() {
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-1">Your AI Intelligence Hub</p>
-  <p className="text-[10px] text-gray-500 mt-0.5">v0.12.1 &middot; Apr 12, 2026</p>
+  <p className="text-[10px] text-gray-500 mt-0.5">v0.13.0 &middot; Apr 14, 2026</p>
       </div>
       <nav className="flex-1 p-3 space-y-1" aria-label="Main navigation">
         {links.map(({ to, icon: Icon, label, hasBadge }) => (

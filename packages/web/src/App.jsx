@@ -18,9 +18,6 @@ const RecommendPage = lazy(() => import('./pages/RecommendPage.jsx'));
 const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const PlansPage = lazy(() => import('./pages/PlansPage.jsx'));
-const CodingPlansPage = lazy(() => import('./pages/CodingPlansPage.jsx'));
-const PlanBurnPage = lazy(() => import('./pages/PlanBurnPage.jsx'));
-const PlanComparePage = lazy(() => import('./pages/PlanComparePage.jsx'));
 const ModelDetailPage = lazy(() => import('./pages/ModelDetailPage.jsx'));
 
 function PageLoader() {
@@ -49,9 +46,9 @@ export default function App() {
           <Route path="coding-tools/recommend" element={<RecommendPage />} />
           <Route path="news" element={<NewsPage />} />
           <Route path="plans" element={<PlansPage />} />
-          <Route path="coding-plans" element={<CodingPlansPage />} />
-          <Route path="plan-burn" element={<PlanBurnPage />} />
-          <Route path="plan-compare" element={<PlanComparePage />} />
+          <Route path="coding-plans" element={<Navigate to="/plans" replace />} />
+          <Route path="plan-burn" element={<Navigate to="/plans?tab=burn" replace />} />
+          <Route path="plan-compare" element={<Navigate to="/plans?tab=compare" replace />} />
           <Route path="models/:slug" element={<ModelDetailPage />} />
           <Route path="alerts" element={<Navigate to="/news" replace />} />
           <Route path="settings" element={<SettingsPage />} />
