@@ -65,6 +65,10 @@ export const api = {
     return request(`/api/recommendations${qs ? '?' + qs : ''}`);
   },
   dismissRecommendation: (id) => request(`/api/recommendations/${id}/dismiss`, { method: 'POST' }),
+  getStackRecommendations: (stack) => request('/api/recommendations/stack', {
+    method: 'POST',
+    body: JSON.stringify(stack),
+  }),
 
   // Dashboard
   getDashboardSummary: () => request('/api/dashboard/summary'),

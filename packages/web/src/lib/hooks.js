@@ -68,6 +68,20 @@ export function useRecommendations(params) {
   return useQuery({ queryKey: ['recommendations', params], queryFn: () => api.getRecommendations(params) });
 }
 
+// My Stack — personalized recommendations from user-provided stack
+export function useStackRecommendations(stack) {
+  const hasStack = stack && (
+    (Array.isArray(stack.plans) && stack.plans.length) ||
+    (Array.isArray(stack.models) && stack.models.length) ||
+    (Array.isArray(stack.subscriptions) && stack.subscriptions.length)
+  );
+  return useQuery({
+    queryKey: ['stack-recommendations', stack],
+    queryFn: () => api.getStackRecommendations(stack),
+    enabled: !!hasStack,
+  });
+}
+
 export function useDismissRecommendation() {
   const qc = useQueryClient();
   return useMutation({
