@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireAdmin } from '../middleware/auth.js';
+import { generateStackRecommendations } from '../services/recommendation-engine.js';
 
 export const recommendationsRoutes = new Hono();
 
@@ -28,6 +29,31 @@ recommendationsRoutes.get('/', async (c) => {
 
   const { results } = await c.env.DB.prepare(query).bind(...params).all();
   return c.json(results);
+});
+
+// POST /api/recommendations/stack — personalized "bang for buck" recs from a
+// user-provided stack (no auth; stack is passed in the body, stored client-side)
+recommendationsRoutes.post('/stack', async (c) => {
+  let payload;
+  try {
+    payload = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const stack = {
+    plans: Array.isArray(payload?.plans) ? payload.plans : [],
+    subscriptions: Array.isArray(payload?.subscriptions) ? payload.subscriptions : [],
+    models: Array.isArray(payload?.models) ? payload.models : [],
+  };
+
+  try {
+    const result = await generateStackRecommendations(c.env, stack);
+    return c.json(result);
+  } catch (err) {
+    console.error('[stack-recommendations] error:', err);
+    return c.json({ error: 'Failed to generate recommendations' }, 500);
+  }
 });
 
 // POST /api/recommendations/:id/dismiss — requires auth
