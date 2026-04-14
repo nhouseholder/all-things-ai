@@ -286,15 +286,27 @@ function ToolCard({ tool }) {
   );
 }
 
+function hasAnyPaidPlan(tool) {
+  const plans = tool.plans ?? [];
+  return plans.some((p) => {
+    const price = p.price_monthly ?? p.monthly_price ?? 0;
+    return Number(price) > 0;
+  });
+}
+
 export default function ToolsPage() {
   useEffect(() => { setPageTitle('Tools'); }, []);
   const [category, setCategory] = useState('all');
+  const [pricingTab, setPricingTab] = useState('paid'); // 'free' | 'paid'
   const { data: toolsData, isLoading: loading, error: queryError } = useTools();
   const { data: rankingsData } = useToolRankings();
   const error = queryError?.message;
   const tools = toolsData?.tools ?? toolsData?.data ?? toolsData ?? [];
   const rankings = rankingsData?.rankings ?? [];
-  const filtered = category === 'all' ? tools : tools.filter((t) => t.category === category);
+  const byPricing = tools.filter((t) => (pricingTab === 'paid' ? hasAnyPaidPlan(t) : !hasAnyPaidPlan(t)));
+  const filtered = category === 'all' ? byPricing : byPricing.filter((t) => t.category === category);
+  const freeCount = tools.filter((t) => !hasAnyPaidPlan(t)).length;
+  const paidCount = tools.filter((t) => hasAnyPaidPlan(t)).length;
 
   if (loading) {
     return (
@@ -326,6 +338,30 @@ export default function ToolsPage() {
           subtitle="Composite score based on 5 weighted dimensions"
         />
       )}
+
+      {/* Free vs Paid Tab */}
+      <div className="flex items-center gap-1 mb-4 border-b border-gray-800 pb-2">
+        <button
+          onClick={() => setPricingTab('free')}
+          className={`text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
+            pricingTab === 'free'
+              ? 'bg-gray-900 text-emerald-400 border-b-2 border-emerald-400'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-900/30'
+          }`}
+        >
+          Free <span className="text-[10px] text-gray-600 ml-1">({freeCount})</span>
+        </button>
+        <button
+          onClick={() => setPricingTab('paid')}
+          className={`text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
+            pricingTab === 'paid'
+              ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-900/30'
+          }`}
+        >
+          Paid <span className="text-[10px] text-gray-600 ml-1">({paidCount})</span>
+        </button>
+      </div>
 
       {/* Category Filter */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">

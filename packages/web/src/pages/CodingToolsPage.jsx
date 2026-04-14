@@ -213,12 +213,18 @@ function ToolCard({ tool }) {
   );
 }
 
+function isFreePlugin(tool) {
+  const p = (tool?.pricing || '').toLowerCase();
+  return p === 'free' || p === 'open-source';
+}
+
 export default function CodingToolsPage() {
   useEffect(() => { setPageTitle('Plugins & Tools'); }, []);
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [pricingTab, setPricingTab] = useState('free'); // 'free' | 'paid'
 
   const params = {};
   if (category) params.category = category;
@@ -230,14 +236,16 @@ export default function CodingToolsPage() {
   const { data: rankingsData } = usePluginRankings();
   const rankings = rankingsData?.rankings ?? [];
 
-  const tools = data?.tools || [];
+  const allTools = data?.tools || [];
+  const tools = allTools.filter((t) => (pricingTab === 'free' ? isFreePlugin(t) : !isFreePlugin(t)));
   const categories = catData?.categories || [];
-  const total = data?.total || 0;
-  const toolBySlug = Object.fromEntries(tools.map((tool) => [tool.slug, tool]));
-  const enrichedRankings = rankings.map((ranking) => ({
-    ...toolBySlug[ranking.slug],
-    ...ranking,
-  }));
+  const total = tools.length;
+  const freeCount = allTools.filter(isFreePlugin).length;
+  const paidCount = allTools.length - freeCount;
+  const toolBySlug = Object.fromEntries(allTools.map((tool) => [tool.slug, tool]));
+  const enrichedRankings = rankings
+    .map((ranking) => ({ ...toolBySlug[ranking.slug], ...ranking }))
+    .filter((r) => (pricingTab === 'free' ? isFreePlugin(r) : !isFreePlugin(r)));
 
   function handleSearch(e) {
     e.preventDefault();
@@ -269,6 +277,30 @@ export default function CodingToolsPage() {
           Find My Tools
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
+      </div>
+
+      {/* Free vs Paid Tab */}
+      <div className="flex items-center gap-1 mb-4 border-b border-gray-800 pb-2">
+        <button
+          onClick={() => setPricingTab('free')}
+          className={`text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
+            pricingTab === 'free'
+              ? 'bg-gray-900 text-emerald-400 border-b-2 border-emerald-400'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-900/30'
+          }`}
+        >
+          Free / Open-Source <span className="text-[10px] text-gray-600 ml-1">({freeCount})</span>
+        </button>
+        <button
+          onClick={() => setPricingTab('paid')}
+          className={`text-sm font-medium px-4 py-2 rounded-t-lg transition-colors ${
+            pricingTab === 'paid'
+              ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-900/30'
+          }`}
+        >
+          Paid / Freemium <span className="text-[10px] text-gray-600 ml-1">({paidCount})</span>
+        </button>
       </div>
 
       {/* Rankings */}
