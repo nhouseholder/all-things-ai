@@ -42,13 +42,9 @@ const CATEGORY_COLORS = {
   platform: 'bg-cyan-500/10 text-cyan-400',
 };
 
-function formatPrice(price, planName) {
+function formatPrice(price, _planName) {
   if (price == null) return '—';
-  if (price === 0) {
-    // BYOK tools have $0 subscription but you pay API costs
-    if (planName && /byok/i.test(planName)) return 'BYOK';
-    return 'Free';
-  }
+  if (price === 0) return 'Free';
   return `$${Number(price).toFixed(0)}/mo`;
 }
 

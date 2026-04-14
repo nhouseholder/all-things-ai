@@ -194,7 +194,7 @@ function ModelToolsModal({ model, onClose }) {
                         label = 'Free';
                         style = 'bg-green-500/10 text-green-400';
                       } else if (hasByok) {
-                        label = 'BYOK';
+                        label = 'Free + API costs';
                         style = 'bg-yellow-500/10 text-yellow-400';
                       } else if (hasCredits) {
                         label = `${p.credits_per_request} cr/req`;

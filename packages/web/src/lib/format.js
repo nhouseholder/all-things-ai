@@ -49,13 +49,35 @@ export function formatTokenPrice(val) {
   return `$${Number(val).toFixed(2)}`;
 }
 
-/** Format subscription price — handles BYOK detection via plan name */
-export function formatSubPrice(price, planName) {
-  if (price == null) return '—';
-  if (price === 0) {
-    if (planName && /byok/i.test(planName)) return 'BYOK';
-    return 'Free';
+/**
+ * Format plan price — always returns a real monthly-price string.
+ * BYOK is a sourcing model, NEVER a price — callers that need to surface
+ * BYOK should render it as a tag next to the model name, not in price cells.
+ *
+ * Preference order:
+ *   1. Backend-computed `price_display` (already resolves reference_price_label fallback)
+ *   2. `price_monthly` when set (0 = Free)
+ *   3. `reference_price_monthly` rendered as `~$N/mo (ref)`
+ *   4. "Pricing not confirmed"
+ */
+export function formatPlanPrice(plan) {
+  if (!plan) return 'Pricing not confirmed';
+  if (plan.price_display) return plan.price_display;
+  if (plan.price_monthly === 0) return 'Free';
+  if (plan.price_monthly != null) return `$${Number(plan.price_monthly).toFixed(0)}/mo`;
+  if (plan.reference_price_monthly != null) {
+    return `~$${Number(plan.reference_price_monthly).toFixed(0)}/mo (ref)`;
   }
+  return 'Pricing not confirmed';
+}
+
+/**
+ * Legacy helper — kept for backward compat.
+ * Returns a real monthly-price string. Never returns "BYOK".
+ */
+export function formatSubPrice(price, _planName) {
+  if (price == null) return '—';
+  if (price === 0) return 'Free';
   return `$${Number(price).toFixed(0)}/mo`;
 }
 

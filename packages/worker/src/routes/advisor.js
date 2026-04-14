@@ -875,6 +875,8 @@ RULES:
             tool: a.tool_name,
             plan: a.plan_name,
             price: a.price_monthly,
+            reference_price_monthly: a.reference_price_monthly ?? null,
+            access_level: a.access_level ?? null,
           })),
         }));
       }

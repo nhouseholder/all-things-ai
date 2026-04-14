@@ -121,18 +121,25 @@ function RecommendationCard({ rec, rank }) {
         <div>
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Where to use it</p>
           <div className="space-y-1">
-            {rec.available_on.map((a, i) => (
-              <div key={i} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-gray-800/40 border border-gray-800">
-                <div className="flex items-center gap-1.5">
-                  <Cpu className="w-3 h-3 text-gray-500" />
-                  <span className="text-white">{a.tool}</span>
-                  {a.plan && <span className="text-gray-500">{a.plan}</span>}
+            {rec.available_on.map((a, i) => {
+              const priceLabel = a.price != null
+                ? `$${a.price}/mo`
+                : (a.reference_price_monthly != null ? `~$${a.reference_price_monthly}/mo` : '—');
+              const isByok = a.access_level === 'byok';
+              return (
+                <div key={i} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-gray-800/40 border border-gray-800">
+                  <div className="flex items-center gap-1.5">
+                    <Cpu className="w-3 h-3 text-gray-500" />
+                    <span className="text-white">{a.tool}</span>
+                    {a.plan && <span className="text-gray-500">{a.plan}</span>}
+                    {isByok && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">BYOK</span>}
+                  </div>
+                  <span className={`font-mono ${i === 0 ? 'text-green-400' : 'text-gray-400'}`}>
+                    {priceLabel}
+                  </span>
                 </div>
-                <span className={`font-mono ${i === 0 ? 'text-green-400' : 'text-gray-400'}`}>
-                  {a.price != null ? `$${a.price}/mo` : 'BYOK'}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

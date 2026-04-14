@@ -5,7 +5,11 @@ import {
   ArrowUpDown, MessageSquare, Info, Sparkles,
 } from 'lucide-react';
 import { useToolPlans } from '../lib/hooks.js';
-import { formatSubPrice, timeAgo } from '../lib/format.js';
+import { formatPlanPrice, timeAgo } from '../lib/format.js';
+
+function isCodingSubscription(plan) {
+  return plan?.comparison?.track === 'coding-subscription';
+}
 
 const CodingPlansContent = lazy(() => import('./CodingPlansPage.jsx'));
 
@@ -87,9 +91,12 @@ function getModelUsage(plan, model) {
 }
 
 function PlanCard({ plan, expanded, onToggle }) {
-  const price = plan.price_monthly ?? 0;
-  const tier = getTier(price);
+  const anchor = plan.price_anchor ?? plan.price_monthly;
+  const price = plan.price_monthly;
+  const tier = getTier(anchor);
   const tc = TIER_COLORS[tier];
+  const priceLabel = formatPlanPrice(plan);
+  const isTrueFree = price === 0;
   const models = Array.isArray(plan.model_pricing) ? plan.model_pricing : [];
   const feats = plan.features;
   const featureList = feats?.features || feats?.feature_list || [];
@@ -123,10 +130,10 @@ function PlanCard({ plan, expanded, onToggle }) {
             <p className="text-xs text-gray-500">{plan.plan_name} &middot; {plan.vendor}</p>
           </div>
           <div className="text-right shrink-0 ml-3">
-            <p className={`text-2xl font-extrabold ${price === 0 ? 'text-gray-400' : 'text-white'}`}>
-              {price === 0 ? '$0' : `$${price}`}<span className="text-sm font-normal text-gray-500">/mo</span>
+            <p className={`text-2xl font-extrabold ${isTrueFree ? 'text-gray-400' : 'text-white'}`}>
+              {priceLabel}
             </p>
-            {price === 0 && (
+            {isTrueFree && (
               <p className="text-[10px] text-yellow-500">Limited models &amp; usage</p>
             )}
             {plan.price_yearly && price > 0 && (
@@ -302,24 +309,25 @@ export default function PlansBrowsePage() {
   const [view, setView] = useState('general'); // 'general' | 'coding'
 
   const plans = useMemo(() => {
-    let items = (data?.plans || []).filter(p => !/byok/i.test(p.plan_name));
+    // Browse view segregates by track — general plans only; Coding view loads CodingPlansContent
+    let items = (data?.plans || []).filter(p => !isCodingSubscription(p));
 
-    // Filter by tier
+    // Filter by tier (uses price_anchor so reference-priced plans land in the right tier)
     if (tierFilter) {
-      items = items.filter(p => getTier(p.price_monthly ?? 0) === tierFilter);
+      items = items.filter(p => getTier(p.price_anchor ?? p.price_monthly) === tierFilter);
     }
 
-    // Sort
+    // Sort — plans without a resolvable price sort last
     items = [...items].sort((a, b) => {
-      const pa = a.price_monthly ?? 0;
-      const pb = b.price_monthly ?? 0;
+      const pa = a.price_anchor ?? a.price_monthly ?? Number.POSITIVE_INFINITY;
+      const pb = b.price_anchor ?? b.price_monthly ?? Number.POSITIVE_INFINITY;
       const ma = Array.isArray(a.model_pricing) ? a.model_pricing.length : 0;
       const mb = Array.isArray(b.model_pricing) ? b.model_pricing.length : 0;
 
       switch (sort) {
         case 'price-asc': return pa - pb;
         case 'price-desc': return pb - pa;
-        case 'value': return (pb > 0 ? mb / pb : mb * 100) - (pa > 0 ? ma / pa : ma * 100);
+        case 'value': return (pb > 0 && Number.isFinite(pb) ? mb / pb : mb * 100) - (pa > 0 && Number.isFinite(pa) ? ma / pa : ma * 100);
         case 'models': return mb - ma;
         default: return pa - pb;
       }
@@ -328,9 +336,9 @@ export default function PlansBrowsePage() {
     return items;
   }, [data, sort, tierFilter]);
 
-  // Summary stats (exclude BYOK)
-  const allPlans = (data?.plans || []).filter(p => !/byok/i.test(p.plan_name));
-  const freePlans = allPlans.filter(p => (p.price_monthly ?? 0) === 0).length;
+  // Summary stats — only counts general plans, same segregation as the Browse list
+  const allPlans = (data?.plans || []).filter(p => !isCodingSubscription(p));
+  const freePlans = allPlans.filter(p => p.price_monthly === 0).length;
   const paidPlans = allPlans.filter(p => p.price_monthly > 0);
   const avgPrice = paidPlans.length
     ? Math.round(paidPlans.reduce((s, p) => s + p.price_monthly, 0) / paidPlans.length)

@@ -99,7 +99,9 @@ function AvailabilityCard({ model }) {
                       <span className="text-[10px] text-gray-500">{a.access_level}</span>
                     )}
                     <span className={`font-mono font-medium ${i === 0 ? 'text-green-400' : 'text-gray-400'}`}>
-                      {a.price_monthly != null ? `$${a.price_monthly}/mo` : 'BYOK'}
+                      {a.price_monthly != null
+                        ? `$${a.price_monthly}/mo`
+                        : (a.reference_price_monthly != null ? `~$${a.reference_price_monthly}/mo (ref)` : '—')}
                     </span>
                   </div>
                 </div>

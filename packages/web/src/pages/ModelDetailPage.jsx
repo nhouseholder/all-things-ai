@@ -503,22 +503,29 @@ export default function ModelDetailPage() {
                 Where to Use
               </h2>
               <div className="space-y-2">
-                {availability.map((a, i) => (
-                  <div key={i} className="rounded-lg border border-gray-800 p-3 hover:border-gray-700 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-white">{a.tool_name}</span>
-                      <span className="text-xs text-green-400 font-semibold">
-                        {a.price_monthly != null ? `$${a.price_monthly}/mo` : 'BYOK'}
-                      </span>
+                {availability.map((a, i) => {
+                  const priceLabel = a.price_monthly != null
+                    ? `$${a.price_monthly}/mo`
+                    : (a.reference_price_monthly != null ? `~$${a.reference_price_monthly}/mo (ref)` : 'Pricing TBD');
+                  const isByok = a.access_level === 'byok';
+                  return (
+                    <div key={i} className="rounded-lg border border-gray-800 p-3 hover:border-gray-700 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-white flex items-center gap-1.5">
+                          {a.tool_name}
+                          {isByok && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">BYOK</span>}
+                        </span>
+                        <span className="text-xs text-green-400 font-semibold">{priceLabel}</span>
+                      </div>
+                      {a.plan_name && (
+                        <p className="text-[10px] text-gray-500 mt-0.5">{a.plan_name}</p>
+                      )}
+                      {a.cost_notes && (
+                        <p className="text-[10px] text-gray-400 mt-1">{a.cost_notes}</p>
+                      )}
                     </div>
-                    {a.plan_name && (
-                      <p className="text-[10px] text-gray-500 mt-0.5">{a.plan_name}</p>
-                    )}
-                    {a.cost_notes && (
-                      <p className="text-[10px] text-gray-400 mt-1">{a.cost_notes}</p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}

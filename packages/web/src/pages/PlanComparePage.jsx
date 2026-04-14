@@ -15,7 +15,8 @@ const USAGE_PROFILES = [
 ];
 
 function tierColor(price) {
-  if (price == null || price === 0) return { text: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' };
+  if (price == null) return { text: 'text-gray-400', bg: 'bg-gray-500/10', border: 'border-gray-500/30' };
+  if (price === 0) return { text: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' };
   if (price <= 20) return { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30' };
   if (price <= 50) return { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' };
   if (price <= 150) return { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/30' };
@@ -26,6 +27,11 @@ function formatPrice(v) {
   if (v == null) return '—';
   if (v === 0) return 'Free';
   return `$${Number(v).toFixed(0)}`;
+}
+
+function resolvedPrice(plan) {
+  // Prefer real monthly price, fall back to backend-computed anchor (reference price)
+  return plan?.price_monthly ?? plan?.price_anchor ?? null;
 }
 
 export default function PlanComparePage() {
@@ -75,7 +81,7 @@ export default function PlanComparePage() {
   const projections = useMemo(() => {
     const reqs = profile?.reqs || 500;
     return selectedPlans.map(plan => {
-      const monthly = plan.price_monthly || 0;
+      const monthly = resolvedPrice(plan) ?? 0;
       const included = plan.included_requests || 0;
       const overage = Math.max(0, reqs - included);
       let overageCost = 0;
@@ -154,11 +160,11 @@ export default function PlanComparePage() {
       <div className="mb-6">
         <div className="flex flex-wrap gap-2 items-center">
           {selectedPlans.map(plan => {
-            const tc = tierColor(plan.price_monthly);
+            const tc = tierColor(resolvedPrice(plan));
             return (
               <div key={plan.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border ${tc.border}`}>
                 <span className="text-xs text-white font-medium">{plan.tool_name} · {plan.plan_name}</span>
-                <span className={`text-[10px] ${tc.text}`}>{formatPrice(plan.price_monthly)}/mo</span>
+                <span className={`text-[10px] ${tc.text}`}>{plan.price_display || `${formatPrice(resolvedPrice(plan))}/mo`}</span>
                 <button onClick={() => removePlan(plan.id)} className="text-gray-500 hover:text-red-400">
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -198,8 +204,8 @@ export default function PlanComparePage() {
                           <p className="text-xs text-white font-medium">{p.tool_name} · {p.plan_name}</p>
                           <p className="text-[10px] text-gray-500">{p.vendor}</p>
                         </div>
-                        <span className={`text-xs font-medium ${tierColor(p.price_monthly).text}`}>
-                          {formatPrice(p.price_monthly)}/mo
+                        <span className={`text-xs font-medium ${tierColor(resolvedPrice(p)).text}`}>
+                          {p.price_display || `${formatPrice(resolvedPrice(p))}/mo`}
                         </span>
                       </div>
                     </button>
@@ -222,7 +228,7 @@ export default function PlanComparePage() {
             {selectedPlans.map((plan, i) => {
               const proj = projections[i];
               const isBest = plan.id === bestPlanId;
-              const tc = tierColor(plan.price_monthly);
+              const tc = tierColor(resolvedPrice(plan));
               return (
                 <div key={plan.id} className={`rounded-xl border ${isBest ? 'border-green-500/50 ring-1 ring-green-500/20' : 'border-gray-800'} bg-gray-900/50 p-4 relative`}>
                   {isBest && (
@@ -295,7 +301,7 @@ export default function PlanComparePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800/50">
-                      <FeatureRow label="Monthly Price" plans={selectedPlans} accessor={p => formatPrice(p.price_monthly)} />
+                      <FeatureRow label="Monthly Price" plans={selectedPlans} accessor={p => p.price_display || formatPrice(resolvedPrice(p))} />
                       <FeatureRow label="Yearly Price" plans={selectedPlans} accessor={p => p.price_yearly ? `$${(p.price_yearly / 12).toFixed(0)}/mo` : '—'} />
                       <FeatureRow label="Included Requests" plans={selectedPlans} accessor={p => p.included_requests || '∞'} />
                       <FeatureRow label="Overage Model" plans={selectedPlans} accessor={p => p.overage_model || '—'} />

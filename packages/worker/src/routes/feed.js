@@ -43,14 +43,15 @@ feedRoutes.get('/', async (c) => {
 // GET /api/feed/whats-new — aggregated "What's New" digest
 feedRoutes.get('/whats-new', async (c) => {
   const [recentModels, recentAlerts, pendingModels, recentPricing] = await Promise.all([
-    // Recently added models (last 30 days)
+    // Recently added models (last 30 days by release_date, fallback to updated_at)
     c.env.DB.prepare(`
-      SELECT name, slug, vendor, family, discovery_source, created_at,
+      SELECT name, slug, vendor, family, discovery_source,
+        COALESCE(release_date, updated_at) AS created_at,
         input_price_per_mtok, output_price_per_mtok, is_open_weight
       FROM models
       WHERE is_active = 1
-        AND created_at >= datetime('now', '-30 days')
-      ORDER BY created_at DESC
+        AND COALESCE(release_date, updated_at) >= datetime('now', '-30 days')
+      ORDER BY COALESCE(release_date, updated_at) DESC
       LIMIT 20
     `).all(),
 

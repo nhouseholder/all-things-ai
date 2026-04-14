@@ -114,7 +114,7 @@ function PlanPicker({ availablePlans, onAdd, onCancel }) {
               toolSlug: plan.tool_slug,
               toolName: plan.tool_name,
               planName: plan.plan_name,
-              monthlyCost: Number(plan.price_monthly) || 0,
+              monthlyCost: Number(plan.price_monthly ?? plan.price_anchor) || 0,
             })}
             className="w-full text-left py-2 px-1 hover:bg-gray-800/50 rounded transition-colors flex items-center justify-between group"
           >
@@ -123,7 +123,7 @@ function PlanPicker({ availablePlans, onAdd, onCancel }) {
               <span className="text-xs text-gray-500 ml-2">· {plan.plan_name}</span>
             </div>
             <span className="text-sm font-medium text-blue-400 group-hover:text-blue-300">
-              ${Number(plan.price_monthly) || 0}/mo
+              {plan.price_display || `$${Number(plan.price_monthly ?? plan.price_anchor) || 0}/mo`}
             </span>
           </button>
         ))}
