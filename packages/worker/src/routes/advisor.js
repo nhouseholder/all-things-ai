@@ -732,8 +732,9 @@ YOUR ROLE:
 
 CONVERSATION FLOW:
 1. First message: Ask what they mainly use AI for and what matters most (quality vs cost vs speed)
-2. If coding: Ask what kind (greenfield, debugging, refactoring, code review) and team size
-3. Based on answers: Give your top 1-3 recommendations with reasoning
+2. Second message: Ask about their monthly price range / budget — be specific. Offer brackets: "Free tier only", "Under $20/mo", "$20-50/mo", "$50-100/mo", or "Budget is flexible". This is a REQUIRED step — do not skip it, do not recommend before asking it.
+3. Third message (optional): If coding, ask what kind (greenfield, debugging, refactoring, code review) and team size. Skip if already clear.
+4. Based on answers: Give your top 1-3 recommendations with reasoning, filtered to their budget.
 
 WHEN RECOMMENDING, you MUST include for each model:
 - Model name and vendor
@@ -742,8 +743,10 @@ WHEN RECOMMENDING, you MUST include for each model:
 - Where to use it (which tool + plan + monthly price)
 - Why this model fits their needs
 
-After gathering enough info (usually 2-3 exchanges), output your recommendation in this EXACT format, on its own line:
-[RECOMMEND]{"task":"<task_slug>","priority":"<quality|value|budget>","use_case":"<brief description>"}[/RECOMMEND]
+After gathering enough info (usually 3 exchanges including the price-range question), output your recommendation in this EXACT format, on its own line:
+[RECOMMEND]{"task":"<task_slug>","priority":"<quality|value|budget>","max_price_monthly":<number|null>,"use_case":"<brief description>"}[/RECOMMEND]
+
+For max_price_monthly: use 0 for "free tier only", 20 for "under $20", 50 for "under $50 / $20-50", 100 for "$50-100", and null for "flexible". Never omit this field.
 
 The system will inject real recommendation data when it sees this tag.
 
@@ -828,13 +831,26 @@ RULES:
           availByModel[a.model_id].push(a);
         }
 
+        // Apply price-range filter: drop candidates whose cheapest access plan exceeds budget
+        const maxPrice = Number.isFinite(params.max_price_monthly) ? Number(params.max_price_monthly) : null;
+        let budgetFiltered = candidates;
+        if (maxPrice != null) {
+          budgetFiltered = candidates.filter((cand) => {
+            const avs = availByModel[cand.model_id] || [];
+            if (!avs.length) return false; // no known paid access → exclude if budget-capped
+            return avs.some((a) => (a.price_monthly ?? 0) <= maxPrice);
+          });
+          // Fallback: if budget filter nukes everything, keep original list
+          if (budgetFiltered.length === 0) budgetFiltered = candidates;
+        }
+
         // Build top 3 recommendations based on priority
         const priority = params.priority || 'quality';
         let sorted;
         if (priority === 'budget') {
-          sorted = [...candidates].sort((a, b) => (a.cost_per_task_estimate ?? 999) - (b.cost_per_task_estimate ?? 999));
+          sorted = [...budgetFiltered].sort((a, b) => (a.cost_per_task_estimate ?? 999) - (b.cost_per_task_estimate ?? 999));
         } else if (priority === 'value') {
-          sorted = [...candidates]
+          sorted = [...budgetFiltered]
             .filter(c => (c.composite_score || 0) >= 60)
             .sort((a, b) => {
               const costA = (a.cost_per_task_estimate || 0) + (a.time_value_per_task || 0);
@@ -842,7 +858,7 @@ RULES:
               return costA - costB;
             });
         } else {
-          sorted = [...candidates].sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0));
+          sorted = [...budgetFiltered].sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0));
         }
 
         recommendations = sorted.slice(0, 3).map(m => ({

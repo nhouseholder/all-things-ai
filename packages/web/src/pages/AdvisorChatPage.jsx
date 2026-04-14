@@ -23,19 +23,20 @@ const FOLLOW_UP_SETS = [
     'Speed — I need fast responses',
     'I need it all: quality, cost, and speed',
   ],
-  // After second assistant message (usually asks about specific tasks)
+  // After second assistant message (price range — required ask)
+  [
+    'Free tier only',
+    'Under $20/month',
+    '$20-50/month',
+    '$50-100/month',
+    'Budget is flexible',
+  ],
+  // After third+ (specific task / team size)
   [
     'Mostly building new features from scratch',
     'Debugging and fixing bugs in large codebases',
-    'Refactoring and code reviews',
-    'Full-stack: frontend, backend, and DevOps',
-  ],
-  // After third+ (may ask about team size or budget)
-  [
     'Solo developer, side projects',
     'Small team, 2-5 devs',
-    'I have a $20-50/month budget',
-    'Budget is flexible if the tool is worth it',
   ],
 ];
 
