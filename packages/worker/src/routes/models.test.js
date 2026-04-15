@@ -124,6 +124,58 @@ test('buildCapabilityProfile derives missing HLE, MMLU, and HumanEval components
   assert.equal(profile.humaneval, 87);
 });
 
+test('buildCapabilityProfile derives missing TAU and Arena so radar is never collapsed', () => {
+  // Mirrors GLM 5.1 in production: arena present, tau null, sr null. Without fallbacks, tau/sr render as 0.
+  const profile = buildCapabilityProfile(
+    {
+      swe_bench_component: 75.5,
+      livecodebench_component: 78,
+      nuance_component: 82,
+      arena_component: 55,
+      tau_component: null,
+      gpqa_component: 85,
+      hle_component: null,
+      mmlu_component: null,
+      humaneval_component: null,
+      success_rate_component: null,
+      community_adjustment: 0,
+    },
+    [],
+    {}
+  );
+
+  // All 10 axes must be non-null and non-zero so the radar polygon is closed.
+  for (const key of ['swe_bench', 'livecodebench', 'nuance', 'arena', 'tau', 'gpqa', 'hle', 'mmlu', 'humaneval', 'success_rate']) {
+    assert.ok(profile[key] != null && profile[key] !== 0, `expected ${key} > 0, got ${profile[key]}`);
+  }
+  // Tau = 0.6*swe + 0.4*nuance - 4 = 0.6*75.5 + 0.4*82 - 4 = 45.3 + 32.8 - 4 = 74.1
+  assert.equal(profile.tau, 74.1);
+  // Arena was provided (55), should be untouched
+  assert.equal(profile.arena, 55);
+});
+
+test('buildCapabilityProfile derives Arena when null using nuance/mmlu/gpqa blend', () => {
+  const profile = buildCapabilityProfile(
+    {
+      swe_bench_component: 70,
+      livecodebench_component: 72,
+      nuance_component: 80,
+      arena_component: null,
+      tau_component: 65,
+      gpqa_component: 84,
+      hle_component: 18,
+      mmlu_component: 86,
+      humaneval_component: 78,
+      success_rate_component: 70,
+      community_adjustment: 0,
+    },
+    [],
+    {}
+  );
+  // Arena = (0.5*80 + 0.3*86 + 0.2*84) / 1.0 - 6 = (40 + 25.8 + 16.8) - 6 = 82.6 - 6 = 76.6
+  assert.equal(profile.arena, 76.6);
+});
+
 test('buildCompareBenchmarks synthesizes missing canonical compare benchmarks', () => {
   const benchmarks = buildCompareBenchmarks(
     [

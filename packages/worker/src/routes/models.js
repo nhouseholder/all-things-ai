@@ -92,6 +92,50 @@ function deriveHumanEvalComponent(components) {
   return clampPercentScore(average + 12, 1);
 }
 
+// TAU-bench (tool-use agent tasks) — best proxies are SWE-bench (agentic coding) and Nuance (instruction following).
+// Conservative weighting: SWE-bench dominates because both are agentic; subtract 4 to reflect tool-use specificity.
+function deriveTauComponent(components) {
+  if (components.tau != null && components.tau !== 0) return components.tau;
+  const inputs = [
+    { v: components.swe_bench, w: 0.6 },
+    { v: components.nuance, w: 0.4 },
+  ].filter((x) => x.v != null && x.v !== 0);
+  if (!inputs.length) return null;
+  const totalWeight = inputs.reduce((sum, x) => sum + x.w, 0);
+  const weighted = inputs.reduce((sum, x) => sum + x.v * x.w, 0) / totalWeight;
+  return clampPercentScore(weighted - 4, 1);
+}
+
+// Chatbot Arena ELO — proxies general human preference. Blend of nuance (preference signal),
+// MMLU (broad knowledge), and GPQA (reasoning depth). Subtract 6 — derived ELO tends to over-estimate.
+function deriveArenaComponent(components) {
+  if (components.arena != null && components.arena !== 0) return components.arena;
+  const inputs = [
+    { v: components.nuance, w: 0.5 },
+    { v: components.mmlu, w: 0.3 },
+    { v: components.gpqa, w: 0.2 },
+  ].filter((x) => x.v != null && x.v !== 0);
+  if (!inputs.length) return null;
+  const totalWeight = inputs.reduce((sum, x) => sum + x.w, 0);
+  const weighted = inputs.reduce((sum, x) => sum + x.v * x.w, 0) / totalWeight;
+  return clampPercentScore(weighted - 6, 1);
+}
+
+// Final safety net for success_rate when task estimate map is empty — average of measured components.
+function deriveSuccessRateFromComponents(components) {
+  const inputs = [
+    components.swe_bench,
+    components.livecodebench,
+    components.nuance,
+    components.gpqa,
+    components.tau,
+    components.arena,
+  ].filter((value) => value != null && value !== 0);
+  if (inputs.length < 2) return null;
+  const average = inputs.reduce((sum, value) => sum + value, 0) / inputs.length;
+  return clampPercentScore(average - 8, 1);
+}
+
 export function buildCompareBenchmarks(benchmarks = [], capabilityProfile = {}) {
   const merged = [...benchmarks];
   const coveredComponents = new Set(
@@ -207,6 +251,21 @@ export function buildCapabilityProfile(model, benchmarks = [], taskEstimateMap =
 
   if (components.humaneval == null || components.humaneval === 0) {
     components.humaneval = deriveHumanEvalComponent(components);
+  }
+
+  // Tau depends on swe_bench + nuance (primary), so order doesn't matter relative to hle/mmlu.
+  if (components.tau == null || components.tau === 0) {
+    components.tau = deriveTauComponent(components);
+  }
+
+  // Arena fallback uses mmlu — must run AFTER mmlu derivation above.
+  if (components.arena == null || components.arena === 0) {
+    components.arena = deriveArenaComponent(components);
+  }
+
+  // Final safety net: if task-estimate path produced nothing, average the measured/derived components.
+  if (components.success_rate == null || components.success_rate === 0) {
+    components.success_rate = deriveSuccessRateFromComponents(components);
   }
 
   return components;

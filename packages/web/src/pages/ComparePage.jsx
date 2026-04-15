@@ -10,6 +10,7 @@ import {
   Crown,
   DollarSign,
   Globe,
+  Info,
   Loader2,
   Scale,
   Search,
@@ -24,6 +25,7 @@ import {
 } from 'recharts';
 import { api } from '../lib/api.js';
 import { useModels, useModelPricing } from '../lib/hooks.js';
+import { BENCHMARK_META, BENCHMARK_ORDER } from '../lib/benchmarks-meta.js';
 
 const PRICE_TIERS = [
   { label: 'Free', max: 0, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
@@ -620,28 +622,71 @@ function ModelPicker({ selected, allModels, filteredModels, searchTerm, setSearc
   );
 }
 
+// ── Benchmark Axis Legend ────────────────────────────────────────
+// Collapsible explainer for the 10 radar abbreviations. Sits in the top-left
+// of the radar card so users can decode HLE / GPQA / TAU-bench without leaving the page.
+function BenchmarkLegend() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-200 transition"
+        aria-expanded={open}
+      >
+        <Info className="w-3 h-3" />
+        <span>Axis Legend</span>
+        {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-96 mt-2' : 'max-h-0'}`}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1 rounded-lg border border-gray-800/60 bg-gray-950/40 p-3">
+          {BENCHMARK_ORDER.map((label) => {
+            const meta = BENCHMARK_META[label];
+            if (!meta) return null;
+            return (
+              <div key={label} className="flex items-baseline gap-2 text-[11px] leading-tight">
+                <span className="font-mono font-semibold text-blue-300 w-[88px] shrink-0">{label}</span>
+                <span className="text-gray-400">
+                  <span className="text-gray-300">{meta.full}</span>
+                  <span className="text-gray-500"> — {meta.measures}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Radar Comparison Chart ───────────────────────────────────────
 function RadarComparisonChart({ models }) {
-  // Build radar data from score components
+  // Build radar data from score components.
+  // Floor of 2 prevents the polygon from collapsing through the origin (the "criss-cross" defect)
+  // when a derivation pipeline produces 0. Worker fallbacks should make this rare, but it's defense-in-depth.
   const radarData = SCORE_DIMENSIONS.map(dim => {
     const point = { dimension: dim.label };
     for (const m of models) {
       const val = m.score_components?.[dim.key];
-      // Values are already 0-100 scale (benchmark percentages)
-      point[m.slug] = val != null ? Math.round(val) : 0;
+      const rounded = val != null ? Math.round(val) : 0;
+      point[m.slug] = rounded > 0 ? rounded : 2;
     }
     return point;
   });
 
-  const hasData = radarData.some(d => models.some(m => d[m.slug] > 0));
+  const hasData = radarData.some(d => models.some(m => d[m.slug] > 2));
   if (!hasData) return null;
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900/80 to-gray-950/80 p-5">
-      <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
         <BarChart3 className="w-4 h-4 text-blue-400" />
         Capability Profile
       </h3>
+      <BenchmarkLegend />
       <div className="flex items-center gap-5 mb-3 flex-wrap">
         {models.map((m, i) => (
           <div key={m.slug} className="flex items-center gap-2">
