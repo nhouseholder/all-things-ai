@@ -30,6 +30,17 @@ const BENCHMARK_MAP = {
 
 const SUCCESS_WEIGHT = 0.07;
 
+// Trust tier multipliers — attenuate each benchmark's weight by the trust of its source.
+// Applied in the per-model weighted-sum loop before re-normalization.
+// Effect: a gold SWE (weight 0.20 × 1.00 = 0.20) outweighs an unverified MMLU
+// (weight 0.08 × 0.20 = 0.016) by 12×, so unverified rows cannot dominate.
+export const TRUST_WEIGHTS = {
+  gold: 1.00,
+  silver: 0.85,
+  bronze: 0.50,
+  unverified: 0.20,
+};
+
 // Community score weighting by user type
 const COMMUNITY_WEIGHTS = {
   heavy_coder: 0.50,
@@ -49,6 +60,34 @@ function normalizeBenchmark(key, score) {
     return Math.max(0, Math.min(100, (score - 1200) / 400 * 100)) / 100;
   }
   return score / 100;
+}
+
+/**
+ * Pure helper (exported for tests).
+ * Computes the trust-weighted benchmark score from 0..100 given:
+ *   components: { key: normalizedValue 0..1 }
+ *   trustByKey: { key: 'gold'|'silver'|'bronze'|'unverified' }
+ *   baseWeights: { key: weight }
+ *
+ * Trust multiplier is applied to each base weight BEFORE renormalization,
+ * so a high-score unverified row cannot dominate a low-score gold row.
+ */
+export function computeTrustWeightedScore(components, trustByKey, baseWeights) {
+  const available = Object.entries(baseWeights).filter(([k]) => components[k] != null);
+  if (!available.length) return 0;
+
+  const effective = available.map(([k, w]) => {
+    const trust = trustByKey[k] || 'unverified';
+    return [k, w * (TRUST_WEIGHTS[trust] ?? TRUST_WEIGHTS.unverified)];
+  });
+  const totalWeight = effective.reduce((s, [, w]) => s + w, 0);
+  if (totalWeight === 0) return 0;
+
+  let weightedSum = 0;
+  for (const [k, w] of effective) {
+    weightedSum += components[k] * (w / totalWeight) * 100;
+  }
+  return weightedSum;
 }
 
 /**
@@ -176,14 +215,17 @@ export async function computeCompositeScores(env) {
     return;
   }
 
-  // 2. Get all benchmarks indexed by model_id + benchmark_name
+  // 2. Get all benchmarks indexed by model_id + benchmark_name (with trust tier)
   const { results: allBenchmarks } = await env.DB.prepare(
-    'SELECT model_id, benchmark_name, score FROM benchmarks'
+    'SELECT model_id, benchmark_name, score, source_trust FROM benchmarks'
   ).all();
 
   const benchmarkIndex = {};
   for (const b of allBenchmarks) {
-    benchmarkIndex[`${b.model_id}:${b.benchmark_name}`] = b.score;
+    benchmarkIndex[`${b.model_id}:${b.benchmark_name}`] = {
+      score: b.score,
+      trust: b.source_trust || 'unverified',
+    };
   }
 
   // 3. Community reviews with per-type breakdown, grouped by model
@@ -222,19 +264,22 @@ export async function computeCompositeScores(env) {
 
   for (const model of models) {
     const components = {};
+    const trustByKey = {};
 
-    // Benchmark components
+    // Benchmark components (with trust tier attached)
     for (const [key, cfg] of Object.entries(BENCHMARK_MAP)) {
-      const raw = benchmarkIndex[`${model.id}:${cfg.benchmark_name}`];
-      if (raw != null) {
-        components[key] = normalizeBenchmark(key, raw);
+      const entry = benchmarkIndex[`${model.id}:${cfg.benchmark_name}`];
+      if (entry != null && entry.score != null) {
+        components[key] = normalizeBenchmark(key, entry.score);
+        trustByKey[key] = entry.trust;
       }
     }
 
-    // Success rate component
+    // Success rate component — internal measure, full trust
     const avgSuccess = successByModel[model.id];
     if (avgSuccess != null) {
       components.success = avgSuccess;
+      trustByKey.success = 'gold';
     }
 
     // Build weights for available components only
@@ -247,8 +292,15 @@ export async function computeCompositeScores(env) {
     const available = Object.entries(baseWeights).filter(([k]) => components[k] != null);
     if (!available.length) continue;
 
-    const totalWeight = available.reduce((s, [, w]) => s + w, 0);
-    const normalized = available.map(([k, w]) => [k, w / totalWeight]);
+    // Apply trust multiplier BEFORE re-normalization so unverified rows
+    // cannot dominate via availability alone.
+    const effective = available.map(([k, w]) => {
+      const trust = trustByKey[k] || 'unverified';
+      return [k, w * (TRUST_WEIGHTS[trust] ?? TRUST_WEIGHTS.unverified)];
+    });
+    const totalWeight = effective.reduce((s, [, w]) => s + w, 0);
+    if (totalWeight === 0) continue;
+    const normalized = effective.map(([k, w]) => [k, w / totalWeight]);
 
     let weightedSum = 0;
     for (const [k, nw] of normalized) {

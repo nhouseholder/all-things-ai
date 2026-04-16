@@ -295,7 +295,8 @@ modelsRoutes.get('/', async (c) => {
     SELECT m.*,
       (SELECT json_group_array(json_object(
         'benchmark_name', b.benchmark_name, 'category', b.category,
-        'score', b.score, 'max_score', b.max_score
+        'score', b.score, 'max_score', b.max_score,
+        'source_url', b.source_url, 'source_trust', b.source_trust
       )) FROM benchmarks b WHERE b.model_id = m.id) as benchmark_scores
     FROM models m WHERE m.is_active = 1 ORDER BY m.name
   `).all();
@@ -320,7 +321,7 @@ modelsRoutes.get('/pricing', async (c) => {
 
   // Fetch all benchmark scores in one query
   const { results: allBenchmarks } = await c.env.DB.prepare(`
-    SELECT model_id, benchmark_name, category, score, max_score
+    SELECT model_id, benchmark_name, category, score, max_score, source_url, source_trust
     FROM benchmarks
     WHERE model_id IN (SELECT id FROM models WHERE is_active = 1)
   `).all();
@@ -458,7 +459,7 @@ modelsRoutes.get('/compare', async (c) => {
   // Parallel queries: benchmarks, availability, community reviews, task estimates, task profiles
   const [benchRes, availRes, reviewRes, taskEstRes, taskProfileRes] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT model_id, benchmark_name, category, score, max_score
+      SELECT model_id, benchmark_name, category, score, max_score, source_url, source_trust
       FROM benchmarks WHERE model_id IN (${idPlaceholders})
     `).bind(...modelIds).all(),
 
@@ -598,7 +599,7 @@ modelsRoutes.get('/:slug', async (c) => {
   // Parallel queries for all detail data
   const [benchRes, availRes, reviewRes, taskRes, altRes, openrouter, similarRes, alertsRes] = await Promise.all([
     c.env.DB.prepare(
-      'SELECT benchmark_name, category, score, max_score FROM benchmarks WHERE model_id = ?'
+      'SELECT benchmark_name, category, score, max_score, source_url, source_trust FROM benchmarks WHERE model_id = ?'
     ).bind(model.id).all(),
 
     c.env.DB.prepare(`

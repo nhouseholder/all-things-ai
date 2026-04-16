@@ -9,6 +9,16 @@ import { fetchWithTimeout } from '../utils/fetch.js';
 
 const USER_AGENT = 'AllThingsAI-BenchmarkScraper/1.0 (+https://all-things-ai.pages.dev)';
 
+// Trust tiers — composite-score-engine multiplies by TRUST_WEIGHTS[tier].
+// gold = independent aggregator, silver = official leaderboard,
+// bronze = narrower/commercial, unverified = unknown/self-report.
+export const TRUST = {
+  GOLD: 'gold',
+  SILVER: 'silver',
+  BRONZE: 'bronze',
+  UNVERIFIED: 'unverified',
+};
+
 export async function scrapeBenchmarks(env) {
   const results = {};
 
@@ -16,6 +26,7 @@ export async function scrapeBenchmarks(env) {
   const slugMap = await buildSlugMap(env);
 
   const scrapers = [
+    { name: 'artificialanalysis', fn: () => scrapeArtificialAnalysis(env, slugMap) },
     { name: 'lmarena', fn: () => scrapeArenaELO(env, slugMap) },
     { name: 'livebench', fn: () => scrapeLiveBench(env, slugMap) },
     { name: 'swebench', fn: () => scrapeSWEBench(env, slugMap) },
@@ -98,8 +109,93 @@ function matchModel(externalName, slugMap) {
 }
 
 /**
- * Scrape Chatbot Arena ELO from lmarena.ai
- * They publish a JSON endpoint with the leaderboard.
+ * Scrape Artificial Analysis Intelligence Index (independent aggregator — GOLD tier).
+ * AA aggregates dozens of third-party evals and weights them by method quality.
+ * HTML regex extraction — AA does not publish a stable JSON endpoint.
+ */
+async function scrapeArtificialAnalysis(env, slugMap) {
+  const cacheKey = 'benchmark:aa:raw';
+  const cached = await env.CACHE.get(cacheKey, 'json');
+  if (cached) {
+    console.log('[BENCHMARK] AA: using cached data');
+    return await processAAData(env, cached, slugMap);
+  }
+
+  const resp = await fetchWithTimeout(
+    'https://artificialanalysis.ai/models',
+    { headers: { 'User-Agent': USER_AGENT, Accept: 'text/html' } }
+  );
+
+  if (!resp.ok) {
+    console.log(`[BENCHMARK] AA: fetch returned ${resp.status}, skipping`);
+    return { matched: 0, unmatched: 0, source: 'aa-unavailable' };
+  }
+
+  const html = await resp.text();
+  // AA embeds model data in a __NEXT_DATA__ JSON blob
+  const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  const entries = [];
+  if (nextMatch) {
+    try {
+      const json = JSON.parse(nextMatch[1]);
+      const modelsArr = json?.props?.pageProps?.models || json?.props?.pageProps?.data?.models || [];
+      for (const m of modelsArr) {
+        const name = m.name || m.model_name || m.slug;
+        const score = m.intelligence_index ?? m.intelligenceIndex ?? m.quality_index ?? null;
+        if (name && score != null) entries.push({ name, score: Number(score) });
+      }
+    } catch (e) {
+      console.log('[BENCHMARK] AA: __NEXT_DATA__ parse failed:', e.message);
+    }
+  }
+
+  // Fallback: regex sweep for model/score pairs in inline text
+  if (!entries.length) {
+    const rowRegex = /"name":"([^"]+)"[^}]*"intelligenceIndex":([\d.]+)/g;
+    let m;
+    while ((m = rowRegex.exec(html)) !== null) {
+      entries.push({ name: m[1], score: Number(m[2]) });
+    }
+  }
+
+  if (!entries.length) {
+    console.log('[BENCHMARK] AA: no rows extracted from HTML');
+    return { matched: 0, unmatched: 0, source: 'aa-noparse' };
+  }
+
+  await env.CACHE.put(cacheKey, JSON.stringify(entries), { expirationTtl: 604800 });
+  return await processAAData(env, entries, slugMap);
+}
+
+async function processAAData(env, entries, slugMap) {
+  let matched = 0;
+  const unmatched = [];
+
+  for (const entry of entries) {
+    const slug = matchModel(entry.name, slugMap);
+    if (!slug) { unmatched.push(entry.name); continue; }
+    const model = await env.DB.prepare('SELECT id FROM models WHERE slug = ?').bind(slug).first();
+    if (!model) continue;
+
+    await env.DB.prepare(`
+      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url, source_trust)
+      VALUES (?, 'AA Intelligence Index', 'aggregate', ?, 100, 'https://artificialanalysis.ai/models', ?)
+      ON CONFLICT(model_id, benchmark_name) DO UPDATE SET
+        score = excluded.score, source_url = excluded.source_url,
+        source_trust = excluded.source_trust, measured_at = datetime('now')
+    `).bind(model.id, entry.score, TRUST.GOLD).run();
+    matched++;
+  }
+
+  if (unmatched.length) {
+    console.log(`[BENCHMARK] AA: ${unmatched.length} unmatched:`, unmatched.slice(0, 10).join(', '));
+  }
+  return { matched, unmatched: unmatched.length, source: 'artificialanalysis' };
+}
+
+/**
+ * Scrape Chatbot Arena ELO from lmarena.ai (GOLD tier — independent).
+ * Tries arena.ai API first, then HF dataset mirror as fallback.
  */
 async function scrapeArenaELO(env, slugMap) {
   // Check KV cache (7-day TTL)
@@ -110,25 +206,32 @@ async function scrapeArenaELO(env, slugMap) {
     return await processArenaData(env, cached, slugMap);
   }
 
-  // The Arena leaderboard data is available at this endpoint
+  // Primary: lmarena.ai public API
+  let data = null;
   const resp = await fetchWithTimeout(
-    'https://huggingface.co/spaces/lmarena-ai/chatbot-arena-leaderboard/resolve/main/results.json',
-    { headers: { 'User-Agent': USER_AGENT } }
+    'https://lmarena.ai/api/leaderboard/text',
+    { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } }
   );
-
-  if (!resp.ok) {
-    // Fallback: try the HF API
-    const resp2 = await fetchWithTimeout(
-      'https://huggingface.co/api/spaces/lmarena-ai/chatbot-arena-leaderboard',
-      { headers: { 'User-Agent': USER_AGENT } }
-    );
-    if (!resp2.ok) throw new Error(`Arena fetch failed: ${resp.status} / ${resp2.status}`);
-    // HF API returns space metadata, not leaderboard data — skip gracefully
-    console.log('[BENCHMARK] Arena: API returned space metadata, skipping');
-    return { matched: 0, unmatched: 0, source: 'arena-api-metadata' };
+  if (resp.ok) {
+    try { data = await resp.json(); } catch {}
   }
 
-  const data = await resp.json();
+  // Fallback: HF dataset mirror
+  if (!data) {
+    const respHf = await fetchWithTimeout(
+      'https://huggingface.co/datasets/lmarena-ai/arena-human-preference-100k/resolve/main/leaderboard.json',
+      { headers: { 'User-Agent': USER_AGENT } }
+    );
+    if (respHf.ok) {
+      try { data = await respHf.json(); } catch {}
+    }
+  }
+
+  if (!data) {
+    console.log('[BENCHMARK] Arena: all endpoints failed, skipping');
+    return { matched: 0, unmatched: 0, source: 'arena-unavailable' };
+  }
+
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 }); // 7 days
   return await processArenaData(env, data, slugMap);
 }
@@ -155,11 +258,12 @@ async function processArenaData(env, data, slugMap) {
     if (!model) continue;
 
     await env.DB.prepare(`
-      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url)
-      VALUES (?, 'Chatbot Arena ELO', 'nuance', ?, 2000, 'https://lmarena.ai')
+      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url, source_trust)
+      VALUES (?, 'Chatbot Arena ELO', 'nuance', ?, 2000, 'https://lmarena.ai', ?)
       ON CONFLICT(model_id, benchmark_name) DO UPDATE SET
-        score = excluded.score, measured_at = datetime('now')
-    `).bind(model.id, elo).run();
+        score = excluded.score, source_url = excluded.source_url,
+        source_trust = excluded.source_trust, measured_at = datetime('now')
+    `).bind(model.id, elo, TRUST.GOLD).run();
     matched++;
   }
 
@@ -218,11 +322,12 @@ async function processLiveBenchData(env, data, slugMap) {
     if (!model) continue;
 
     await env.DB.prepare(`
-      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url)
-      VALUES (?, 'LiveCodeBench', 'coding', ?, 100, 'https://livebench.ai')
+      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url, source_trust)
+      VALUES (?, 'LiveCodeBench', 'coding', ?, 100, 'https://livebench.ai', ?)
       ON CONFLICT(model_id, benchmark_name) DO UPDATE SET
-        score = excluded.score, measured_at = datetime('now')
-    `).bind(model.id, score).run();
+        score = excluded.score, source_url = excluded.source_url,
+        source_trust = excluded.source_trust, measured_at = datetime('now')
+    `).bind(model.id, score, TRUST.SILVER).run();
     matched++;
   }
 
@@ -242,7 +347,7 @@ async function scrapeSWEBench(env, slugMap) {
   const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) {
     console.log('[BENCHMARK] SWE-bench: using cached data');
-    return await processGenericBenchmark(env, cached, slugMap, 'SWE-bench Verified', 'coding', 100, 'https://www.swebench.com');
+    return await processGenericBenchmark(env, cached, slugMap, 'SWE-bench Verified', 'coding', 100, 'https://www.swebench.com', TRUST.SILVER);
   }
 
   // SWE-bench leaderboard data on GitHub
@@ -268,7 +373,7 @@ async function scrapeSWEBench(env, slugMap) {
 
   const data = await resp.json();
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-  return await processGenericBenchmark(env, data, slugMap, 'SWE-bench Verified', 'coding', 100, 'https://www.swebench.com');
+  return await processGenericBenchmark(env, data, slugMap, 'SWE-bench Verified', 'coding', 100, 'https://www.swebench.com', TRUST.SILVER);
 }
 
 /**
@@ -280,7 +385,7 @@ async function scrapeGPQA(env, slugMap) {
   const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) {
     console.log('[BENCHMARK] GPQA: using cached data');
-    return await processGenericBenchmark(env, cached, slugMap, 'GPQA Diamond', 'reasoning', 100, 'https://arxiv.org/abs/2311.12022');
+    return await processGenericBenchmark(env, cached, slugMap, 'GPQA Diamond', 'reasoning', 100, 'https://arxiv.org/abs/2311.12022', TRUST.SILVER);
   }
 
   // Try PapersWithCode API for GPQA Diamond leaderboard
@@ -296,7 +401,7 @@ async function scrapeGPQA(env, slugMap) {
 
   const data = await resp.json();
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-  return await processGenericBenchmark(env, data, slugMap, 'GPQA Diamond', 'reasoning', 100, 'https://arxiv.org/abs/2311.12022');
+  return await processGenericBenchmark(env, data, slugMap, 'GPQA Diamond', 'reasoning', 100, 'https://arxiv.org/abs/2311.12022', TRUST.SILVER);
 }
 
 /**
@@ -308,7 +413,7 @@ async function scrapeTAUBench(env, slugMap) {
   const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) {
     console.log('[BENCHMARK] TAU-bench: using cached data');
-    return await processGenericBenchmark(env, cached, slugMap, 'TAU-bench Retail', 'agent', 100, 'https://github.com/sierra-research/tau-bench');
+    return await processGenericBenchmark(env, cached, slugMap, 'TAU-bench Retail', 'agent', 100, 'https://github.com/sierra-research/tau-bench', TRUST.SILVER);
   }
 
   const resp = await fetchWithTimeout(
@@ -323,14 +428,14 @@ async function scrapeTAUBench(env, slugMap) {
 
   const data = await resp.json();
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-  return await processGenericBenchmark(env, data, slugMap, 'TAU-bench Retail', 'agent', 100, 'https://github.com/sierra-research/tau-bench');
+  return await processGenericBenchmark(env, data, slugMap, 'TAU-bench Retail', 'agent', 100, 'https://github.com/sierra-research/tau-bench', TRUST.SILVER);
 }
 
 /**
  * Generic benchmark processor — handles varied JSON formats from leaderboards.
  * Tries multiple common field names for model name and score.
  */
-async function processGenericBenchmark(env, data, slugMap, benchmarkName, category, maxScore, sourceUrl) {
+async function processGenericBenchmark(env, data, slugMap, benchmarkName, category, maxScore, sourceUrl, sourceTrust = TRUST.UNVERIFIED) {
   let matched = 0;
   const unmatched = [];
 
@@ -361,11 +466,12 @@ async function processGenericBenchmark(env, data, slugMap, benchmarkName, catego
     if (!model) continue;
 
     await env.DB.prepare(`
-      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO benchmarks (model_id, benchmark_name, category, score, max_score, source_url, source_trust)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(model_id, benchmark_name) DO UPDATE SET
-        score = excluded.score, measured_at = datetime('now')
-    `).bind(model.id, benchmarkName, category, normalizedScore, maxScore, sourceUrl).run();
+        score = excluded.score, source_url = excluded.source_url,
+        source_trust = excluded.source_trust, measured_at = datetime('now')
+    `).bind(model.id, benchmarkName, category, normalizedScore, maxScore, sourceUrl, sourceTrust).run();
     matched++;
   }
 
@@ -406,7 +512,7 @@ async function scrapeHLE(env, slugMap) {
   const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) {
     console.log('[BENCHMARK] HLE: using cached data');
-    return await processGenericBenchmark(env, cached, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai');
+    return await processGenericBenchmark(env, cached, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai', TRUST.SILVER);
   }
 
   // Try the HLE leaderboard data from Hugging Face
@@ -427,12 +533,12 @@ async function scrapeHLE(env, slugMap) {
     }
     const data = await resp2.json();
     await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-    return await processGenericBenchmark(env, data, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai');
+    return await processGenericBenchmark(env, data, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai', TRUST.SILVER);
   }
 
   const data = await resp.json();
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-  return await processGenericBenchmark(env, data, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai');
+  return await processGenericBenchmark(env, data, slugMap, "Humanity's Last Exam", 'reasoning', 100, 'https://lastexam.ai', TRUST.SILVER);
 }
 
 /**
@@ -444,7 +550,7 @@ async function scrapeMMLU(env, slugMap) {
   const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) {
     console.log('[BENCHMARK] MMLU: using cached data');
-    return await processGenericBenchmark(env, cached, slugMap, 'MMLU', 'knowledge', 100, 'https://paperswithcode.com/sota/multi-task-language-understanding-on-mmlu');
+    return await processGenericBenchmark(env, cached, slugMap, 'MMLU', 'knowledge', 100, 'https://paperswithcode.com/sota/multi-task-language-understanding-on-mmlu', TRUST.SILVER);
   }
 
   const resp = await fetchWithTimeout(
@@ -459,7 +565,7 @@ async function scrapeMMLU(env, slugMap) {
 
   const data = await resp.json();
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-  return await processGenericBenchmark(env, data, slugMap, 'MMLU', 'knowledge', 100, 'https://paperswithcode.com/sota/multi-task-language-understanding-on-mmlu');
+  return await processGenericBenchmark(env, data, slugMap, 'MMLU', 'knowledge', 100, 'https://paperswithcode.com/sota/multi-task-language-understanding-on-mmlu', TRUST.SILVER);
 }
 
 /**
@@ -471,7 +577,7 @@ async function scrapeHumanEval(env, slugMap) {
   const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) {
     console.log('[BENCHMARK] HumanEval: using cached data');
-    return await processGenericBenchmark(env, cached, slugMap, 'HumanEval+', 'coding', 100, 'https://evalplus.github.io/leaderboard.html');
+    return await processGenericBenchmark(env, cached, slugMap, 'HumanEval+', 'coding', 100, 'https://evalplus.github.io/leaderboard.html', TRUST.SILVER);
   }
 
   const resp = await fetchWithTimeout(
@@ -486,7 +592,7 @@ async function scrapeHumanEval(env, slugMap) {
 
   const data = await resp.json();
   await env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: 604800 });
-  return await processGenericBenchmark(env, data, slugMap, 'HumanEval+', 'coding', 100, 'https://evalplus.github.io/leaderboard.html');
+  return await processGenericBenchmark(env, data, slugMap, 'HumanEval+', 'coding', 100, 'https://evalplus.github.io/leaderboard.html', TRUST.SILVER);
 }
 
 // fetchWithTimeout imported from ../utils/fetch.js

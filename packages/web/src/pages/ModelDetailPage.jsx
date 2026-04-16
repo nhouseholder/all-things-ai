@@ -276,18 +276,43 @@ export default function ModelDetailPage() {
                         <th className="text-left px-3 py-2 text-gray-400 font-medium">Category</th>
                         <th className="text-right px-3 py-2 text-gray-400 font-medium">Score</th>
                         <th className="text-right px-3 py-2 text-gray-400 font-medium">Max</th>
+                        <th className="text-left px-3 py-2 text-gray-400 font-medium">Source</th>
                         <th className="px-3 py-2 w-24"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
                       {benchmarks.map((b, i) => {
                         const pct = b.max_score ? (b.score / b.max_score) * 100 : b.score;
+                        const trust = b.source_trust || 'unverified';
+                        const trustStyles = {
+                          gold:       'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
+                          silver:     'bg-slate-400/15 text-slate-200 border-slate-400/30',
+                          bronze:     'bg-amber-700/20 text-amber-300 border-amber-700/40',
+                          unverified: 'bg-gray-700/40 text-gray-400 border-gray-700',
+                        }[trust];
+                        let host = null;
+                        if (b.source_url) {
+                          try { host = new URL(b.source_url).host.replace(/^www\./, ''); } catch {}
+                        }
                         return (
                           <tr key={i} className="hover:bg-gray-800/30">
                             <td className="px-3 py-2 text-white font-medium">{b.benchmark_name}</td>
                             <td className="px-3 py-2 text-gray-400 capitalize">{b.category}</td>
                             <td className="px-3 py-2 text-right text-white tabular-nums">{Number(b.score).toFixed(1)}</td>
                             <td className="px-3 py-2 text-right text-gray-500 tabular-nums">{b.max_score || '—'}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border capitalize ${trustStyles}`} title={`Trust tier: ${trust}`}>
+                                  {trust}
+                                </span>
+                                {host && (
+                                  <a href={b.source_url} target="_blank" rel="noreferrer noopener"
+                                     className="text-[10px] text-gray-500 hover:text-blue-400 underline">
+                                    {host}
+                                  </a>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-3 py-2">
                               <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
                                 <div className={`h-full rounded-full ${scoreBarBg(pct)}`} style={{ width: `${Math.min(100, pct)}%` }} />
