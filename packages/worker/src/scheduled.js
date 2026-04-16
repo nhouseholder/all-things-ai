@@ -17,6 +17,7 @@ import { monitorAIIndustry } from './pipelines/industry-monitor.js';
 import { scrapeToolReviews } from './pipelines/tool-review-scraper.js';
 import { syncOpenRouterStats } from './pipelines/openrouter-sync.js';
 import { syncModelAliases } from './services/community-review-targets.js';
+import { processEnrichmentQueue } from './services/model-enrichment.js';
 
 async function checkModelStaleness(env) {
   const { results: staleModels } = await env.DB.prepare(`
@@ -122,6 +123,7 @@ export async function handleScheduled(event, env) {
       await runSafe('monitorAIIndustry', () => monitorAIIndustry(env));
       await runSafe('syncOpenRouterStats', () => syncOpenRouterStats(env));
       await runSafe('discoverNewModels', () => discoverNewModels(env));
+      await runSafe('processEnrichmentQueue', () => processEnrichmentQueue(env));
       break;
     default:
       console.log(`[CRON] Unknown schedule: ${cron}`);

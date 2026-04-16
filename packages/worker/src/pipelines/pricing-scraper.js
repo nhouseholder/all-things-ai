@@ -43,7 +43,7 @@ function extractPrices(html) {
  * Scrape pricing pages for configured AI tools and detect price changes.
  * This is inherently fragile — each target is wrapped in try/catch.
  */
-export async function scrapePricing(env) {
+export async function scrapePricing(env, options = {}) {
   const now = new Date().toISOString();
   let targetsChecked = 0;
   let priceChanges = 0;

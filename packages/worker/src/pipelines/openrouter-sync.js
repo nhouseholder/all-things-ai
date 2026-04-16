@@ -45,7 +45,7 @@ async function mapWithActivity(matches) {
   return enriched;
 }
 
-export async function syncOpenRouterStats(env) {
+export async function syncOpenRouterStats(env, options = {}) {
   const localModels = await loadLocalModels(env);
   const { openrouterModels, matches } = await mapModelsToOpenRouter(localModels);
 

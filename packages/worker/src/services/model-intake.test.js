@@ -56,21 +56,33 @@ test('normalizeCandidateSignal prefixes bare variants with the resolved family',
 });
 
 test('summarizeCandidateSignals only auto-publishes trusted corroboration pairs', () => {
-  assert.equal(shouldAutoPublishSignals([{ signal_type: 'official' }]), false);
-  assert.equal(shouldAutoPublishSignals([{ signal_type: 'catalog' }]), false);
   assert.equal(
-    shouldAutoPublishSignals([{ signal_type: 'official' }, { signal_type: 'catalog' }]),
+    shouldAutoPublishSignals([{ signal_type: 'official', source_key: 'anthropic-blog' }]),
+    false
+  );
+  assert.equal(
+    shouldAutoPublishSignals([{ signal_type: 'catalog', source_key: 'openrouter' }]),
+    false
+  );
+  assert.equal(
+    shouldAutoPublishSignals([
+      { signal_type: 'official', source_key: 'anthropic-blog' },
+      { signal_type: 'catalog', source_key: 'openrouter' },
+    ]),
     true
   );
   assert.equal(
-    shouldAutoPublishSignals([{ signal_type: 'official' }, { signal_type: 'official' }]),
+    shouldAutoPublishSignals([
+      { signal_type: 'official', source_key: 'anthropic-blog' },
+      { signal_type: 'official', source_key: 'claude-code' },
+    ]),
     true
   );
 
   const summary = summarizeCandidateSignals([
-    { signal_type: 'official' },
-    { signal_type: 'catalog' },
-    { signal_type: 'news' },
+    { signal_type: 'official', source_key: 'anthropic-blog' },
+    { signal_type: 'catalog', source_key: 'openrouter' },
+    { signal_type: 'news', source_key: 'rss:techcrunch-ai' },
   ]);
 
   assert.deepEqual(summary.counts, {
@@ -80,4 +92,54 @@ test('summarizeCandidateSignals only auto-publishes trusted corroboration pairs'
     community: 0,
   });
   assert.equal(summary.autoPublish, true);
+});
+
+test('summarizeCandidateSignals does not auto-publish when two signals share a source_key', () => {
+  const summary = summarizeCandidateSignals([
+    { signal_type: 'official', source_key: 'anthropic-blog' },
+    { signal_type: 'official', source_key: 'anthropic-blog' },
+  ]);
+  assert.equal(summary.autoPublish, false);
+  assert.equal(summary.distinctOfficial, 1);
+});
+
+test('normalizeCandidateSignal canonicalizes bare Claude variants with family prefix', () => {
+  const normalized = normalizeCandidateSignal({
+    name: 'Opus 4.7',
+    sourceKey: 'anthropic-blog',
+    signalType: 'official',
+    vendorHints: ['Anthropic'],
+  });
+
+  assert.equal(normalized.vendor, 'Anthropic');
+  assert.equal(normalized.family, 'Claude');
+  assert.equal(normalized.name, 'Claude Opus 4.7');
+  assert.ok(normalized.slug.startsWith('claude-opus-4'), `unexpected slug: ${normalized.slug}`);
+});
+
+test('normalizeCandidateSignal canonicalizes bare Sonnet variant', () => {
+  const normalized = normalizeCandidateSignal({
+    name: 'Sonnet 4.6',
+    sourceKey: 'claude-code',
+    signalType: 'official',
+    vendorHints: ['Anthropic'],
+  });
+
+  assert.equal(normalized.name, 'Claude Sonnet 4.6');
+  assert.ok(normalized.slug.startsWith('claude-sonnet-4'), `unexpected slug: ${normalized.slug}`);
+});
+
+test('normalizeCandidateSignal recognizes Meta Muse family prefix', () => {
+  const normalized = normalizeCandidateSignal({
+    name: 'Muse Spark',
+    sourceKey: 'meta-ai-blog',
+    signalType: 'official',
+    vendorHints: ['Meta'],
+  });
+
+  assert.equal(normalized.vendor, 'Meta');
+  assert.ok(
+    normalized.slug.includes('muse') || normalized.slug.includes('spark'),
+    `expected muse/spark in slug: ${normalized.slug}`
+  );
 });

@@ -40,6 +40,41 @@ const MODEL_SUFFIX_TOKENS = new Set([
   'xhigh',
 ]);
 
+function normalizeSlugForMatch(slug) {
+  return String(slug || '')
+    .toLowerCase()
+    .replace(/[_.]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function generateSlugVariants(slug, vendor) {
+  const variants = new Set();
+  const base = normalizeSlugForMatch(slug);
+  if (!base) return [];
+  variants.add(base);
+  variants.add(base.replace(/-(\d)/g, '.$1'));
+  variants.add(base.replace(/\./g, '-'));
+
+  const vendorConfig = vendor ? KNOWN_VENDORS[vendor] : null;
+  if (vendorConfig) {
+    const family = String(vendorConfig.family || '').toLowerCase();
+    for (const prefix of vendorConfig.prefixes || []) {
+      const prefixSlug = prefix.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '');
+      if (!prefixSlug) continue;
+      if (base.startsWith(`${prefixSlug}-`)) continue;
+      variants.add(`${prefixSlug}-${base}`);
+      if (family && family !== prefixSlug) {
+        variants.add(`${family}-${prefixSlug}-${base}`);
+      }
+    }
+    if (family && !base.startsWith(`${family}-`)) {
+      variants.add(`${family}-${base}`);
+    }
+  }
+  return [...variants].filter(Boolean);
+}
+
 const VERSION_SUFFIX_TOKENS = new Set([
   'air',
   'alpha',
@@ -263,15 +298,16 @@ function shouldPrefixFamily(candidateName, resolvedVendor) {
   const config = KNOWN_VENDORS[resolvedVendor.vendor];
   if (!config) return false;
 
-  const markers = [config.family, ...config.prefixes]
-    .map((value) => slugifyModelName(value))
-    .filter(Boolean);
+  const familySlug = slugifyModelName(config.family);
+  if (!familySlug) return false;
 
-  if (markers.some((marker) => normalized.includes(marker))) {
+  if (normalized === familySlug) return false;
+  if (normalized.startsWith(`${familySlug}-`)) return false;
+  if (normalized.startsWith(familySlug) && /^[a-z]+\d/.test(normalized)) {
     return false;
   }
 
-  return /^[a-z]?\d/.test(normalized) || /^[a-z]+-\d/.test(normalized);
+  return true;
 }
 
 export function slugifyModelName(value) {
@@ -374,22 +410,25 @@ export function extractModelCandidatesFromText(text, options = {}) {
 }
 
 export function summarizeCandidateSignals(signals = []) {
-  const counts = {
-    official: 0,
-    catalog: 0,
-    news: 0,
-    community: 0,
-  };
+  const counts = { official: 0, catalog: 0, news: 0, community: 0 };
+  const officialSources = new Set();
+  const catalogSources = new Set();
 
   for (const signal of signals) {
     const signalType = normalizeSignalType(signal.signal_type || signal.signalType || signal.type);
     counts[signalType] += 1;
+    const sourceKey = signal.source_key || signal.sourceKey || '';
+    if (signalType === 'official' && sourceKey) officialSources.add(sourceKey);
+    if (signalType === 'catalog' && sourceKey) catalogSources.add(sourceKey);
   }
 
-  return {
-    counts,
-    autoPublish: counts.official >= 2 || (counts.official >= 1 && counts.catalog >= 1),
-  };
+  const distinctOfficial = officialSources.size;
+  const distinctCatalog = catalogSources.size;
+  const autoPublish =
+    (distinctOfficial >= 1 && distinctCatalog >= 1) ||
+    distinctOfficial >= 2;
+
+  return { counts, distinctOfficial, distinctCatalog, autoPublish };
 }
 
 export function shouldAutoPublishSignals(signals = []) {
@@ -475,13 +514,32 @@ async function insertAliases(env, slug, aliases) {
 }
 
 async function findExistingModel(env, candidate) {
+  const slugVariants = generateSlugVariants(candidate.slug, candidate.vendor);
+  if (slugVariants.length === 0 && !candidate.openrouterId) return null;
+
   if (candidate.openrouterId) {
-    return env.DB.prepare(
-      'SELECT id, slug FROM models WHERE slug = ? OR openrouter_id = ? LIMIT 1'
-    ).bind(candidate.slug, candidate.openrouterId).first();
+    const byOpenRouter = await env.DB.prepare(
+      'SELECT id, slug FROM models WHERE openrouter_id = ? LIMIT 1'
+    ).bind(candidate.openrouterId).first();
+    if (byOpenRouter) return byOpenRouter;
   }
 
-  return env.DB.prepare('SELECT id, slug FROM models WHERE slug = ? LIMIT 1').bind(candidate.slug).first();
+  if (slugVariants.length > 0) {
+    const placeholders = slugVariants.map(() => '?').join(',');
+    const bySlug = await env.DB.prepare(
+      `SELECT id, slug FROM models WHERE slug IN (${placeholders}) LIMIT 1`
+    ).bind(...slugVariants).first();
+    if (bySlug) return bySlug;
+
+    const byAlias = await env.DB.prepare(
+      `SELECT m.id, m.slug FROM models m
+       JOIN model_aliases a ON a.model_slug = m.slug
+       WHERE a.alias IN (${placeholders}) LIMIT 1`
+    ).bind(...slugVariants).first();
+    if (byAlias) return byAlias;
+  }
+
+  return null;
 }
 
 async function hydrateExistingModel(env, modelId, candidate) {
@@ -619,11 +677,23 @@ async function insertPublishedModel(env, candidate) {
   const aliases = generateModelAliases(candidate.name, candidate.slug, candidate.vendor, candidate.family);
   await insertAliases(env, candidate.slug, aliases);
   await invalidateModelCaches(env);
+  await enqueueEnrichment(env, modelId, candidate.slug);
 
   return {
     modelId,
     aliasesCreated: aliases.length,
   };
+}
+
+async function enqueueEnrichment(env, modelId, slug) {
+  try {
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO model_enrichment_queue (model_id, slug, reason, queued_at)
+      VALUES (?, ?, 'auto-published', datetime('now'))
+    `).bind(modelId, slug).run();
+  } catch (err) {
+    console.warn(`[INTAKE] enrichment queue skipped for ${slug}: ${err.message}`);
+  }
 }
 
 export async function publishPendingModel(env, pendingModel, options = {}) {

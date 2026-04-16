@@ -2,7 +2,8 @@ import { MONITOR_SOURCES } from '../config/sources.js';
 import { extractModelCandidatesFromText, ingestModelCandidate } from '../services/model-intake.js';
 import { fetchWithTimeout } from '../utils/fetch.js';
 
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+const ACCEPT_LANG = 'en-US,en;q=0.9';
 
 /**
  * AI Industry Monitor — daily pipeline that checks official AI vendor blogs,
@@ -31,6 +32,12 @@ export async function monitorAIIndustry(env, options = {}) {
     } catch (err) {
       console.error(`[MONITOR] ${source.key}: error:`, err.message);
       errored++;
+      try {
+        await env.DB.prepare(`
+          INSERT INTO monitor_fetch_failures (source_key, error_message, failed_at)
+          VALUES (?, ?, datetime('now'))
+        `).bind(source.key, String(err.message).slice(0, 500)).run();
+      } catch { /* table may not exist yet */ }
     }
   }
 
@@ -194,7 +201,12 @@ async function checkSource(source, env) {
   } else {
     // HTML pages — fetch and extract text content
     const resp = await fetchWithTimeout(source.url, {
-      headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': ACCEPT_LANG,
+        'Cache-Control': 'no-cache',
+      },
       redirect: 'follow',
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

@@ -37,7 +37,7 @@ adminRoutes.post('/models', async (c) => {
   ).run();
 
   // Auto-generate basic aliases
-  const aliases = generateAliases(name, slug, vendor, family);
+  const aliases = generateModelAliases(name, slug, vendor, family);
   if (aliases.length > 0) {
     const stmt = c.env.DB.prepare('INSERT OR IGNORE INTO model_aliases (model_slug, alias) VALUES (?, ?)');
     await c.env.DB.batch(aliases.map(a => stmt.bind(slug, a)));

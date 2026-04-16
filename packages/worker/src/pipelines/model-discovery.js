@@ -5,19 +5,30 @@ import { extractModelCandidatesFromText, ingestModelCandidate } from '../service
  * discoveries into the shared intake pipeline.
  */
 export async function discoverNewModels(env) {
-  // 1. Fetch recent news items tagged as model releases (last 48h)
+  // 1. Fetch recent news items tagged as model releases (last 7 days)
   const { results: newsItems } = await env.DB.prepare(`
     SELECT id, title, summary, source, content_url, published_at
     FROM news_items
-    WHERE published_at > datetime('now', '-48 hours')
+    WHERE published_at > datetime('now', '-7 days')
       AND (relevance_tags LIKE '%model-release%'
         OR relevance_tags LIKE '%new-model%'
+        OR relevance_tags LIKE '%coding-model%'
+        OR relevance_tags LIKE '%tool-update%'
+        OR title LIKE '%launch%'
         OR title LIKE '%launches%'
+        OR title LIKE '%announce%'
         OR title LIKE '%announces%'
+        OR title LIKE '%release%'
         OR title LIKE '%releases%'
-        OR title LIKE '%introduces%')
+        OR title LIKE '%introduce%'
+        OR title LIKE '%introduces%'
+        OR title LIKE '%unveils%'
+        OR title LIKE '%debuts%'
+        OR title LIKE '%ships%'
+        OR title LIKE '%drops%'
+        OR title LIKE '%available%')
     ORDER BY published_at DESC
-    LIMIT 50
+    LIMIT 100
   `).all();
 
   if (newsItems.length === 0) {
