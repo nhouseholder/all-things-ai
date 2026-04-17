@@ -19,6 +19,9 @@ const AdvisorChatPage = lazy(() => import('./pages/AdvisorChatPage.jsx'));
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const PlansPage = lazy(() => import('./pages/PlansPage.jsx'));
 const ModelDetailPage = lazy(() => import('./pages/ModelDetailPage.jsx'));
+const VendorsPage = lazy(() => import('./pages/VendorsPage.jsx'));
+const VendorDetailPage = lazy(() => import('./pages/VendorDetailPage.jsx'));
+const CompareVendorsPage = lazy(() => import('./pages/CompareVendorsPage.jsx'));
 
 function PageLoader() {
   return (
@@ -50,6 +53,9 @@ export default function App() {
           <Route path="plan-burn" element={<Navigate to="/plans?tab=burn" replace />} />
           <Route path="plan-compare" element={<Navigate to="/plans?tab=compare" replace />} />
           <Route path="models/:slug" element={<ModelDetailPage />} />
+          <Route path="vendors" element={<VendorsPage />} />
+          <Route path="vendors/:slug" element={<VendorDetailPage />} />
+          <Route path="compare/vendors" element={<CompareVendorsPage />} />
           <Route path="alerts" element={<Navigate to="/news" replace />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />

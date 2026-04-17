@@ -118,6 +118,14 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
+  // Vendors
+  getVendors: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/vendors${qs ? '?' + qs : ''}`);
+  },
+  getVendor: (slug) => request(`/api/vendors/${slug}`),
+  compareVendors: (slugs) => request(`/api/vendors/compare?slugs=${slugs.join(',')}`),
+
   // Industry Alerts
   getAlerts: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

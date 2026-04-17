@@ -12,6 +12,9 @@ const QUICK_REPLIES = [
   'I need help debugging complex codebases',
   'I want the cheapest model that still works well',
   'I do a mix of coding, writing, and analysis',
+  'Which AI company has the most funding?',
+  'Compare Moonshot vs MiniMax vs Zhipu',
+  'Who are the biggest investors in Chinese AI?',
 ];
 
 // Contextual follow-up suggestions based on conversation stage

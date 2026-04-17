@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Newspaper, CreditCard } from 'lucide-react';
+import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Newspaper, CreditCard, Building2 } from 'lucide-react';
 import { useUnreadAlertCount } from '../../lib/hooks.js';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/advisor', icon: Brain, label: 'Models' },
+  { to: '/vendors', icon: Building2, label: 'Vendors' },
   { to: '/advisor/chat', icon: Bot, label: 'AI Advisor' },
   { to: '/compare', icon: Scale, label: 'Compare' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
@@ -55,7 +56,7 @@ export default function Sidebar() {
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-1">Your AI Intelligence Hub</p>
-  <p className="text-[10px] text-gray-500 mt-0.5">v0.15.0 &middot; Apr 16, 2026</p>
+  <p className="text-[10px] text-gray-500 mt-0.5">v0.16.0 &middot; Apr 16, 2026</p>
       </div>
       <nav className="flex-1 p-3 space-y-1" aria-label="Main navigation">
         {links.map(({ to, icon: Icon, label, hasBadge }) => (

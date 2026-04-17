@@ -702,6 +702,16 @@ advisorRoutes.post('/chat', async (c) => {
     LIMIT 80
   `).all();
 
+  const { results: vendors } = await c.env.DB.prepare(`
+    SELECT slug, name, hq_country, status, parent_company,
+           employee_count, ai_headcount,
+           total_funding_usd, latest_valuation_usd, rnd_commitment_usd,
+           investors_json, description, source_trust
+    FROM vendors
+    ORDER BY COALESCE(total_funding_usd, 0) DESC, COALESCE(rnd_commitment_usd, 0) DESC
+    LIMIT 30
+  `).all().catch(() => ({ results: [] }));
+
   const taskList = tasks.map(t => `- ${t.name} (${t.slug}): ${t.description || ''} [complexity: ${t.complexity}/5]`).join('\n');
   const modelList = topModels.map(m =>
     `- ${m.name} (${m.vendor}): score=${m.composite_score?.toFixed(1) || '?'}, $${m.input_price_per_mtok || '?'}/$${m.output_price_per_mtok || '?'} per MTok`
@@ -721,6 +731,29 @@ advisorRoutes.post('/chat', async (c) => {
   const availList = Object.entries(availMap).map(([slug, tools]) =>
     `- ${slug}: ${tools.slice(0, 3).join(', ')}`
   ).join('\n');
+
+  const fmtUsd = (n) => {
+    if (n == null) return '?';
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+    return `$${n}`;
+  };
+  const vendorList = (vendors || []).map((v) => {
+    let inv = [];
+    try { inv = v.investors_json ? JSON.parse(v.investors_json) : []; } catch {}
+    const parts = [
+      `- ${v.name} (${v.slug}) HQ:${v.hq_country || '?'}`,
+      v.status ? `status=${v.status}${v.parent_company ? ` of ${v.parent_company}` : ''}` : null,
+      v.employee_count ? `employees=${v.employee_count}` : null,
+      v.ai_headcount ? `ai_headcount=${v.ai_headcount}` : null,
+      v.total_funding_usd ? `funding=${fmtUsd(v.total_funding_usd)}` : null,
+      v.latest_valuation_usd ? `valuation=${fmtUsd(v.latest_valuation_usd)}` : null,
+      v.rnd_commitment_usd ? `rnd_capex=${fmtUsd(v.rnd_commitment_usd)}` : null,
+      inv.length ? `investors=[${inv.slice(0, 4).join(', ')}]` : null,
+      `trust=${v.source_trust}`,
+    ].filter(Boolean);
+    return parts.join(', ');
+  }).join('\n');
 
   // 2. Build system prompt
   const systemPrompt = `You are the AllThingsAI Model Advisor — a friendly, knowledgeable AI that helps users find the perfect AI model for their needs at the best price.
@@ -759,9 +792,13 @@ ${modelList}
 WHERE TO USE THEM (cheapest options):
 ${availList}
 
+COMPANIES / VENDORS (facts with trust tier):
+${vendorList || '(none loaded)'}
+
 RULES:
-- Never make up scores, prices, or availability — use ONLY the data above
-- If asked about a model not in the list, say you don't have data for it yet
+- Never make up scores, prices, availability, OR company facts (size, funding, valuation, headcount, investors) — use ONLY the data above
+- If asked about a model or vendor not in the lists, say you don't have data for it yet
+- When answering company questions (biggest AI dept / most funding / fastest growth), cite the specific number from the Companies section and note the trust tier if it's not gold
 - Keep responses under 150 words unless giving final recommendations
 - Be enthusiastic but honest about trade-offs
 - Always mention the cheapest way to access a recommended model`;
