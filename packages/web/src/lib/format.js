@@ -96,6 +96,27 @@ export function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
+// ── Vendor display ────────────────────────────────────────────────────
+
+// Canonicalize `models.vendor` strings for display. The DB mixes slugs
+// (alibaba-qwen, moonshot-ai, …) and display names (Mistral, Mistral AI,
+// Alibaba / Qwen, …) — normalize to one label per vendor.
+const VENDOR_DISPLAY = {
+  'alibaba-qwen': 'Alibaba / Qwen',
+  'alibaba / qwen': 'Alibaba / Qwen',
+  'moonshot-ai': 'Moonshot AI',
+  'zhipu-ai': 'Zhipu AI',
+  'minimax': 'MiniMax',
+  'mistral': 'Mistral AI',
+  'mistral ai': 'Mistral AI',
+};
+
+export function vendorDisplay(vendor) {
+  if (!vendor) return 'Other';
+  const key = String(vendor).trim().toLowerCase();
+  return VENDOR_DISPLAY[key] || vendor;
+}
+
 // ── Page title ────────────────────────────────────────────────────────
 
 const BASE_TITLE = 'All Things AI';

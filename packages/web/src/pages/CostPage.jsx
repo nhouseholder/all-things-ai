@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { setPageTitle } from '../lib/format.js';
+import { setPageTitle, vendorDisplay } from '../lib/format.js';
 import {
   Loader2, Search, Check, X, ArrowRight, TrendingDown,
   Zap, DollarSign, Cpu, ChevronDown, ChevronUp, Sparkles,
@@ -11,7 +11,7 @@ import { api } from '../lib/api.js';
 function groupByVendor(models) {
   const groups = {};
   for (const m of models) {
-    const v = m.vendor || 'Other';
+    const v = vendorDisplay(m.vendor);
     if (!groups[v]) groups[v] = [];
     groups[v].push(m);
   }

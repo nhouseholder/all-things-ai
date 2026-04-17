@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, LayoutDashboard, Wrench, DollarSign, Settings, Zap, Brain, Scale, Menu, X, Puzzle, Bot, Newspaper, CreditCard, Building2 } from 'lucide-react';
-import { useUnreadAlertCount } from '../../lib/hooks.js';
+import { useUnreadAlertCount, useDashboardSummary } from '../../lib/hooks.js';
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
@@ -23,6 +23,8 @@ export default function Sidebar() {
   const location = useLocation();
   const { data: alertData } = useUnreadAlertCount();
   const unreadCount = alertData?.count || 0;
+  const { data: summary } = useDashboardSummary();
+  const stats = summary?.stats;
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -84,8 +86,20 @@ export default function Sidebar() {
       </nav>
       <div className="p-4 border-t border-gray-800">
         <div className="text-xs text-gray-400">
-          <p>Monthly spend: <span className="text-green-400 font-medium">$125</span></p>
-          <p className="mt-1">Tracking 10 tools, 38+ models</p>
+          {stats ? (
+            <>
+              <p>
+                Tracking{' '}
+                <span className="text-gray-200 font-medium">{stats.model_count}</span> models,{' '}
+                <span className="text-gray-200 font-medium">{stats.tool_count}</span> tools
+              </p>
+              <p className="mt-1">
+                <span className="text-gray-200 font-medium">{stats.coding_tool_count}</span> coding plugins
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-500">Loading catalog…</p>
+          )}
         </div>
       </div>
     </>
